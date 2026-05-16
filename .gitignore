@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# xCRG local smoke-test/debug artifacts
+smoke_debug/
+cached_debug/
+*_response.json
+*_validator_stderr.log
+*.sqlite
+*.sqlite3
+*.db

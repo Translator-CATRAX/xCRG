@@ -1,0 +1,1 @@
+"""Bundled xCRG resource files."""
