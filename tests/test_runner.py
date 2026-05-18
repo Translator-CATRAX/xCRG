@@ -192,8 +192,15 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
         for attr in edge.get("attributes", [])
         if attr.get("attribute_type_id") == "biolink:creation_date"
     ]
+    auxiliary_graphs = response["message"].get("auxiliary_graphs") or {}
+    auxiliary_graphs_without_attributes = [
+        aux_id
+        for aux_id, aux_graph in auxiliary_graphs.items()
+        if aux_graph.get("attributes") != []
+    ]
 
     assert missing_node_attrs == []
     assert missing_edge_attrs == []
     assert datetime_attrs == []
     assert creation_attrs
+    assert auxiliary_graphs_without_attributes == []

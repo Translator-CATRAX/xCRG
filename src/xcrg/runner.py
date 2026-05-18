@@ -1231,6 +1231,7 @@ def add_ngd_analysis_support_graph(
     )
     auxiliary_graphs[support_graph_id] = {
         "edges": [ngd_edge_id],
+        "attributes": [],
     }
     support_graphs = analysis.setdefault("support_graphs", [])
     if support_graph_id not in support_graphs:
@@ -1316,6 +1317,7 @@ def finalize_clean_result_analyses(
         )
         auxiliary_graphs[support_graph_id] = {
             "edges": support_edges,
+            "attributes": [],
         }
         inferred_edge_id, inferred_edge = make_xcrg_inferred_edge(
             source_id,
