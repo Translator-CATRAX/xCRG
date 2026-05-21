@@ -13,6 +13,7 @@ class XCRGConfig:
 
     retriever_url: str
     ngd_db_path: str | Path | None = None
+    curie_to_pmids_db_path: str | Path | None = None
     tf_path: str | Path | None = None
     timeout: int = 210
     tiers: Sequence[int] = field(default_factory=lambda: [0])
@@ -31,6 +32,10 @@ class XCRGConfig:
     def normalized_ngd_db_path(self) -> Path | None:
         """Return the configured NGD DB path, if provided."""
         return Path(self.ngd_db_path) if self.ngd_db_path else None
+
+    def normalized_curie_to_pmids_db_path(self) -> Path | None:
+        """Return the configured CURIE-to-PMID DB path, if provided."""
+        return Path(self.curie_to_pmids_db_path) if self.curie_to_pmids_db_path else None
 
     def normalized_tf_path(self) -> Path | None:
         """Return the configured TF file path, if provided."""

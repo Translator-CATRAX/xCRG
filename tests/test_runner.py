@@ -1,5 +1,8 @@
 """Smoke tests for the reusable xCRG package."""
 
+import json
+import sqlite3
+
 from xcrg import XCRGConfig, is_xcrg_mvp2_query
 from xcrg.runner import (
     build_trapi_clean_response,
@@ -13,6 +16,19 @@ def make_config() -> XCRGConfig:
         retriever_url="https://example.org/query",
         ngd_db_path=None,
     )
+
+
+def make_curie_to_pmids_db(tmp_path, rows: dict[str, list[int]]) -> str:
+    db_path = tmp_path / "curie_to_pmids.sqlite"
+    connection = sqlite3.connect(db_path)
+    connection.execute("CREATE TABLE curie_to_pmids (curie TEXT PRIMARY KEY, pmids TEXT)")
+    connection.executemany(
+        "INSERT INTO curie_to_pmids VALUES (?, ?)",
+        [(curie, json.dumps(pmids)) for curie, pmids in rows.items()],
+    )
+    connection.commit()
+    connection.close()
+    return str(db_path)
 
 
 def make_inferred_query() -> dict:
@@ -286,6 +302,82 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
     assert datetime_attrs == []
     assert creation_attrs
     assert auxiliary_graphs_without_attributes == []
+
+
+def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
+    config = XCRGConfig(
+        retriever_url="https://example.org/query",
+        ngd_db_path=None,
+        curie_to_pmids_db_path=make_curie_to_pmids_db(
+            tmp_path,
+            {
+                "CHEBI:1": [1001, 1002, 1003],
+                "NCBIGene:1": [1002, 1003, 1004],
+            },
+        ),
+    )
+    original_message = make_inferred_query()
+    combined_message = {
+        "message": {
+            "knowledge_graph": {
+                "nodes": {
+                    "CHEBI:1": {"categories": ["biolink:ChemicalEntity"]},
+                    "NCBIGene:1": {"categories": ["biolink:Gene"]},
+                },
+                "edges": {
+                    "direct1": {
+                        "subject": "CHEBI:1",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:1",
+                        "attributes": [],
+                        "sources": primary_source(),
+                    },
+                },
+            },
+            "results": [
+                {
+                    "node_bindings": {
+                        "chem": [{"id": "CHEBI:1"}],
+                        "gene": [{"id": "NCBIGene:1"}],
+                    },
+                    "analyses": [
+                        {"edge_bindings": {"direct": [{"id": "direct1"}]}}
+                    ],
+                },
+            ],
+        }
+    }
+
+    response = build_trapi_clean_response(
+        original_message,
+        combined_message,
+        "chem",
+        "gene",
+        config,
+    )
+
+    ngd_edges = [
+        edge
+        for edge_id, edge in response["message"]["knowledge_graph"]["edges"].items()
+        if edge_id.startswith("xcrg_ngd_edge_")
+    ]
+    publication_attrs = [
+        attr
+        for edge in ngd_edges
+        for attr in edge.get("attributes", [])
+        if attr.get("attribute_type_id") == "biolink:publications"
+    ]
+
+    assert len(ngd_edges) == 1
+    assert publication_attrs == [
+        {
+            "attribute_source": "infores:arax",
+            "attribute_type_id": "biolink:publications",
+            "original_attribute_name": "publications",
+            "value_type_id": "EDAM-DATA:1187",
+            "value": ["PMID:1002", "PMID:1003"],
+        }
+    ]
 
 
 def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():

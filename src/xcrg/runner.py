@@ -23,6 +23,8 @@ TP53_CURIE = "NCBIGene:7157"
 DIRECT_QEDGE_ID = "direct"
 MISSING_SORT_VALUE = float("inf")
 NGD_CACHE_MAX_ROWS = 256
+PMID_CACHE_MAX_ROWS = 512
+MAX_NGD_PUBLICATIONS = 30
 NGD_VALUE_URL = "https://arax.ncats.io/api/rtx/v1/ui/#/PubmedMeshNgd"
 NGD_DESCRIPTION = (
     "Normalized google distance is a metric based on edge subject/object node "
@@ -43,6 +45,9 @@ _BMT_WARNING_EMITTED = False
 _NGD_CONNECTIONS = {}
 _NGD_WARNING_EMITTED = False
 _NGD_NEIGHBOR_CACHE = OrderedDict()
+_PMID_CONNECTIONS = {}
+_PMID_WARNING_EMITTED = False
+_PMID_CACHE = OrderedDict()
 FALLBACK_CATEGORY_DEPTH = {
     "biolink:ChemicalEntity": 1,
     "biolink:ChemicalMixture": 2,
@@ -479,6 +484,136 @@ def get_ngd_score(
         if score is not None:
             return score
     return None
+
+
+def get_pmid_connection(
+    config: XCRGConfig,
+    logger: logging.Logger,
+) -> sqlite3.Connection | None:
+    """Return a cached read-only CURIE-to-PMID SQLite connection."""
+    global _PMID_WARNING_EMITTED
+
+    db_path = config.normalized_curie_to_pmids_db_path()
+    if db_path is None:
+        if not _PMID_WARNING_EMITTED:
+            logger.warning(
+                "xCRG curie_to_pmids DB path is not configured; NGD PMID support is disabled."
+            )
+            _PMID_WARNING_EMITTED = True
+        return None
+
+    cache_key = db_path.as_posix()
+    if cache_key in _PMID_CONNECTIONS:
+        return _PMID_CONNECTIONS[cache_key]
+
+    if not db_path.exists():
+        if not _PMID_WARNING_EMITTED:
+            logger.warning(
+                "xCRG curie_to_pmids DB not found at %s; NGD PMID support is disabled.",
+                db_path,
+            )
+            _PMID_WARNING_EMITTED = True
+        return None
+
+    try:
+        connection = sqlite3.connect(
+            f"file:{db_path.as_posix()}?mode=ro",
+            uri=True,
+            check_same_thread=False,
+        )
+        _PMID_CONNECTIONS[cache_key] = connection
+        return connection
+    except sqlite3.Error as exc:
+        if not _PMID_WARNING_EMITTED:
+            logger.warning(
+                "Failed to open xCRG curie_to_pmids DB at %s; NGD PMID support is disabled: %s",
+                db_path,
+                exc,
+            )
+            _PMID_WARNING_EMITTED = True
+        return None
+
+
+def get_curie_pmids(
+    curie: str | None,
+    config: XCRGConfig,
+    logger: logging.Logger,
+) -> set[str] | None:
+    """Return normalized PMID identifiers for one CURIE from curie_to_pmids."""
+    if not curie:
+        return None
+
+    cache_key = (config.curie_to_pmids_db_path, curie)
+    if cache_key in _PMID_CACHE:
+        _PMID_CACHE.move_to_end(cache_key)
+        return _PMID_CACHE[cache_key]
+
+    connection = get_pmid_connection(config, logger)
+    if connection is None:
+        return None
+
+    try:
+        row = connection.execute(
+            "SELECT pmids FROM curie_to_pmids WHERE curie = ?",
+            (curie,),
+        ).fetchone()
+    except sqlite3.Error:
+        pmids = set()
+    else:
+        if row is None:
+            pmids = set()
+        else:
+            try:
+                pmids = set()
+                for pmid in json.loads(row[0]):
+                    normalized_pmid = normalize_pmid(pmid)
+                    if normalized_pmid:
+                        pmids.add(normalized_pmid)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pmids = set()
+
+    _PMID_CACHE[cache_key] = pmids
+    _PMID_CACHE.move_to_end(cache_key)
+    while len(_PMID_CACHE) > PMID_CACHE_MAX_ROWS:
+        _PMID_CACHE.popitem(last=False)
+    return pmids
+
+
+def normalize_pmid(pmid: object) -> str | None:
+    """Normalize DB PMID values to the numeric string used for intersections."""
+    if pmid is None:
+        return None
+    value = str(pmid).strip()
+    if not value:
+        return None
+    if value.upper().startswith("PMID:"):
+        value = value.split(":", 1)[1]
+    return value
+
+
+def get_ngd_publications(
+    curie_a: str | None,
+    curie_b: str | None,
+    config: XCRGConfig,
+    logger: logging.Logger,
+) -> list[str] | None:
+    """Return PMID intersection from the same CURIE-to-PMID source as NGD."""
+    pmids_a = get_curie_pmids(curie_a, config, logger)
+    pmids_b = get_curie_pmids(curie_b, config, logger)
+    if pmids_a is None or pmids_b is None:
+        return None
+
+    shared_pmids = pmids_a.intersection(pmids_b)
+    ordered_pmids = sorted(shared_pmids, key=pmid_sort_key)
+    return [f"PMID:{pmid}" for pmid in ordered_pmids[:MAX_NGD_PUBLICATIONS]]
+
+
+def pmid_sort_key(pmid: str) -> tuple[int, str]:
+    """Sort numeric PMID strings deterministically while tolerating odd values."""
+    try:
+        return (0, f"{int(pmid):020d}")
+    except (TypeError, ValueError):
+        return (1, str(pmid))
 
 
 def get_sign_templates(final_direction: str) -> list[tuple[str, str]]:
@@ -1170,6 +1305,7 @@ def make_xcrg_ngd_edge(
     source_id: str,
     target_id: str,
     ngd_score: float | str,
+    publications: list[str] | None,
     config: XCRGConfig,
 ) -> tuple[str, dict]:
     """Create an ARAX-style virtual NGD edge for analysis support graphs."""
@@ -1231,6 +1367,16 @@ def make_xcrg_ngd_edge(
             }
         ],
     }
+    if publications is not None:
+        edge["attributes"].append(
+            {
+                "attribute_source": config.resource_id,
+                "attribute_type_id": "biolink:publications",
+                "original_attribute_name": "publications",
+                "value_type_id": "EDAM-DATA:1187",
+                "value": publications,
+            }
+        )
     return edge_id, edge
 
 
@@ -1325,11 +1471,13 @@ def add_ngd_analysis_support_graph(
     """
     ngd_score = get_ngd_score(source_id, target_id, config, logger)
     ngd_value: float | str = ngd_score if ngd_score is not None else "inf"
+    publications = get_ngd_publications(source_id, target_id, config, logger)
 
     ngd_edge_id, ngd_edge = make_xcrg_ngd_edge(
         source_id,
         target_id,
         ngd_value,
+        publications,
         config,
     )
     copy_retriever_node(source_id, retriever_nodes, kg_nodes)
