@@ -358,6 +358,89 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
     assert "direct1" in final_edges
 
 
+def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
+    config = make_config()
+    original_message = make_inferred_query()
+    empty_tf_node = {
+        "name": None,
+        "categories": [],
+        "attributes": [],
+    }
+    combined_message = {
+        "message": {
+            "knowledge_graph": {
+                "nodes": {
+                    "CHEBI:1": {
+                        "name": "Chem One",
+                        "categories": ["biolink:SmallMolecule"],
+                        "attributes": [],
+                    },
+                    "NCBIGene:tf": empty_tf_node,
+                    "NCBIGene:1": {
+                        "name": "Gene One",
+                        "categories": ["biolink:Gene"],
+                        "attributes": [],
+                    },
+                },
+                "edges": {
+                    "path0": {
+                        "subject": "CHEBI:1",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:tf",
+                        "attributes": [],
+                        "sources": primary_source(),
+                    },
+                    "path1": {
+                        "subject": "NCBIGene:tf",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:1",
+                        "attributes": [],
+                        "sources": primary_source(),
+                    },
+                },
+            },
+            "results": [
+                {
+                    "node_bindings": {
+                        "chem": [{"id": "CHEBI:1"}],
+                        "tf": [{"id": "NCBIGene:tf"}],
+                        "gene": [{"id": "NCBIGene:1"}],
+                    },
+                    "analyses": [
+                        {
+                            "edge_bindings": {
+                                "e0": [{"id": "path0"}],
+                                "e1": [{"id": "path1"}],
+                            }
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+    response = build_trapi_clean_response(
+        original_message,
+        combined_message,
+        "chem",
+        "gene",
+        config,
+    )
+
+    final_nodes = response["message"]["knowledge_graph"]["nodes"]
+    inferred_bindings = [
+        binding
+        for result in response["message"]["results"]
+        for analysis in result["analyses"]
+        for bindings in analysis["edge_bindings"].values()
+        for binding in bindings
+        if binding["id"].startswith("xcrg_inferred_edge_")
+    ]
+
+    assert final_nodes["NCBIGene:tf"] == empty_tf_node
+    assert inferred_bindings
+
+
 def test_clean_response_limits_to_configured_top_result_count():
     config = XCRGConfig(
         retriever_url="https://example.org/query",

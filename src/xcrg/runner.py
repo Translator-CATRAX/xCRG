@@ -1239,15 +1239,15 @@ def copy_retriever_edge_and_nodes(
     final_edges: dict,
     final_nodes: dict,
 ) -> bool:
-    """Copy a Retriever KG edge only when its endpoints have KG nodes."""
+    """Copy a Retriever KG edge and endpoint nodes verbatim when present."""
     if not edge_id or edge_id not in retriever_edges:
         return False
     edge = deepcopy(retriever_edges[edge_id])
     subject = edge.get("subject")
     object_id = edge.get("object")
-    if not node_is_available_for_evidence(subject, retriever_nodes, final_nodes):
+    if not node_is_present_for_evidence(subject, retriever_nodes, final_nodes):
         return False
-    if not node_is_available_for_evidence(object_id, retriever_nodes, final_nodes):
+    if not node_is_present_for_evidence(object_id, retriever_nodes, final_nodes):
         return False
     final_edges[edge_id] = edge
     copy_retriever_node(subject, retriever_nodes, final_nodes)
@@ -1255,18 +1255,17 @@ def copy_retriever_edge_and_nodes(
     return True
 
 
-def node_is_available_for_evidence(
+def node_is_present_for_evidence(
     node_id: str | None,
     retriever_nodes: dict,
     final_nodes: dict,
 ) -> bool:
-    """Return True when an evidence edge can safely reference this node."""
+    """Return True when an evidence edge has an endpoint node to reference."""
     if not node_id:
         return False
     if node_id in final_nodes:
-        return bool(final_nodes[node_id].get("categories"))
-    retriever_node = retriever_nodes.get(node_id)
-    return bool(retriever_node and retriever_node.get("categories"))
+        return True
+    return node_id in retriever_nodes
 
 
 def add_ngd_analysis_support_graph(
