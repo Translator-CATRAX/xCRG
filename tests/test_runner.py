@@ -303,6 +303,61 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
     assert "NCBIGene:unused" not in final_nodes
 
 
+def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
+    config = make_config()
+    original_message = make_inferred_query()
+    original_message["message"]["query_graph"]["nodes"]["gene"]["ids"] = ["NCBIGene:1"]
+    combined_message = {
+        "message": {
+            "knowledge_graph": {
+                "nodes": {
+                    "CHEBI:1": {
+                        "name": "Chem One",
+                        "categories": ["biolink:SmallMolecule"],
+                        "attributes": [],
+                    }
+                },
+                "edges": {
+                    "direct1": {
+                        "subject": "CHEBI:1",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:1",
+                        "attributes": [],
+                        "sources": primary_source(),
+                    }
+                },
+            },
+            "results": [
+                {
+                    "node_bindings": {
+                        "chem": [{"id": "CHEBI:1"}],
+                        "gene": [{"id": "NCBIGene:1"}],
+                    },
+                    "analyses": [
+                        {"edge_bindings": {"direct": [{"id": "direct1"}]}}
+                    ],
+                }
+            ],
+        }
+    }
+
+    response = build_trapi_clean_response(
+        original_message,
+        combined_message,
+        "chem",
+        "gene",
+        config,
+    )
+
+    final_nodes = response["message"]["knowledge_graph"]["nodes"]
+    final_edges = response["message"]["knowledge_graph"]["edges"]
+    assert final_nodes["NCBIGene:1"] == {
+        "categories": ["biolink:Gene"],
+        "attributes": [],
+    }
+    assert "direct1" in final_edges
+
+
 def test_clean_response_limits_to_configured_top_result_count():
     config = XCRGConfig(
         retriever_url="https://example.org/query",

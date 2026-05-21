@@ -1202,8 +1202,34 @@ def copy_retriever_node(
     final_nodes: dict,
 ) -> None:
     """Copy a Retriever-provided KG node verbatim into the final KG."""
-    if node_id and node_id in retriever_nodes:
+    if node_id and node_id in retriever_nodes and node_id not in final_nodes:
         final_nodes[node_id] = deepcopy(retriever_nodes[node_id])
+
+
+def copy_query_bound_node(
+    qnode_id: str,
+    node_id: str | None,
+    original_qgraph: dict,
+    retriever_nodes: dict,
+    final_nodes: dict,
+) -> None:
+    """Copy explicit query-node metadata for a pinned answer endpoint."""
+    if not node_id or node_id in final_nodes:
+        return
+    retriever_node = retriever_nodes.get(node_id)
+    if retriever_node and retriever_node.get("categories"):
+        return
+    qnode = (original_qgraph.get("nodes") or {}).get(qnode_id) or {}
+    qnode_ids = qnode.get("ids") or []
+    if node_id not in qnode_ids:
+        return
+    categories = qnode.get("categories") or []
+    if not categories:
+        return
+    final_nodes[node_id] = {
+        "categories": deepcopy(categories),
+        "attributes": [],
+    }
 
 
 def copy_retriever_edge_and_nodes(
@@ -1213,14 +1239,34 @@ def copy_retriever_edge_and_nodes(
     final_edges: dict,
     final_nodes: dict,
 ) -> bool:
-    """Copy a Retriever KG edge and its available endpoint nodes verbatim."""
+    """Copy a Retriever KG edge only when its endpoints have KG nodes."""
     if not edge_id or edge_id not in retriever_edges:
         return False
     edge = deepcopy(retriever_edges[edge_id])
+    subject = edge.get("subject")
+    object_id = edge.get("object")
+    if not node_is_available_for_evidence(subject, retriever_nodes, final_nodes):
+        return False
+    if not node_is_available_for_evidence(object_id, retriever_nodes, final_nodes):
+        return False
     final_edges[edge_id] = edge
-    copy_retriever_node(edge.get("subject"), retriever_nodes, final_nodes)
-    copy_retriever_node(edge.get("object"), retriever_nodes, final_nodes)
+    copy_retriever_node(subject, retriever_nodes, final_nodes)
+    copy_retriever_node(object_id, retriever_nodes, final_nodes)
     return True
+
+
+def node_is_available_for_evidence(
+    node_id: str | None,
+    retriever_nodes: dict,
+    final_nodes: dict,
+) -> bool:
+    """Return True when an evidence edge can safely reference this node."""
+    if not node_id:
+        return False
+    if node_id in final_nodes:
+        return bool(final_nodes[node_id].get("categories"))
+    retriever_node = retriever_nodes.get(node_id)
+    return bool(retriever_node and retriever_node.get("categories"))
 
 
 def add_ngd_analysis_support_graph(
@@ -1321,6 +1367,7 @@ def add_support_path_edges(
 
 def finalize_clean_result_analyses(
     final_result: dict,
+    original_qgraph: dict,
     retriever_nodes: dict,
     retriever_edges: dict,
     kg_nodes: dict,
@@ -1336,8 +1383,24 @@ def finalize_clean_result_analyses(
     final_result.pop("_xcrg_direct_binding_ids")
     support_edges = final_result.pop("_xcrg_support_edges")
     final_result.pop("_xcrg_support_edge_ids")
-    source_id = final_result["node_bindings"][original_query_edge["subject"]][0]["id"]
-    target_id = final_result["node_bindings"][original_query_edge["object"]][0]["id"]
+    source_qnode = original_query_edge["subject"]
+    target_qnode = original_query_edge["object"]
+    source_id = final_result["node_bindings"][source_qnode][0]["id"]
+    target_id = final_result["node_bindings"][target_qnode][0]["id"]
+    copy_query_bound_node(
+        source_qnode,
+        source_id,
+        original_qgraph,
+        retriever_nodes,
+        kg_nodes,
+    )
+    copy_query_bound_node(
+        target_qnode,
+        target_id,
+        original_qgraph,
+        retriever_nodes,
+        kg_nodes,
+    )
 
     xcrg_bindings = []
     for binding in direct_bindings:
@@ -1486,6 +1549,7 @@ def build_trapi_clean_response(
     for final_result in final_results:
         finalize_clean_result_analyses(
             final_result,
+            final_message["message"]["query_graph"],
             combined_nodes,
             combined_edges,
             final_message["message"]["knowledge_graph"]["nodes"],
@@ -1497,6 +1561,11 @@ def build_trapi_clean_response(
             logger,
         )
 
+    final_results[:] = [
+        final_result
+        for final_result in final_results
+        if final_result.get("analyses")
+    ]
     final_results.sort(
         key=lambda result: (
             descending_optional(result.get("_xcrg_first_score")),

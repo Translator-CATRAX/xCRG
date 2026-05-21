@@ -54,3 +54,6 @@ PYTHONPATH=src python -m pytest tests
   not require republishing the package.
 - xCRG does not infer or repair Retriever node categories/names; Retriever node
   objects used as evidence are passed through as returned.
+- If a user-pinned query endpoint is referenced by evidence but Retriever omits
+  its KG node, xCRG uses only the explicit category metadata supplied in the
+  query graph for that endpoint.
