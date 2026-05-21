@@ -11,6 +11,39 @@ def make_config() -> XCRGConfig:
     )
 
 
+def make_inferred_query() -> dict:
+    return {
+        "message": {
+            "query_graph": {
+                "nodes": {
+                    "chem": {
+                        "ids": ["CHEBI:1"],
+                        "categories": ["biolink:ChemicalEntity"],
+                    },
+                    "gene": {"categories": ["biolink:Gene"]},
+                },
+                "edges": {
+                    "e0": {
+                        "subject": "chem",
+                        "object": "gene",
+                        "predicates": ["biolink:affects"],
+                        "knowledge_type": "inferred",
+                    }
+                },
+            }
+        }
+    }
+
+
+def primary_source() -> list[dict]:
+    return [
+        {
+            "resource_id": "infores:test",
+            "resource_role": "primary_knowledge_source",
+        }
+    ]
+
+
 def test_is_xcrg_mvp2_query_detects_supported_shape():
     query = {
         "message": {
@@ -60,27 +93,7 @@ def test_load_tf_list_uses_bundled_default_resource():
 
 def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
     config = make_config()
-    original_message = {
-        "message": {
-            "query_graph": {
-                "nodes": {
-                    "chem": {
-                        "ids": ["CHEBI:1"],
-                        "categories": ["biolink:ChemicalEntity"],
-                    },
-                    "gene": {"categories": ["biolink:Gene"]},
-                },
-                "edges": {
-                    "e0": {
-                        "subject": "chem",
-                        "object": "gene",
-                        "predicates": ["biolink:affects"],
-                        "knowledge_type": "inferred",
-                    }
-                },
-            }
-        }
-    }
+    original_message = make_inferred_query()
     combined_message = {
         "message": {
             "knowledge_graph": {
@@ -95,36 +108,21 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
                         "predicate": "biolink:affects",
                         "object": "NCBIGene:1",
                         "attributes": [],
-                        "sources": [
-                            {
-                                "resource_id": "infores:test",
-                                "resource_role": "primary_knowledge_source",
-                            }
-                        ],
+                        "sources": primary_source(),
                     },
                     "path0": {
                         "subject": "CHEBI:1",
                         "predicate": "biolink:affects",
                         "object": "NCBIGene:tf",
                         "attributes": [],
-                        "sources": [
-                            {
-                                "resource_id": "infores:test",
-                                "resource_role": "primary_knowledge_source",
-                            }
-                        ],
+                        "sources": primary_source(),
                     },
                     "path1": {
                         "subject": "NCBIGene:tf",
                         "predicate": "biolink:affects",
                         "object": "NCBIGene:1",
                         "attributes": [],
-                        "sources": [
-                            {
-                                "resource_id": "infores:test",
-                                "resource_role": "primary_knowledge_source",
-                            }
-                        ],
+                        "sources": primary_source(),
                     },
                 },
             },
@@ -204,3 +202,164 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
     assert datetime_attrs == []
     assert creation_attrs
     assert auxiliary_graphs_without_attributes == []
+
+
+def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
+    config = make_config()
+    original_message = make_inferred_query()
+    chem_node = {
+        "name": "Chem One",
+        "categories": ["biolink:SmallMolecule"],
+        "attributes": [
+            {
+                "attribute_type_id": "biolink:information_content",
+                "value": 12.3,
+            }
+        ],
+        "extra_field_from_retriever": {"keep": True},
+    }
+    gene_node = {
+        "name": "Gene One",
+        "categories": ["biolink:Gene"],
+        "attributes": [
+            {
+                "attribute_type_id": "biolink:symbol",
+                "value": "GENE1",
+            }
+        ],
+    }
+    tf_node = {
+        "name": "TF One",
+        "categories": ["biolink:Gene"],
+        "attributes": [
+            {
+                "attribute_type_id": "biolink:symbol",
+                "value": "TF1",
+            }
+        ],
+    }
+    combined_message = {
+        "message": {
+            "knowledge_graph": {
+                "nodes": {
+                    "CHEBI:1": chem_node,
+                    "NCBIGene:1": gene_node,
+                    "NCBIGene:tf": tf_node,
+                    "NCBIGene:unused": {
+                        "name": None,
+                        "categories": [],
+                        "attributes": [],
+                    },
+                },
+                "edges": {
+                    "path0": {
+                        "subject": "CHEBI:1",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:tf",
+                        "attributes": [{"attribute_type_id": "biolink:foo"}],
+                        "sources": primary_source(),
+                    },
+                    "path1": {
+                        "subject": "NCBIGene:tf",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:1",
+                        "attributes": [{"attribute_type_id": "biolink:bar"}],
+                        "sources": primary_source(),
+                    },
+                },
+            },
+            "results": [
+                {
+                    "node_bindings": {
+                        "chem": [{"id": "CHEBI:1"}],
+                        "tf": [{"id": "NCBIGene:tf"}],
+                        "gene": [{"id": "NCBIGene:1"}],
+                    },
+                    "analyses": [
+                        {
+                            "edge_bindings": {
+                                "e0": [{"id": "path0"}],
+                                "e1": [{"id": "path1"}],
+                            }
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+    response = build_trapi_clean_response(
+        original_message,
+        combined_message,
+        "chem",
+        "gene",
+        config,
+    )
+
+    final_nodes = response["message"]["knowledge_graph"]["nodes"]
+    assert final_nodes["CHEBI:1"] == chem_node
+    assert final_nodes["NCBIGene:1"] == gene_node
+    assert final_nodes["NCBIGene:tf"] == tf_node
+    assert "NCBIGene:unused" not in final_nodes
+
+
+def test_clean_response_limits_to_configured_top_result_count():
+    config = XCRGConfig(
+        retriever_url="https://example.org/query",
+        ngd_db_path=None,
+        max_results=2,
+    )
+    original_message = make_inferred_query()
+    nodes = {"CHEBI:1": {"categories": ["biolink:ChemicalEntity"]}}
+    edges = {}
+    results = []
+    for index in range(3):
+        gene_id = f"NCBIGene:{index}"
+        edge_id = f"direct{index}"
+        nodes[gene_id] = {"categories": ["biolink:Gene"]}
+        edges[edge_id] = {
+            "subject": "CHEBI:1",
+            "predicate": "biolink:affects",
+            "object": gene_id,
+            "attributes": [],
+            "sources": primary_source(),
+        }
+        results.append(
+            {
+                "node_bindings": {
+                    "chem": [{"id": "CHEBI:1"}],
+                    "gene": [{"id": gene_id}],
+                },
+                "analyses": [
+                    {
+                        "edge_bindings": {"direct": [{"id": edge_id}]},
+                        "score": 1.0 - (index * 0.1),
+                    }
+                ],
+            }
+        )
+    combined_message = {
+        "message": {
+            "knowledge_graph": {"nodes": nodes, "edges": edges},
+            "results": results,
+        }
+    }
+
+    response = build_trapi_clean_response(
+        original_message,
+        combined_message,
+        "chem",
+        "gene",
+        config,
+    )
+
+    final_results = response["message"]["results"]
+    final_nodes = response["message"]["knowledge_graph"]["nodes"]
+    answer_ids = [
+        result["node_bindings"]["gene"][0]["id"]
+        for result in final_results
+    ]
+
+    assert len(final_results) == 2
+    assert answer_ids == ["NCBIGene:0", "NCBIGene:1"]
+    assert "NCBIGene:2" not in final_nodes

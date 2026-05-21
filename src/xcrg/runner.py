@@ -1196,10 +1196,39 @@ def make_xcrg_ngd_edge(
     return edge_id, edge
 
 
+def copy_retriever_node(
+    node_id: str | None,
+    retriever_nodes: dict,
+    final_nodes: dict,
+) -> None:
+    """Copy a Retriever-provided KG node verbatim into the final KG."""
+    if node_id and node_id in retriever_nodes:
+        final_nodes[node_id] = deepcopy(retriever_nodes[node_id])
+
+
+def copy_retriever_edge_and_nodes(
+    edge_id: str | None,
+    retriever_edges: dict,
+    retriever_nodes: dict,
+    final_edges: dict,
+    final_nodes: dict,
+) -> bool:
+    """Copy a Retriever KG edge and its available endpoint nodes verbatim."""
+    if not edge_id or edge_id not in retriever_edges:
+        return False
+    edge = deepcopy(retriever_edges[edge_id])
+    final_edges[edge_id] = edge
+    copy_retriever_node(edge.get("subject"), retriever_nodes, final_nodes)
+    copy_retriever_node(edge.get("object"), retriever_nodes, final_nodes)
+    return True
+
+
 def add_ngd_analysis_support_graph(
     analysis: dict,
     kg_edges: dict,
+    kg_nodes: dict,
     auxiliary_graphs: dict,
+    retriever_nodes: dict,
     source_id: str,
     target_id: str,
     config: XCRGConfig,
@@ -1220,6 +1249,8 @@ def add_ngd_analysis_support_graph(
         ngd_value,
         config,
     )
+    copy_retriever_node(source_id, retriever_nodes, kg_nodes)
+    copy_retriever_node(target_id, retriever_nodes, kg_nodes)
     kg_edges[ngd_edge_id] = ngd_edge
     support_graph_id = make_stable_id(
         "xcrg_ngd_support",
@@ -1290,6 +1321,9 @@ def add_support_path_edges(
 
 def finalize_clean_result_analyses(
     final_result: dict,
+    retriever_nodes: dict,
+    retriever_edges: dict,
+    kg_nodes: dict,
     kg_edges: dict,
     auxiliary_graphs: dict,
     original_qedge_id: str,
@@ -1305,20 +1339,45 @@ def finalize_clean_result_analyses(
     source_id = final_result["node_bindings"][original_query_edge["subject"]][0]["id"]
     target_id = final_result["node_bindings"][original_query_edge["object"]][0]["id"]
 
-    xcrg_bindings = deepcopy(direct_bindings)
-    if support_edges:
+    xcrg_bindings = []
+    for binding in direct_bindings:
+        copied_binding = deepcopy(binding)
+        edge_id = copied_binding.get("id")
+        if copy_retriever_edge_and_nodes(
+            edge_id,
+            retriever_edges,
+            retriever_nodes,
+            kg_edges,
+            kg_nodes,
+        ):
+            xcrg_bindings.append(copied_binding)
+
+    copied_support_edges = [
+        edge_id
+        for edge_id in support_edges
+        if copy_retriever_edge_and_nodes(
+            edge_id,
+            retriever_edges,
+            retriever_nodes,
+            kg_edges,
+            kg_nodes,
+        )
+    ]
+    if copied_support_edges:
         support_graph_id = make_stable_id(
             "xcrg_support",
             {
                 "source": source_id,
                 "target": target_id,
-                "edges": support_edges,
+                "edges": copied_support_edges,
             },
         )
         auxiliary_graphs[support_graph_id] = {
-            "edges": support_edges,
+            "edges": copied_support_edges,
             "attributes": [],
         }
+        copy_retriever_node(source_id, retriever_nodes, kg_nodes)
+        copy_retriever_node(target_id, retriever_nodes, kg_nodes)
         inferred_edge_id, inferred_edge = make_xcrg_inferred_edge(
             source_id,
             target_id,
@@ -1339,7 +1398,9 @@ def finalize_clean_result_analyses(
         add_ngd_analysis_support_graph(
             analysis,
             kg_edges,
+            kg_nodes,
             auxiliary_graphs,
+            retriever_nodes,
             source_id,
             target_id,
             config,
@@ -1363,13 +1424,15 @@ def build_trapi_clean_response(
     original_qedge_id, original_query_edge = get_single_query_edge(original_message)
     combined = combined_message.get("message") or {}
     combined_kg = combined.get("knowledge_graph") or {}
+    combined_nodes = combined_kg.get("nodes") or {}
+    combined_edges = combined_kg.get("edges") or {}
 
     final_message = {
         "message": {
             "query_graph": deepcopy(original_message["message"]["query_graph"]),
             "knowledge_graph": {
-                "nodes": deepcopy(combined_kg.get("nodes") or {}),
-                "edges": deepcopy(combined_kg.get("edges") or {}),
+                "nodes": {},
+                "edges": {},
             },
             "results": [],
         }
@@ -1384,6 +1447,12 @@ def build_trapi_clean_response(
         if not source_id or not target_id:
             continue
 
+        pair_key = (source_id, target_id)
+        if (
+            pair_key not in final_results_by_pair
+            and len(final_results) >= config.max_results
+        ):
+            continue
         final_result = get_or_create_final_result(
             final_results_by_pair,
             final_results,
@@ -1417,6 +1486,9 @@ def build_trapi_clean_response(
     for final_result in final_results:
         finalize_clean_result_analyses(
             final_result,
+            combined_nodes,
+            combined_edges,
+            final_message["message"]["knowledge_graph"]["nodes"],
             final_message["message"]["knowledge_graph"]["edges"],
             auxiliary_graphs,
             original_qedge_id,

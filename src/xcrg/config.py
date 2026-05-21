@@ -19,6 +19,7 @@ class XCRGConfig:
     tf_batch_size: int = 50
     resource_id: str = "infores:arax"
     scoring_method: str = "xcrg-result-filtering-v2"
+    max_results: int = 500
     trapi_schema_version: str = "1.6.0"
     biolink_version: str = "4.3.2"
     debug_dir: str | Path | None = None
