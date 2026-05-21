@@ -761,11 +761,13 @@ def merge_filtered_responses(
 
     for response in filtered_responses:
         message = response.get("message") or {}
-        merged["message"]["knowledge_graph"]["nodes"].update(
-            (message.get("knowledge_graph") or {}).get("nodes") or {}
+        merge_retriever_nodes(
+            merged["message"]["knowledge_graph"]["nodes"],
+            (message.get("knowledge_graph") or {}).get("nodes") or {},
         )
-        merged["message"]["knowledge_graph"]["edges"].update(
-            (message.get("knowledge_graph") or {}).get("edges") or {}
+        merge_retriever_edges(
+            merged["message"]["knowledge_graph"]["edges"],
+            (message.get("knowledge_graph") or {}).get("edges") or {},
         )
         merged["message"]["auxiliary_graphs"].update(
             (message.get("auxiliary_graphs") or {}) or {}
@@ -784,6 +786,42 @@ def merge_filtered_responses(
                 merged["message"]["results"].append(result)
 
     return merged
+
+
+def merge_retriever_nodes(merged_nodes: dict, incoming_nodes: dict) -> None:
+    """Merge Retriever KG nodes without letting sparse duplicates erase metadata."""
+    for node_id, incoming_node in incoming_nodes.items():
+        existing_node = merged_nodes.get(node_id)
+        if existing_node is None or metadata_weight(incoming_node) > metadata_weight(
+            existing_node
+        ):
+            merged_nodes[node_id] = deepcopy(incoming_node)
+
+
+def merge_retriever_edges(merged_edges: dict, incoming_edges: dict) -> None:
+    """Merge Retriever KG edges without letting sparse duplicates erase metadata."""
+    for edge_id, incoming_edge in incoming_edges.items():
+        existing_edge = merged_edges.get(edge_id)
+        if existing_edge is None or metadata_weight(incoming_edge) > metadata_weight(
+            existing_edge
+        ):
+            merged_edges[edge_id] = deepcopy(incoming_edge)
+
+
+def metadata_weight(entity: dict) -> int:
+    """Approximate how much Retriever-provided metadata an entity carries."""
+    if not isinstance(entity, dict):
+        return 0
+    weight = len(entity)
+    for key in ("attributes", "categories", "sources", "qualifiers"):
+        value = entity.get(key)
+        if isinstance(value, list):
+            weight += len(value)
+        elif value:
+            weight += 1
+    if entity.get("name"):
+        weight += 1
+    return weight
 
 
 def get_answer_qnode_id(

@@ -1,7 +1,11 @@
 """Smoke tests for the reusable xCRG package."""
 
 from xcrg import XCRGConfig, is_xcrg_mvp2_query
-from xcrg.runner import build_trapi_clean_response, load_tf_list
+from xcrg.runner import (
+    build_trapi_clean_response,
+    load_tf_list,
+    merge_filtered_responses,
+)
 
 
 def make_config() -> XCRGConfig:
@@ -89,6 +93,86 @@ def test_load_tf_list_uses_bundled_default_resource():
 
     assert "NCBIGene:7157" in tf_list
     assert len(tf_list) > 100
+
+
+def test_merge_filtered_responses_keeps_rich_retriever_metadata():
+    config = make_config()
+    sparse_response = {
+        "message": {
+            "knowledge_graph": {
+                "nodes": {
+                    "NCBIGene:1991": {
+                        "attributes": [],
+                        "categories": [],
+                    }
+                },
+                "edges": {
+                    "edge1": {
+                        "subject": "CHEBI:17688",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:1991",
+                        "attributes": [],
+                    }
+                },
+            },
+            "results": [],
+        }
+    }
+    rich_response = {
+        "message": {
+            "knowledge_graph": {
+                "nodes": {
+                    "NCBIGene:1991": {
+                        "name": "ELANE",
+                        "attributes": [
+                            {
+                                "attribute_type_id": "biolink:Attribute",
+                                "original_attribute_name": "symbol",
+                                "value": "ELANE",
+                            }
+                        ],
+                        "categories": ["biolink:Gene", "biolink:Protein"],
+                    }
+                },
+                "edges": {
+                    "edge1": {
+                        "subject": "CHEBI:17688",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:1991",
+                        "attributes": [
+                            {
+                                "attribute_type_id": "biolink:knowledge_level",
+                                "value": "knowledge_assertion",
+                            }
+                        ],
+                        "sources": primary_source(),
+                        "qualifiers": [
+                            {
+                                "qualifier_type_id": "biolink:object_direction_qualifier",
+                                "qualifier_value": "increased",
+                            }
+                        ],
+                    }
+                },
+            },
+            "results": [],
+        }
+    }
+
+    merged = merge_filtered_responses(
+        [rich_response, sparse_response],
+        {"nodes": {}, "edges": {}},
+        config,
+    )
+
+    merged_node = merged["message"]["knowledge_graph"]["nodes"]["NCBIGene:1991"]
+    merged_edge = merged["message"]["knowledge_graph"]["edges"]["edge1"]
+    assert merged_node == rich_response["message"]["knowledge_graph"]["nodes"][
+        "NCBIGene:1991"
+    ]
+    assert merged_edge == rich_response["message"]["knowledge_graph"]["edges"][
+        "edge1"
+    ]
 
 
 def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
