@@ -1853,6 +1853,47 @@ def summarize_response_counts(response: dict) -> dict:
     }
 
 
+def format_json_for_log(value: object) -> str:
+    """Return compact JSON for diagnostic logs."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def log_retriever_response(
+    result: dict,
+    http_status_code: int,
+    logger: logging.Logger,
+) -> None:
+    """Emit useful Retriever status/counts without requiring debug files."""
+    counts = summarize_response_counts(result)
+    retriever_status = result.get("status")
+    description = result.get("description")
+    logger.info(
+        "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
+        http_status_code,
+        retriever_status,
+        counts["result_count"],
+        counts["node_count"],
+        counts["edge_count"],
+        description,
+    )
+    if retriever_status and retriever_status != "Complete":
+        logger.warning(
+            "xCRG Retriever returned non-complete status %s: %s",
+            retriever_status,
+            description,
+        )
+    if counts["result_count"] == 0 or retriever_status != "Complete":
+        for entry in (result.get("logs") or [])[:5]:
+            if isinstance(entry, dict):
+                logger.info(
+                    "xCRG Retriever log [%s] %s",
+                    entry.get("level", "INFO"),
+                    entry.get("message"),
+                )
+            else:
+                logger.info("xCRG Retriever log %s", entry)
+
+
 async def run_sync_retriever_lookup(
     message: dict,
     config: XCRGConfig,
@@ -1860,9 +1901,26 @@ async def run_sync_retriever_lookup(
 ) -> dict:
     """Run a sync Retriever lookup and return its TRAPI response."""
     logger.info("Sending xCRG lookup query to %s", config.retriever_url)
+    logger.debug(
+        "xCRG Retriever query graph: %s",
+        format_json_for_log(message.get("message", {}).get("query_graph", {})),
+    )
+    logger.debug(
+        "xCRG Retriever parameters: %s",
+        format_json_for_log(message.get("parameters", {})),
+    )
     async with httpx.AsyncClient(timeout=message["parameters"]["timeout"]) as client:
-        response = await client.post(config.retriever_url, json=message)
-        response.raise_for_status()
+        try:
+            response = await client.post(config.retriever_url, json=message)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "xCRG Retriever HTTP error %s from %s: %s",
+                exc.response.status_code,
+                config.retriever_url,
+                exc.response.text[:2000],
+            )
+            raise
         result = response.json()
 
     if "message" not in result:
@@ -1870,6 +1928,7 @@ async def run_sync_retriever_lookup(
     result["message"].setdefault("knowledge_graph", {"nodes": {}, "edges": {}})
     result["message"].setdefault("results", [])
     result["message"].setdefault("auxiliary_graphs", {})
+    log_retriever_response(result, response.status_code, logger)
     return result
 
 
