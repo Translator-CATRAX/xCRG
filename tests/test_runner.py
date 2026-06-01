@@ -7,6 +7,7 @@ from xcrg import XCRGConfig, is_xcrg_mvp2_query
 from xcrg.runner import (
     build_trapi_clean_response,
     load_tf_list,
+    make_xcrg_ngd_edge,
     merge_filtered_responses,
 )
 
@@ -677,3 +678,97 @@ def test_clean_response_limits_to_configured_top_result_count():
     assert len(final_results) == 2
     assert answer_ids == ["NCBIGene:0", "NCBIGene:1"]
     assert "NCBIGene:2" not in final_nodes
+
+
+def test_clean_response_copies_retriever_edge_auxiliary_graphs():
+    config = make_config()
+    original_message = make_inferred_query()
+    combined_message = {
+        "message": {
+            "knowledge_graph": {
+                "nodes": {
+                    "CHEBI:1": {"categories": ["biolink:ChemicalEntity"]},
+                    "NCBIGene:1": {"categories": ["biolink:Gene"]},
+                    "NCBIGene:support": {"categories": ["biolink:Gene"]},
+                },
+                "edges": {
+                    "direct0": {
+                        "subject": "CHEBI:1",
+                        "predicate": "biolink:affects",
+                        "object": "NCBIGene:1",
+                        "attributes": [
+                            {
+                                "attribute_type_id": "biolink:support_graphs",
+                                "value": ["retriever_support_0"],
+                            }
+                        ],
+                        "sources": primary_source(),
+                    },
+                    "support0": {
+                        "subject": "CHEBI:1",
+                        "predicate": "biolink:related_to",
+                        "object": "NCBIGene:support",
+                        "attributes": [],
+                        "sources": primary_source(),
+                    },
+                },
+            },
+            "auxiliary_graphs": {
+                "retriever_support_0": {
+                    "edges": ["support0"],
+                    "attributes": [],
+                }
+            },
+            "results": [
+                {
+                    "node_bindings": {
+                        "chem": [{"id": "CHEBI:1"}],
+                        "gene": [{"id": "NCBIGene:1"}],
+                    },
+                    "analyses": [
+                        {
+                            "edge_bindings": {"direct": [{"id": "direct0"}]},
+                            "score": 1.0,
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+    response = build_trapi_clean_response(
+        original_message,
+        combined_message,
+        "chem",
+        "gene",
+        config,
+    )
+
+    message = response["message"]
+    final_edges = message["knowledge_graph"]["edges"]
+    final_aux_graphs = message["auxiliary_graphs"]
+
+    assert "retriever_support_0" in final_aux_graphs
+    assert final_aux_graphs["retriever_support_0"]["edges"] == ["support0"]
+    assert "support0" in final_edges
+    assert (
+        final_edges["direct0"]["attributes"][0]["value"]
+        == ["retriever_support_0"]
+    )
+
+
+def test_xcrg_ngd_edge_skips_empty_publications_attribute():
+    _, edge = make_xcrg_ngd_edge(
+        "CHEBI:1",
+        "NCBIGene:1",
+        0.5,
+        [],
+        make_config(),
+    )
+
+    attribute_type_ids = [
+        attribute["attribute_type_id"]
+        for attribute in edge["attributes"]
+    ]
+
+    assert "biolink:publications" not in attribute_type_ids

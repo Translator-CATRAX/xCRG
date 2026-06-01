@@ -1367,7 +1367,7 @@ def make_xcrg_ngd_edge(
             }
         ],
     }
-    if publications is not None:
+    if publications:
         edge["attributes"].append(
             {
                 "attribute_source": config.resource_id,
@@ -1422,6 +1422,9 @@ def copy_retriever_edge_and_nodes(
     retriever_nodes: dict,
     final_edges: dict,
     final_nodes: dict,
+    retriever_auxiliary_graphs: dict | None = None,
+    final_auxiliary_graphs: dict | None = None,
+    copied_auxiliary_graphs: set[str] | None = None,
 ) -> bool:
     """Copy a Retriever KG edge and endpoint nodes verbatim when present."""
     if not edge_id or edge_id not in retriever_edges:
@@ -1436,6 +1439,139 @@ def copy_retriever_edge_and_nodes(
     final_edges[edge_id] = edge
     copy_retriever_node(subject, retriever_nodes, final_nodes)
     copy_retriever_node(object_id, retriever_nodes, final_nodes)
+    copy_retriever_edge_support_graphs(
+        edge,
+        retriever_edges,
+        retriever_nodes,
+        retriever_auxiliary_graphs,
+        final_edges,
+        final_nodes,
+        final_auxiliary_graphs,
+        copied_auxiliary_graphs,
+    )
+    return True
+
+
+def copy_retriever_edge_support_graphs(
+    edge: dict,
+    retriever_edges: dict,
+    retriever_nodes: dict,
+    retriever_auxiliary_graphs: dict,
+    final_edges: dict,
+    final_nodes: dict,
+    final_auxiliary_graphs: dict | None,
+    copied_auxiliary_graphs: set[str] | None,
+) -> None:
+    """Copy Retriever auxiliary graphs referenced by edge support_graphs attrs."""
+    if final_auxiliary_graphs is None:
+        return
+    if not retriever_auxiliary_graphs:
+        remove_edge_support_graph_attrs(edge)
+        return
+    if copied_auxiliary_graphs is None:
+        copied_auxiliary_graphs = set()
+    for support_graph_id in get_edge_support_graph_ids(edge):
+        copy_retriever_auxiliary_graph(
+            support_graph_id,
+            retriever_edges,
+            retriever_nodes,
+            retriever_auxiliary_graphs,
+            final_edges,
+            final_nodes,
+            final_auxiliary_graphs,
+            copied_auxiliary_graphs,
+        )
+    trim_edge_support_graph_attrs(edge, final_auxiliary_graphs)
+
+
+def trim_edge_support_graph_attrs(edge: dict, final_auxiliary_graphs: dict) -> None:
+    """Drop support graph references that are not present in final aux graphs."""
+    trimmed_attributes = []
+    for attribute in edge.get("attributes") or []:
+        if attribute.get("attribute_type_id") != "biolink:support_graphs":
+            trimmed_attributes.append(attribute)
+            continue
+
+        value = attribute.get("value")
+        if isinstance(value, list):
+            copied_values = [
+                support_graph_id
+                for support_graph_id in value
+                if support_graph_id in final_auxiliary_graphs
+            ]
+            if copied_values:
+                copied_attribute = deepcopy(attribute)
+                copied_attribute["value"] = copied_values
+                trimmed_attributes.append(copied_attribute)
+        elif isinstance(value, str) and value in final_auxiliary_graphs:
+            trimmed_attributes.append(attribute)
+
+    edge["attributes"] = trimmed_attributes
+
+
+def remove_edge_support_graph_attrs(edge: dict) -> None:
+    """Remove support_graphs attrs when no Retriever aux graph map is available."""
+    edge["attributes"] = [
+        attribute
+        for attribute in edge.get("attributes") or []
+        if attribute.get("attribute_type_id") != "biolink:support_graphs"
+    ]
+
+
+def get_edge_support_graph_ids(edge: dict) -> list[str]:
+    """Return support graph IDs referenced by a Retriever KG edge."""
+    support_graph_ids = []
+    for attribute in edge.get("attributes") or []:
+        if attribute.get("attribute_type_id") != "biolink:support_graphs":
+            continue
+        value = attribute.get("value")
+        if isinstance(value, list):
+            support_graph_ids.extend(item for item in value if isinstance(item, str))
+        elif isinstance(value, str):
+            support_graph_ids.append(value)
+    return support_graph_ids
+
+
+def copy_retriever_auxiliary_graph(
+    support_graph_id: str,
+    retriever_edges: dict,
+    retriever_nodes: dict,
+    retriever_auxiliary_graphs: dict,
+    final_edges: dict,
+    final_nodes: dict,
+    final_auxiliary_graphs: dict,
+    copied_auxiliary_graphs: set[str],
+) -> bool:
+    """Copy a Retriever auxiliary graph and its referenced KG edges."""
+    if support_graph_id in final_auxiliary_graphs:
+        return True
+    if support_graph_id in copied_auxiliary_graphs:
+        return support_graph_id in final_auxiliary_graphs
+    auxiliary_graph = retriever_auxiliary_graphs.get(support_graph_id)
+    if not auxiliary_graph:
+        return False
+
+    copied_auxiliary_graphs.add(support_graph_id)
+    copied_edges = []
+    for auxiliary_edge_id in auxiliary_graph.get("edges") or []:
+        if auxiliary_edge_id in final_edges or copy_retriever_edge_and_nodes(
+            auxiliary_edge_id,
+            retriever_edges,
+            retriever_nodes,
+            final_edges,
+            final_nodes,
+            retriever_auxiliary_graphs,
+            final_auxiliary_graphs,
+            copied_auxiliary_graphs,
+        ):
+            copied_edges.append(auxiliary_edge_id)
+
+    if not copied_edges:
+        return False
+
+    copied_auxiliary_graph = deepcopy(auxiliary_graph)
+    copied_auxiliary_graph["edges"] = copied_edges
+    final_auxiliary_graphs[support_graph_id] = copied_auxiliary_graph
     return True
 
 
@@ -1555,6 +1691,7 @@ def finalize_clean_result_analyses(
     original_qgraph: dict,
     retriever_nodes: dict,
     retriever_edges: dict,
+    retriever_auxiliary_graphs: dict,
     kg_nodes: dict,
     kg_edges: dict,
     auxiliary_graphs: dict,
@@ -1597,6 +1734,8 @@ def finalize_clean_result_analyses(
             retriever_nodes,
             kg_edges,
             kg_nodes,
+            retriever_auxiliary_graphs,
+            auxiliary_graphs,
         ):
             xcrg_bindings.append(copied_binding)
 
@@ -1609,6 +1748,8 @@ def finalize_clean_result_analyses(
             retriever_nodes,
             kg_edges,
             kg_nodes,
+            retriever_auxiliary_graphs,
+            auxiliary_graphs,
         )
     ]
     if copied_support_edges:
@@ -1674,6 +1815,7 @@ def build_trapi_clean_response(
     combined_kg = combined.get("knowledge_graph") or {}
     combined_nodes = combined_kg.get("nodes") or {}
     combined_edges = combined_kg.get("edges") or {}
+    combined_auxiliary_graphs = combined.get("auxiliary_graphs") or {}
 
     final_message = {
         "message": {
@@ -1737,6 +1879,7 @@ def build_trapi_clean_response(
             final_message["message"]["query_graph"],
             combined_nodes,
             combined_edges,
+            combined_auxiliary_graphs,
             final_message["message"]["knowledge_graph"]["nodes"],
             final_message["message"]["knowledge_graph"]["edges"],
             auxiliary_graphs,
