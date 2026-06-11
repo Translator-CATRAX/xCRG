@@ -48,6 +48,15 @@ _NGD_NEIGHBOR_CACHE = OrderedDict()
 _PMID_CONNECTIONS = {}
 _PMID_WARNING_EMITTED = False
 _PMID_CACHE = OrderedDict()
+_VALID_ASPECT_QUALIFIERS: frozenset | None = None
+_ASPECT_QUALIFIER_WARNING_EMITTED = False
+
+ASPECT_QUALIFIER_ENUM = "GeneOrGeneProductOrChemicalEntityAspectEnum"
+ASPECT_QUALIFIER_ROOT = "activity_or_abundance"
+FALLBACK_VALID_ASPECT_QUALIFIERS = frozenset(
+    {"activity_or_abundance", "abundance", "activity", "expression", "synthesis"}
+)
+
 FALLBACK_CATEGORY_DEPTH = {
     "biolink:ChemicalEntity": 1,
     "biolink:ChemicalMixture": 2,
@@ -224,9 +233,12 @@ def validate_inferred_query(message: dict) -> tuple[str, str, dict]:
         raise ValueError(
             "Phase-one inferred xCRG requires increased/decreased directionality."
         )
-    if aspect != "activity_or_abundance":
+    valid_aspects = get_valid_aspect_qualifiers()
+    if aspect not in valid_aspects:
         raise ValueError(
-            "Phase-one inferred xCRG requires activity_or_abundance qualifiers."
+            f"Phase-one inferred xCRG requires an object_aspect_qualifier that is a "
+            f"descendant of {ASPECT_QUALIFIER_ROOT!r} "
+            f"(e.g. {', '.join(sorted(valid_aspects))}); got {aspect!r}."
         )
 
     return source_qnode, target_qnode, edge
@@ -269,6 +281,36 @@ def get_bmt_toolkit(logger: logging.Logger):
                 _BMT_WARNING_EMITTED = True
             return None
     return _BMT_TOOLKIT
+
+
+def get_valid_aspect_qualifiers() -> frozenset:
+    """Return the set of valid object_aspect_qualifier values for xCRG queries.
+
+    Uses bmt to retrieve all descendants of activity_or_abundance in the
+    GeneOrGeneProductOrChemicalEntityAspectEnum, falling back to a hardcoded
+    set if bmt is unavailable.
+    """
+    global _VALID_ASPECT_QUALIFIERS, _ASPECT_QUALIFIER_WARNING_EMITTED
+    if _VALID_ASPECT_QUALIFIERS is not None:
+        return _VALID_ASPECT_QUALIFIERS
+    _module_logger = logging.getLogger(__name__)
+    if Toolkit is not None:
+        try:
+            toolkit = _BMT_TOOLKIT or Toolkit()
+            descendants = toolkit.get_permissible_value_descendants(
+                ASPECT_QUALIFIER_ROOT, ASPECT_QUALIFIER_ENUM
+            )
+            _VALID_ASPECT_QUALIFIERS = frozenset(descendants)
+            return _VALID_ASPECT_QUALIFIERS
+        except Exception as exc:
+            if not _ASPECT_QUALIFIER_WARNING_EMITTED:
+                _module_logger.warning(
+                    f"Could not load valid aspect qualifiers from bmt; "
+                    f"using fallback set: {exc}"
+                )
+                _ASPECT_QUALIFIER_WARNING_EMITTED = True
+    _VALID_ASPECT_QUALIFIERS = FALLBACK_VALID_ASPECT_QUALIFIERS
+    return _VALID_ASPECT_QUALIFIERS
 
 
 def get_category_specificity(category: str, logger: logging.Logger) -> int:
