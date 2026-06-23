@@ -2052,6 +2052,8 @@ def log_retriever_response(
     counts = summarize_response_counts(result)
     retriever_status = result.get("status")
     description = result.get("description")
+    # Note: This logging message is used to provide progress updates to the RTX front-end.
+    # See Notes section in README.md for more details.
     logger.info(
         "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
         http_status_code,
@@ -2191,6 +2193,8 @@ async def run_inferred_lookup(
     final_direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
     sign_templates = get_sign_templates(final_direction)
     tf_batches = chunk_values(tf_list, config.tf_batch_size)
+    # Note: This logging message is used to provide progress updates to the RTX front-end.
+    # See Notes section in README.md for more details.
     logger.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
         len(tf_list),

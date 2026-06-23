@@ -207,3 +207,9 @@ git diff --check
   not require republishing the package.
 - Keep package code free of ARAX Flask, Shepherd service, or deployment-specific
   imports. Integrations should adapt their service config to `XCRGConfig`.
+- Certain logging messages are documented with comments because they are keyed off
+  to provide progress updates in the RTX front-end. These should be altered very
+  carefully, if at all. In the future, it would be good to restructure how progress
+  is provided to clients with actual structured data.
+  See [RTX Issue #2810](https://github.com/RTXteam/RTX/tree/issue-2810) for
+  additional context.
