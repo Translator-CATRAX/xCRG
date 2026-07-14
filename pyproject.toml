@@ -9,18 +9,18 @@ description = "Reusable xCRG MVP2 TRAPI response generation."
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
-  { name = "Translator CATRAX" }
+    { name = "Translator CATRAX" }
 ]
 dependencies = [
-  "httpx~=0.28",
-  "bmt>=1.4.6"
+    "httpx~=0.28",
+    "bmt>=1.4.6"
 ]
 classifiers = [
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
 ]
 
 [project.urls]
