@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import httpx
 import json
-import logging
 import math
 import sqlite3
 import uuid
@@ -15,7 +14,8 @@ from datetime import datetime, timezone
 from importlib import resources
 
 from .config import XCRGConfig
-from.utilities import require
+from .reporting import XCRGReporter
+from .utilities import require
 
 TF_QNODE_ID = "tf"
 TP53_CURIE = "NCBIGene:7157"
@@ -261,12 +261,12 @@ def load_tf_list(config: XCRGConfig) -> list[str]:
     return tf_list
 
 
-def get_bmt_toolkit(logger: logging.Logger):
+def get_bmt_toolkit(reporter: XCRGReporter):
     """Return a cached Biolink Toolkit instance when the dependency is available."""
     global _BMT_TOOLKIT, _BMT_WARNING_EMITTED
     if Toolkit is None:
         if not _BMT_WARNING_EMITTED:
-            logger.warning("BMT is unavailable; using fallback specificity scores.")
+            reporter.warning("BMT is unavailable; using fallback specificity scores.")
             _BMT_WARNING_EMITTED = True
         return None
     if _BMT_TOOLKIT is None:
@@ -274,7 +274,7 @@ def get_bmt_toolkit(logger: logging.Logger):
             _BMT_TOOLKIT = Toolkit()
         except Exception as exc:
             if not _BMT_WARNING_EMITTED:
-                logger.warning(
+                reporter.warning(
                     f"Failed to initialize BMT; using fallback specificity scores: {exc}"
                 )
                 _BMT_WARNING_EMITTED = True
@@ -292,7 +292,7 @@ def get_valid_aspect_qualifiers() -> frozenset:
     global _VALID_ASPECT_QUALIFIERS, _ASPECT_QUALIFIER_WARNING_EMITTED
     if _VALID_ASPECT_QUALIFIERS is not None:
         return _VALID_ASPECT_QUALIFIERS
-    _module_logger = logging.getLogger(__name__)
+    # TODO: _module_logger = logging.getLogger(__name__)
     if Toolkit is not None:
         try:
             toolkit = _BMT_TOOLKIT or Toolkit()
@@ -301,20 +301,20 @@ def get_valid_aspect_qualifiers() -> frozenset:
             )
             _VALID_ASPECT_QUALIFIERS = frozenset(descendants)
             return _VALID_ASPECT_QUALIFIERS
-        except Exception as exc:
+        except Exception:
             if not _ASPECT_QUALIFIER_WARNING_EMITTED:
-                _module_logger.warning(
-                    f"Could not load valid aspect qualifiers from bmt; "
-                    f"using fallback set: {exc}"
-                )
+                # TODO: _module_logger.warning(
+                # TODO:     f"Could not load valid aspect qualifiers from bmt; "
+                # TODO:     f"using fallback set: {exc}"
+                # TODO: )
                 _ASPECT_QUALIFIER_WARNING_EMITTED = True
     _VALID_ASPECT_QUALIFIERS = FALLBACK_VALID_ASPECT_QUALIFIERS
     return _VALID_ASPECT_QUALIFIERS
 
 
-def get_category_specificity(category: str, logger: logging.Logger) -> int:
+def get_category_specificity(category: str, reporter: XCRGReporter) -> int:
     """Return a Biolink specificity heuristic based on non-mixin ancestor count."""
-    bmt_toolkit = get_bmt_toolkit(logger)
+    bmt_toolkit = get_bmt_toolkit(reporter)
     if bmt_toolkit:
         try:
             if not bmt_toolkit.get_element(category):
@@ -330,17 +330,17 @@ def get_category_specificity(category: str, logger: logging.Logger) -> int:
             )
             return max(len(ancestors), FALLBACK_CATEGORY_DEPTH.get(category, 0))
         except Exception as exc:
-            logger.warning(
+            reporter.warning(
                 f"Could not calculate BMT specificity for {category}: {exc}"
             )
     return FALLBACK_CATEGORY_DEPTH.get(category, 0)
 
 
-def is_chemical_category(category: str, logger: logging.Logger) -> bool:
+def is_chemical_category(category: str, reporter: XCRGReporter) -> bool:
     """Return True when a category is ChemicalEntity or a chemical descendant."""
     if category == "biolink:ChemicalEntity" or category in FALLBACK_CATEGORY_DEPTH:
         return True
-    bmt_toolkit = get_bmt_toolkit(logger)
+    bmt_toolkit = get_bmt_toolkit(reporter)
     if not bmt_toolkit:
         return False
     try:
@@ -355,31 +355,31 @@ def is_chemical_category(category: str, logger: logging.Logger) -> bool:
         )
         return "biolink:ChemicalEntity" in ancestors
     except Exception as exc:
-        logger.warning(f"Could not inspect category ancestry for {category}: {exc}")
+        reporter.warning(f"Could not inspect category ancestry for {category}: {exc}")
         return False
 
 
-def get_node_category_specificity(node: dict, logger: logging.Logger) -> int:
+def get_node_category_specificity(node: dict, reporter: XCRGReporter) -> int:
     """Return the most specific chemical category score attached to a KG node."""
     chemical_categories = [
         category
         for category in (node.get("categories") or [])
-        if is_chemical_category(category, logger)
+        if is_chemical_category(category, reporter)
     ]
     if not chemical_categories:
         return 0
 
-    bmt_toolkit = get_bmt_toolkit(logger)
+    bmt_toolkit = get_bmt_toolkit(reporter)
     if bmt_toolkit and hasattr(bmt_toolkit, "get_most_specific_category"):
         try:
             most_specific = bmt_toolkit.get_most_specific_category(
                 chemical_categories,
                 formatted=True,
             )
-            if is_chemical_category(most_specific, logger):
-                return get_category_specificity(most_specific, logger)
+            if is_chemical_category(most_specific, reporter):
+                return get_category_specificity(most_specific, reporter)
         except Exception as exc:
-            logger.warning(f"Could not select most specific category with BMT: {exc}")
+            reporter.warning(f"Could not select most specific category with BMT: {exc}")
 
     return max(
         FALLBACK_CATEGORY_DEPTH.get(category, 0)
@@ -405,7 +405,7 @@ def get_node_information_content(node: dict) -> float | None:
 
 def get_ngd_connection(
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> sqlite3.Connection | None:
     """Return a cached read-only NGD SQLite connection when the local DB exists."""
     global _NGD_WARNING_EMITTED
@@ -413,7 +413,7 @@ def get_ngd_connection(
     db_path = config.normalized_ngd_db_path()
     if db_path is None:
         if not _NGD_WARNING_EMITTED:
-            logger.warning("xCRG NGD DB path is not configured; NGD tie-breaker is disabled.")
+            reporter.warning("xCRG NGD DB path is not configured; NGD tie-breaker is disabled.")
             _NGD_WARNING_EMITTED = True
         return None
 
@@ -423,7 +423,7 @@ def get_ngd_connection(
 
     if not db_path.exists():
         if not _NGD_WARNING_EMITTED:
-            logger.warning(
+            reporter.warning(
                 "xCRG NGD DB not found at %s; NGD tie-breaker is disabled.",
                 db_path,
             )
@@ -440,7 +440,7 @@ def get_ngd_connection(
         return connection
     except sqlite3.Error as exc:
         if not _NGD_WARNING_EMITTED:
-            logger.warning(
+            reporter.warning(
                 "Failed to open xCRG NGD DB at %s; NGD tie-breaker is disabled: %s",
                 db_path,
                 exc,
@@ -452,7 +452,7 @@ def get_ngd_connection(
 def get_ngd_neighbors(
     curie: str,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> dict[str, float] | None:
     """Return cached NGD neighbors for one CURIE from the adjacency-list DB."""
     if not curie:
@@ -462,7 +462,7 @@ def get_ngd_neighbors(
         _NGD_NEIGHBOR_CACHE.move_to_end(curie)
         return _NGD_NEIGHBOR_CACHE[curie]
 
-    connection = get_ngd_connection(config, logger)
+    connection = get_ngd_connection(config, reporter)
     if connection is None:
         return None
 
@@ -503,7 +503,7 @@ def get_ngd_score(
     curie_a: str | None,
     curie_b: str | None,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> float | None:
     """Return lower-is-better NGD for a CURIE pair, if present in the local DB."""
     if not curie_a or not curie_b:
@@ -511,7 +511,7 @@ def get_ngd_score(
     if curie_a == curie_b:
         return None
 
-    neighbors = get_ngd_neighbors(curie_a, config, logger)
+    neighbors = get_ngd_neighbors(curie_a, config, reporter)
     if neighbors:
         score = neighbors.get(curie_b)
         if score is not None:
@@ -519,7 +519,7 @@ def get_ngd_score(
 
     # The DB is expected to be symmetric, but this fallback is cheap insurance
     # for partial rows or future DB variants.
-    reverse_neighbors = get_ngd_neighbors(curie_b, config, logger)
+    reverse_neighbors = get_ngd_neighbors(curie_b, config, reporter)
     if reverse_neighbors:
         score = reverse_neighbors.get(curie_a)
         if score is not None:
@@ -529,7 +529,7 @@ def get_ngd_score(
 
 def get_pmid_connection(
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> sqlite3.Connection | None:
     """Return a cached read-only CURIE-to-PMID SQLite connection."""
     global _PMID_WARNING_EMITTED
@@ -537,7 +537,7 @@ def get_pmid_connection(
     db_path = config.normalized_curie_to_pmids_db_path()
     if db_path is None:
         if not _PMID_WARNING_EMITTED:
-            logger.warning(
+            reporter.warning(
                 "xCRG curie_to_pmids DB path is not configured; NGD PMID support is disabled."
             )
             _PMID_WARNING_EMITTED = True
@@ -549,7 +549,7 @@ def get_pmid_connection(
 
     if not db_path.exists():
         if not _PMID_WARNING_EMITTED:
-            logger.warning(
+            reporter.warning(
                 "xCRG curie_to_pmids DB not found at %s; NGD PMID support is disabled.",
                 db_path,
             )
@@ -566,7 +566,7 @@ def get_pmid_connection(
         return connection
     except sqlite3.Error as exc:
         if not _PMID_WARNING_EMITTED:
-            logger.warning(
+            reporter.warning(
                 "Failed to open xCRG curie_to_pmids DB at %s; NGD PMID support is disabled: %s",
                 db_path,
                 exc,
@@ -578,7 +578,7 @@ def get_pmid_connection(
 def get_curie_pmids(
     curie: str | None,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> set[str] | None:
     """Return normalized PMID identifiers for one CURIE from curie_to_pmids."""
     if not curie:
@@ -589,7 +589,7 @@ def get_curie_pmids(
         _PMID_CACHE.move_to_end(cache_key)
         return _PMID_CACHE[cache_key]
 
-    connection = get_pmid_connection(config, logger)
+    connection = get_pmid_connection(config, reporter)
     if connection is None:
         return None
 
@@ -636,11 +636,11 @@ def get_ngd_publications(
     curie_a: str | None,
     curie_b: str | None,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> list[str] | None:
     """Return PMID intersection from the same CURIE-to-PMID source as NGD."""
-    pmids_a = get_curie_pmids(curie_a, config, logger)
-    pmids_b = get_curie_pmids(curie_b, config, logger)
+    pmids_a = get_curie_pmids(curie_a, config, reporter)
+    pmids_b = get_curie_pmids(curie_b, config, reporter)
     if pmids_a is None or pmids_b is None:
         return None
 
@@ -1030,12 +1030,12 @@ def is_two_hop_result(result: dict) -> bool:
 def answer_qnode_uses_category_specificity(
     query_graph: dict,
     answer_qnode_id: str,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> bool:
     """Chemical answers use Biolink specificity before information content."""
     qnode = (query_graph.get("nodes") or {}).get(answer_qnode_id) or {}
     categories = qnode.get("categories") or []
-    return any(is_chemical_category(category, logger) for category in categories)
+    return any(is_chemical_category(category, reporter) for category in categories)
 
 
 def get_result_answer_metrics(
@@ -1044,13 +1044,13 @@ def get_result_answer_metrics(
     query_graph: dict,
     answer_qnode_id: str,
     use_category_specificity: bool,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> tuple[int, float | None, str]:
     """Return sort metrics for the answer node bound by a result."""
     answer_id = get_bound_node_id(result, answer_qnode_id) or ""
     answer_node = kg_nodes.get(answer_id) or {}
     specificity = (
-        get_node_category_specificity(answer_node, logger)
+        get_node_category_specificity(answer_node, reporter)
         if use_category_specificity
         else 0
     )
@@ -1073,24 +1073,24 @@ def get_result_endpoint_ngd(
     source_qnode: str,
     target_qnode: str,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> float | None:
     """Return direct source-answer NGD for the final source/target pair."""
     source_id = get_bound_node_id(result, source_qnode)
     target_id = get_bound_node_id(result, target_qnode)
-    return get_ngd_score(source_id, target_id, config, logger)
+    return get_ngd_score(source_id, target_id, config, reporter)
 
 
 def get_result_answer_tf_ngd(
     result: dict,
     answer_qnode_id: str,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> float | None:
     """Return answer-to-TF NGD for ordering results within a TF bucket."""
     answer_id = get_bound_node_id(result, answer_qnode_id)
     tf_id = get_bound_node_id(result, TF_QNODE_ID)
-    return get_ngd_score(answer_id, tf_id, config, logger)
+    return get_ngd_score(answer_id, tf_id, config, reporter)
 
 
 def get_original_query_edge_id(message: dict) -> str:
@@ -1160,7 +1160,7 @@ def sort_xcrg_combined_results(
     source_qnode: str,
     target_qnode: str,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> None:
     """Sort direct results first, then TF-mediated results by the xCRG policy."""
     result_message = message.get("message") or {}
@@ -1170,7 +1170,7 @@ def sort_xcrg_combined_results(
     use_category_specificity = answer_qnode_uses_category_specificity(
         query_graph,
         answer_qnode_id,
-        logger,
+        reporter,
     )
 
     direct_results = []
@@ -1195,14 +1195,14 @@ def sort_xcrg_combined_results(
             query_graph,
             answer_qnode_id,
             use_category_specificity,
-            logger,
+            reporter,
         )
         ngd_score = get_result_endpoint_ngd(
             result,
             source_qnode,
             target_qnode,
             config,
-            logger,
+            reporter,
         )
         return (
             descending_optional(specificity),
@@ -1220,13 +1220,13 @@ def sort_xcrg_combined_results(
             query_graph,
             answer_qnode_id,
             use_category_specificity,
-            logger,
+            reporter,
         )
         ngd_score = get_result_answer_tf_ngd(
             result,
             answer_qnode_id,
             config,
-            logger,
+            reporter,
         )
         return (
             tf_degrees.get(tf_id, 0),
@@ -1638,7 +1638,7 @@ def add_ngd_analysis_support_graph(
     source_id: str,
     target_id: str,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> None:
     """Attach a virtual NGD edge as analysis-level support.
 
@@ -1646,9 +1646,9 @@ def add_ngd_analysis_support_graph(
     displaying the NGD value as "inf". Keep that as a string to avoid emitting
     non-standard JSON numeric Infinity.
     """
-    ngd_score = get_ngd_score(source_id, target_id, config, logger)
+    ngd_score = get_ngd_score(source_id, target_id, config, reporter)
     ngd_value: float | str = ngd_score if ngd_score is not None else "inf"
-    publications = get_ngd_publications(source_id, target_id, config, logger)
+    publications = get_ngd_publications(source_id, target_id, config, reporter)
 
     ngd_edge_id, ngd_edge = make_xcrg_ngd_edge(
         source_id,
@@ -1739,7 +1739,7 @@ def finalize_clean_result_analyses(
     original_qedge_id: str,
     original_query_edge: dict,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> None:
     """Build final Retriever/xCRG analyses after evidence grouping."""
     direct_bindings = final_result.pop("_xcrg_direct_bindings")
@@ -1834,7 +1834,7 @@ def finalize_clean_result_analyses(
             source_id,
             target_id,
             config,
-            logger,
+            reporter,
         )
         final_result["analyses"] = [analysis]
     else:
@@ -1847,10 +1847,10 @@ def build_trapi_clean_response(
     source_qnode: str,
     target_qnode: str,
     config: XCRGConfig,
-    logger: logging.Logger | None = None,
+    reporter: XCRGReporter | None = None,
 ) -> dict:
     """Convert debug-shaped direct+2-hop results into one-hop TRAPI results."""
-    logger = logger or logging.getLogger(__name__)
+    reporter = reporter or XCRGReporter() # reporter stub
     original_qedge_id, original_query_edge = get_single_query_edge(original_message)
     combined = combined_message.get("message") or {}
     combined_kg = combined.get("knowledge_graph") or {}
@@ -1927,7 +1927,7 @@ def build_trapi_clean_response(
             original_qedge_id,
             original_query_edge,
             config,
-            logger,
+            reporter,
         )
 
     final_results[:] = [
@@ -1951,7 +1951,7 @@ def build_trapi_clean_response(
     return ensure_response_versions(final_message, config, original_message, combined_message)
 
 
-def write_debug_manifest(debug_context: dict, logger: logging.Logger) -> None:
+def write_debug_manifest(debug_context: dict, reporter: XCRGReporter) -> None:
     """Write or refresh the human-readable debug manifest for one query."""
     if not debug_context.get("run_dir"):
         return
@@ -1966,14 +1966,14 @@ def write_debug_manifest(debug_context: dict, logger: logging.Logger) -> None:
         with open(manifest_path, "w", encoding="utf-8") as manifest_file:
             json.dump(manifest, manifest_file, indent=2, sort_keys=True)
     except Exception as exc:
-        logger.warning(f"Failed to write xCRG debug manifest: {exc}")
+        reporter.warning(f"Failed to write xCRG debug manifest: {exc}")
 
 
 def debug_dump_json(
     query_id: str,
     label: str,
     payload: dict,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
     debug_context: dict | None = None,
 ) -> None:
     """Best-effort debug JSON dump for inferred xCRG runs."""
@@ -1992,9 +1992,9 @@ def debug_dump_json(
                 "summary": summarize_response_counts(payload),
             }
         )
-        write_debug_manifest(debug_context, logger)
+        write_debug_manifest(debug_context, reporter)
     except Exception as exc:
-        logger.warning(f"Failed to write debug JSON {label}: {exc}")
+        reporter.warning(f"Failed to write debug JSON {label}: {exc}")
 
 
 def filter_inferred_response(
@@ -2045,13 +2045,13 @@ def format_json_for_log(value: object) -> str:
 def log_retriever_response(
     result: dict,
     http_status_code: int,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> None:
     """Emit useful Retriever status/counts without requiring debug files."""
     counts = summarize_response_counts(result)
     retriever_status = result.get("status")
     description = result.get("description")
-    logger.info(
+    reporter.info(
         "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
         http_status_code,
         retriever_status,
@@ -2061,7 +2061,7 @@ def log_retriever_response(
         description,
     )
     if retriever_status and retriever_status != "Complete":
-        logger.warning(
+        reporter.warning(
             "xCRG Retriever returned non-complete status %s: %s",
             retriever_status,
             description,
@@ -2069,27 +2069,27 @@ def log_retriever_response(
     if counts["result_count"] == 0 or retriever_status != "Complete":
         for entry in (result.get("logs") or [])[:5]:
             if isinstance(entry, dict):
-                logger.info(
+                reporter.info(
                     "xCRG Retriever log [%s] %s",
                     entry.get("level", "INFO"),
                     entry.get("message"),
                 )
             else:
-                logger.info("xCRG Retriever log %s", entry)
+                reporter.info("xCRG Retriever log %s", entry)
 
 
 async def run_sync_retriever_lookup(
     message: dict,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> dict:
     """Run a sync Retriever lookup and return its TRAPI response."""
-    logger.info("Sending xCRG lookup query to %s", config.retriever_url)
-    logger.debug(
+    reporter.info("Sending xCRG lookup query to %s", config.retriever_url)
+    reporter.debug(
         "xCRG Retriever query graph: %s",
         format_json_for_log(message.get("message", {}).get("query_graph", {})),
     )
-    logger.debug(
+    reporter.debug(
         "xCRG Retriever parameters: %s",
         format_json_for_log(message.get("parameters", {})),
     )
@@ -2098,7 +2098,7 @@ async def run_sync_retriever_lookup(
             response = await client.post(config.retriever_url, json=message)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            logger.error(
+            reporter.error(
                 "xCRG Retriever HTTP error %s from %s: %s",
                 exc.response.status_code,
                 config.retriever_url,
@@ -2112,25 +2112,25 @@ async def run_sync_retriever_lookup(
     result["message"].setdefault("knowledge_graph", {"nodes": {}, "edges": {}})
     result["message"].setdefault("results", [])
     result["message"].setdefault("auxiliary_graphs", {})
-    log_retriever_response(result, response.status_code, logger)
+    log_retriever_response(result, response.status_code, reporter)
     return result
 
 
 async def run_direct_lookup(
     message: dict,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> dict:
     """Run the original one-hop direct xCRG lookup."""
     validate_direct_lookup_query(message)
-    return await run_sync_retriever_lookup(message, config, logger)
+    return await run_sync_retriever_lookup(message, config, reporter)
 
 
 async def run_inferred_lookup(
     query_id: str,
     message: dict,
     config: XCRGConfig,
-    logger: logging.Logger,
+    reporter: XCRGReporter,
 ) -> dict:
     """Run phase-one TF-mediated inferred xCRG lookup."""
     debug_context = make_debug_run_context(query_id, message, config)
@@ -2138,7 +2138,7 @@ async def run_inferred_lookup(
         query_id,
         "original_inferred_query",
         message,
-        logger,
+        reporter,
         debug_context,
     )
     source_qnode, target_qnode, edge = validate_inferred_query(message)
@@ -2162,15 +2162,15 @@ async def run_inferred_lookup(
         query_id,
         "direct_lookup_query",
         direct_message,
-        logger,
+        reporter,
         debug_context,
     )
-    direct_response = await run_sync_retriever_lookup(direct_message, config, logger)
+    direct_response = await run_sync_retriever_lookup(direct_message, config, reporter)
     debug_dump_json(
         query_id,
         "direct_raw_response",
         direct_response,
-        logger,
+        reporter,
         debug_context,
     )
     filtered_direct_response = filter_direct_response(
@@ -2183,14 +2183,14 @@ async def run_inferred_lookup(
         query_id,
         "direct_filtered_response",
         filtered_direct_response,
-        logger,
+        reporter,
         debug_context,
     )
 
     final_direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
     sign_templates = get_sign_templates(require(final_direction, str))
     tf_batches = chunk_values(tf_list, config.tf_batch_size)
-    logger.info(
+    reporter.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
         len(tf_list),
         len(tf_batches),
@@ -2241,15 +2241,15 @@ async def run_inferred_lookup(
                 query_id,
                 f"template_{template_idx}_batch_{batch_idx}_query",
                 inferred_message,
-                logger,
+                reporter,
                 debug_context,
             )
-            response = await run_sync_retriever_lookup(inferred_message, config, logger)
+            response = await run_sync_retriever_lookup(inferred_message, config, reporter)
             debug_dump_json(
                 query_id,
                 f"template_{template_idx}_batch_{batch_idx}_raw_response",
                 response,
-                logger,
+                reporter,
                 debug_context,
             )
             filtered_response = filter_inferred_response(
@@ -2262,7 +2262,7 @@ async def run_inferred_lookup(
                 query_id,
                 f"template_{template_idx}_batch_{batch_idx}_filtered_response",
                 filtered_response,
-                logger,
+                reporter,
                 debug_context,
             )
             filtered_responses.append(filtered_response)
@@ -2301,12 +2301,12 @@ async def run_inferred_lookup(
         merged_query_graph,
         config,
     )
-    sort_xcrg_combined_results(merged, source_qnode, target_qnode, config, logger)
+    sort_xcrg_combined_results(merged, source_qnode, target_qnode, config, reporter)
     debug_dump_json(
         query_id,
         "merged_debug_response",
         merged,
-        logger,
+        reporter,
         debug_context,
     )
     final_response = build_trapi_clean_response(
@@ -2315,7 +2315,7 @@ async def run_inferred_lookup(
         source_qnode,
         target_qnode,
         config,
-        logger,
+        reporter,
     )
     debug_summary["merged_response"] = summarize_response_counts(final_response)
     debug_summary["debug_run_dir"] = str(debug_context["run_dir"])
@@ -2323,14 +2323,14 @@ async def run_inferred_lookup(
         query_id,
         "inferred_debug_summary",
         debug_summary,
-        logger,
+        reporter,
         debug_context,
     )
     debug_dump_json(
         query_id,
         "merged_inferred_response",
         final_response,
-        logger,
+        reporter,
         debug_context,
     )
     return final_response
@@ -2348,11 +2348,11 @@ def is_xcrg_mvp2_query(message: dict) -> bool:
 async def async_run_xcrg(
     message: dict,
     config: XCRGConfig,
-    logger: logging.Logger | None = None,
+    logger: XCRGReporter | None = None, # TODO: logger -> reporter
     query_id: str | None = None,
 ) -> dict:
     """Run xCRG and return a complete TRAPI response."""
-    logger = logger or logging.getLogger(__name__)
+    reporter = logger or XCRGReporter() # reporter stub
     query_id = query_id or uuid.uuid4().hex[:8]
     runnable_message = deepcopy(message)
     parameters = runnable_message.get("parameters") or {}
@@ -2365,9 +2365,9 @@ async def async_run_xcrg(
 
     _, edge = get_single_query_edge(runnable_message)
     if edge.get("knowledge_type") == "inferred":
-        result = await run_inferred_lookup(query_id, runnable_message, config, logger)
+        result = await run_inferred_lookup(query_id, runnable_message, config, reporter)
     else:
-        result = await run_direct_lookup(runnable_message, config, logger)
+        result = await run_direct_lookup(runnable_message, config, reporter)
 
     return ensure_response_versions(result, config, runnable_message)
 
@@ -2375,7 +2375,7 @@ async def async_run_xcrg(
 def run_xcrg(
     message: dict,
     config: XCRGConfig,
-    logger: logging.Logger | None = None,
+    logger: XCRGReporter | None = None, # TODO: logger -> reporter
     query_id: str | None = None,
 ) -> dict:
     """Synchronous wrapper for callers that are not already running an event loop."""
