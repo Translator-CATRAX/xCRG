@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import httpx
 import json
 import logging
 import math
@@ -12,11 +13,9 @@ from collections import Counter, OrderedDict
 from copy import deepcopy
 from datetime import datetime, timezone
 from importlib import resources
-from pathlib import Path
-
-import httpx
 
 from .config import XCRGConfig
+from.utilities import require
 
 TF_QNODE_ID = "tf"
 TP53_CURIE = "NCBIGene:7157"
@@ -204,8 +203,8 @@ def validate_inferred_query(message: dict) -> tuple[str, str, dict]:
     if "biolink:affects" not in (edge.get("predicates") or []):
         raise ValueError("xCRG inferred lookup requires predicate biolink:affects.")
 
-    source_qnode = edge.get("subject")
-    target_qnode = edge.get("object")
+    source_qnode: str = require(edge.get("subject"), str)
+    target_qnode: str = require(edge.get("object"), str)
     if source_qnode not in qnodes or target_qnode not in qnodes:
         raise ValueError("Query edge references missing query nodes.")
 
@@ -1485,7 +1484,7 @@ def copy_retriever_edge_and_nodes(
         edge,
         retriever_edges,
         retriever_nodes,
-        retriever_auxiliary_graphs,
+        require(retriever_auxiliary_graphs, dict),
         final_edges,
         final_nodes,
         final_auxiliary_graphs,
@@ -1898,8 +1897,8 @@ def build_trapi_clean_response(
             final_result["_xcrg_first_index"] = result_index
 
         if is_two_hop_result(result):
-            path_edge_ids = [
-                binding.get("id")
+            path_edge_ids: list[str] = [
+                require(binding.get("id"), str)
                 for qedge_id in ("e0", "e1")
                 for binding in get_edge_bindings(result, qedge_id)
                 if binding.get("id")
@@ -2189,7 +2188,7 @@ async def run_inferred_lookup(
     )
 
     final_direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
-    sign_templates = get_sign_templates(final_direction)
+    sign_templates = get_sign_templates(require(final_direction, str))
     tf_batches = chunk_values(tf_list, config.tf_batch_size)
     logger.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
