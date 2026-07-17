@@ -109,17 +109,16 @@ FALLBACK_CATEGORY_DEPTH: dict[str, int] = {
 
 def get_single_query_edge(query: Query) -> tuple[QEdgeID, QEdge]:
     """Return the single query edge for xCRG queries."""
-    qgraph = require(query.message.query_graph, QueryGraph)
-    edges = qgraph.edges
-    if len(edges) != 1:
+    qedges = require(query.message.query_graph, QueryGraph).edges # TODO
+    if len(qedges) != 1:
         raise ValueError("xCRG runner currently supports only one query edge.")
-    edge_id = next(iter(edges))
-    return edge_id, edges[edge_id]
+    qedge_id = next(iter(qedges))
+    return qedge_id, qedges[qedge_id]
 
 
 def get_qualifier_value(edge: QEdge, qualifier_type_id: Biolink.Qualifier) -> str | None:
     """Return a qualifier value from the first qualifier set, if present."""
-    qualifier_constraints = edge.qualifier_constraints or []
+    qualifier_constraints = edge.qualifier_constraints_list
     if not qualifier_constraints:
         return None
     qualifier_set = qualifier_constraints[0].qualifier_set
@@ -152,11 +151,11 @@ def safe_debug_token(value: str | None) -> str:
 def describe_qnode_for_debug(qnode: QNode | None) -> str:
     """Return a compact qnode label for human-readable debug paths."""
     if qnode is None:
-        qnode = QNode()
+        return "unbound"
     ids = qnode.ids or []
     if ids:
         return safe_debug_token(ids[0])
-    categories = qnode.categories or []
+    categories = qnode.categories_list
     if categories:
         return safe_debug_token(categories[0].removeprefix("biolink:"))
     return "unbound"
@@ -165,11 +164,11 @@ def describe_qnode_for_debug(qnode: QNode | None) -> str:
 def make_debug_run_context(query_id: str, query: Query, config: XCRGConfig) -> DebugContext:
     """Create human-readable debug path metadata for one xCRG query."""
     created_at = datetime.now(timezone.utc)
+    qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
     edge_id, edge = get_single_query_edge(query)
     direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
-    qgraph = require(query.message.query_graph, QueryGraph)
-    source_label = describe_qnode_for_debug(qgraph.nodes.get(edge.subject))
-    target_label = describe_qnode_for_debug(qgraph.nodes.get(edge.object))
+    source_label = describe_qnode_for_debug(qnodes.get(edge.subject))
+    target_label = describe_qnode_for_debug(qnodes.get(edge.object))
     direction_label = safe_debug_token(direction)
     run_name = (
         f"{created_at.strftime('%Y%m%d_%H%M%S')}_{query_id}_"
@@ -193,14 +192,13 @@ def make_debug_run_context(query_id: str, query: Query, config: XCRGConfig) -> D
 
 def validate_direct_lookup_query(query: Query) -> None:
     """Validate the direct one-hop xCRG query shape. Raise Error if invalid."""
-    qgraph = require(query.message.query_graph, QueryGraph)
-    qnodes = qgraph.nodes
+    qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
     _, edge = get_single_query_edge(query)
 
     if edge.knowledge_type == "inferred":
         raise ValueError("xCRG direct lookup does not support inferred edges.")
 
-    if "biolink:affects" not in (edge.predicates or []):
+    if "biolink:affects" not in edge.predicates_list:
         raise ValueError("xCRG direct lookup requires biolink:affects predicate.")
 
     if edge.subject not in qnodes:
@@ -208,59 +206,58 @@ def validate_direct_lookup_query(query: Query) -> None:
     if edge.object not in qnodes:
         raise ValueError("Query edge is missing 'object' query node reference.")
 
-    pinned_ids = [qnode_id for qnode_id, qnode in qnodes.items() if qnode.ids]
+    pinned_ids = [qid for qid, qnode in qnodes.items() if qnode.ids]
     if len(pinned_ids) != 1:
         raise ValueError("xCRG direct lookup supports exactly one pinned query node.")
 
-    unbound_ids = [qnode_id for qnode_id, qnode in qnodes.items() if not qnode.ids]
+    unbound_ids = [qid for qid, qnode in qnodes.items() if not qnode.ids]
     if len(unbound_ids) != 1:
         raise ValueError("xCRG direct lookup supports exactly one unbound query node.")
 
     pinned_node = qnodes[pinned_ids[0]]
     unbound_node = qnodes[unbound_ids[0]]
 
-    if "biolink:Gene" not in (pinned_node.categories or []):
+    if "biolink:Gene" not in pinned_node.categories_list:
         raise ValueError("xCRG direct lookup requires the pinned node to be a Gene.")
-    if "biolink:ChemicalEntity" not in (unbound_node.categories or []):
+    if "biolink:ChemicalEntity" not in unbound_node.categories_list:
         raise ValueError("xCRG direct lookup requires the unbound node to be a ChemicalEntity.")
 
 
 def validate_inferred_query(query: Query) -> tuple[QNodeID, QNodeID, QEdge]:
     """Validate a phase-one inferred xCRG query while preserving user direction."""
-    qgraph = require(query.message.query_graph, QueryGraph) # TODO
-    qnodes = qgraph.nodes
-    _, edge = get_single_query_edge(query)
+    qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
+    _, qedge = get_single_query_edge(query)
 
-    if edge.knowledge_type != "inferred":
+    if qedge.knowledge_type != "inferred":
         raise ValueError("Expected an inferred query edge.")
 
-    if "biolink:affects" not in (edge.predicates or []):
+    if "biolink:affects" not in qedge.predicates_list:
         raise ValueError("Inferred xCRG query requires 'biolink:affects' predicate.")
 
-    sn_id = edge.subject
-    if sn_id not in qnodes:
+    subject_qid = qedge.subject
+    if subject_qid not in qnodes:
         raise ValueError("xCRG query is missing 'subject' node.")
-    sn = qnodes[edge.subject]
+    subject_qnode = qnodes[subject_qid]
 
-    on_id = edge.object
-    if on_id not in qnodes:
+    object_qid = qedge.object
+    if object_qid not in qnodes:
         raise ValueError("xCRG query is missing 'object' node.")
-    on = qnodes[edge.object]
+    object_qnode = qnodes[object_qid]
 
-    endpoint_nodes = [sn, on]
+    endpoint_nodes = [subject_qnode, object_qnode]
     pinned_count = sum(1 for node in endpoint_nodes if node.ids)
     if pinned_count != 1:
         raise ValueError("Inferred xCRG query requires exactly one pinned endpoint node.")
 
-    if get_endpoint_type(sn.categories) != "chemical" and \
-       get_endpoint_type(on.categories) != "gene":
+    if get_endpoint_type(subject_qnode.categories_list) != "chemical" and \
+       get_endpoint_type(object_qnode.categories_list) != "gene":
         raise ValueError(
             "Inferred xCRG query currently requires one 'ChemicalEntity' endpoint "
             "and one 'Gene' endpoint."
         )
 
-    direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
-    aspect = get_qualifier_value(edge, "biolink:object_aspect_qualifier")
+    direction = get_qualifier_value(qedge, "biolink:object_direction_qualifier")
+    aspect = get_qualifier_value(qedge, "biolink:object_aspect_qualifier")
     if direction not in {"increased", "decreased"}:
         raise ValueError("Inferred xCRG query direction must be 'increased' or 'decreased'.")
     valid_aspects = get_valid_aspect_qualifiers()
@@ -271,7 +268,7 @@ def validate_inferred_query(query: Query) -> tuple[QNodeID, QNodeID, QEdge]:
             f"(e.g. {', '.join(sorted(valid_aspects))}); but got {aspect!r}."
         )
 
-    return sn_id, on_id, edge
+    return subject_qid, object_qid, qedge
 
 
 def load_tf_list(config: XCRGConfig) -> list[str]:
@@ -395,7 +392,7 @@ def get_node_category_specificity(node: Node | None, reporter: XCRGReporter) -> 
         return 0
     chemical_categories = [
         category
-        for category in (node.categories or [])
+        for category in node.categories_list
         if is_chemical_category(category, reporter)
     ]
     if not chemical_categories:
@@ -431,7 +428,7 @@ def get_node_information_content(node: Node | None) -> float | None:
         raw_values = raw_value if isinstance(raw_value, list) else [raw_value]
         for value in raw_values:
             try:
-                values.append(float(cast(int | float | str, value)))
+                values.append(float(cast(int | float | str, value))) # TODO
             except (TypeError, ValueError):
                 continue
     return max(values) if values else None
@@ -701,31 +698,28 @@ def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
 
 
 def build_two_hop_query(
-    query: Query,
-    subject_id: QNodeID,
-    object_id: QNodeID,
+    original_query: Query,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
     tf_list: list[CURIE],
     first_direction: str,
     second_direction: str,
 ) -> Query:
     """Build a TF-mediated two-hop TRAPI query from the original inferred query."""
-    query_graph = cast(QueryGraph, query.message.query_graph)
-    source_qnode = deepcopy(query_graph.nodes[subject_id])
-    target_qnode = deepcopy(query_graph.nodes[object_id])
+    query_graph = require(original_query.message.query_graph, QueryGraph) # TODO
+    subject_qnode = deepcopy(query_graph.nodes[subject_qid])
+    object_qnode = deepcopy(query_graph.nodes[object_qid])
     return Query(
         message = Message(
             query_graph = QueryGraph(
                 nodes = {
-                    subject_id: source_qnode,
-                    TF_QNODE_ID: QNode(
-                        categories = ["biolink:Gene"],
-                        ids = tf_list
-                    ),
-                    object_id: target_qnode,
+                    subject_qid: subject_qnode,
+                    TF_QNODE_ID: QNode(ids = tf_list, categories = ["biolink:Gene"]),
+                    object_qid: object_qnode,
                 },
                 edges = {
                     "e0": QEdge(
-                        subject = subject_id,
+                        subject = subject_qid,
                         object = TF_QNODE_ID,
                         predicates = ["biolink:affects"],
                         qualifier_constraints = [
@@ -745,7 +739,7 @@ def build_two_hop_query(
                         ),
                     "e1": QEdge (
                         subject = TF_QNODE_ID,
-                        object = object_id,
+                        object = object_qid,
                         predicates = ["biolink:affects"],
                         qualifier_constraints = [
                             QualifierConstraint(
@@ -764,24 +758,23 @@ def build_two_hop_query(
                     ),
                 },
             ),
-            knowledge_graph = KnowledgeGraph(nodes = {}, edges = {}),
+            knowledge_graph = KnowledgeGraph.new(),
             results = [],
             auxiliary_graphs = AuxiliaryGraphsDict(),
         ),
-        bypass_cache = query.bypass_cache,
-        submitter = query.submitter
+        bypass_cache = original_query.bypass_cache,
+        submitter = original_query.submitter
     )
 
 
 def build_direct_query_for_inferred(
-    query: Query,
-    subject_id: QNodeID,
-    object_id: QNodeID,
+    original_query: Query,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
 ) -> Query:
     """Build the direct one-hop query that accompanies inferred xCRG mode."""
-    query_graph = require(query.message.query_graph, QueryGraph)
-
-    _, original_edge = get_single_query_edge(query)
+    query_graph = require(original_query.message.query_graph, QueryGraph) # TODO
+    _, original_edge = get_single_query_edge(original_query)
     direct_edge = deepcopy(original_edge)
     direct_edge.knowledge_type = None
 
@@ -789,58 +782,60 @@ def build_direct_query_for_inferred(
         message = Message(
             query_graph = QueryGraph(
                 nodes = {
-                    subject_id: deepcopy(query_graph.nodes[subject_id]),
-                    object_id: deepcopy(query_graph.nodes[object_id]),
+                    subject_qid: deepcopy(query_graph.nodes[subject_qid]),
+                    object_qid: deepcopy(query_graph.nodes[object_qid]),
                 },
                 edges = {
                     DIRECT_QEDGE_ID: direct_edge
                 }
             ),
-            knowledge_graph = KnowledgeGraph(nodes = {}, edges = {}),
+            knowledge_graph = KnowledgeGraph.new(),
             results = [],
             auxiliary_graphs = AuxiliaryGraphsDict(),
         ),
-        bypass_cache = query.bypass_cache,
-        submitter = query.submitter
+        bypass_cache = original_query.bypass_cache,
+        submitter = original_query.submitter
     )
 
 
 def build_combined_query_graph(
-    query: Query,
-    subject_id: QNodeID,
-    object_id: QNodeID,
+    original_query: Query,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
     tf_list: list[str],
 ) -> QueryGraph:
     """Build a response query graph that can bind direct and TF-mediated results."""
-    direct_query = build_direct_query_for_inferred(query, subject_id, object_id)
-    query_graph = cast(QueryGraph, direct_query.message.query_graph)
+    direct_query = build_direct_query_for_inferred(original_query, subject_qid, object_qid)
+    query_graph = require(direct_query.message.query_graph, QueryGraph) # TODO
     query_graph.nodes[TF_QNODE_ID] = QNode(
-        categories = ["biolink:Gene"],
         ids = tf_list,
+        categories = ["biolink:Gene"]
     )
     query_graph.edges["e0"] = QEdge(
-        subject = subject_id,
-        object = TF_QNODE_ID,
+        subject = subject_qid,
         predicates = ["biolink:affects"],
+        object = TF_QNODE_ID
     )
     query_graph.edges["e1"] = QEdge(
         subject = TF_QNODE_ID,
-        object = object_id,
         predicates = ["biolink:affects"],
+        object = object_qid
     )
     return query_graph
 
 
 def result_has_bad_edge_predicate(
     result: Result,
-    kg_edges: dict[EdgeID, Edge],
+    edges: dict[EdgeID, Edge],
     predicate: str
 ) -> bool:
     """Return True when any bound knowledge graph edge has the given predicate."""
-    for analysis in cast(list[Analysis], result.analyses):
+    for analysis in result.analyses:
+        if not isinstance(analysis, Analysis):
+            continue
         for bindings in analysis.edge_bindings.values():
             for binding in bindings or []:
-                edge = kg_edges.get(binding.id)
+                edge = edges.get(binding.id)
                 if not edge:
                     continue
                 if edge.predicate == predicate:
@@ -848,9 +843,9 @@ def result_has_bad_edge_predicate(
     return False
 
 
-def get_bound_node_curie(result: Result, qnode_id: QNodeID) -> CURIE | None:
+def get_bound_node_curie(result: Result, qid: QNodeID) -> CURIE | None:
     """Return the first node binding id for the given qnode."""
-    bindings = result.node_bindings.get(qnode_id) or []
+    bindings = result.node_bindings.get(qid) or []
     if not bindings:
         return None
     return bindings[0].id
@@ -858,32 +853,33 @@ def get_bound_node_curie(result: Result, qnode_id: QNodeID) -> CURIE | None:
 
 def result_preserves_direction(
     result: Result,
-    kg_edges: dict[EdgeID, Edge],
-    source_id: QNodeID,
-    target_id: QNodeID,
+    edges: dict[EdgeID, Edge],
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
 ) -> bool:
     """Check that the result preserves source->tf and tf->target edge directions."""
-    source_curie = get_bound_node_curie(result, source_id)
+    source_curie = get_bound_node_curie(result, subject_qid)
     tf_curie = get_bound_node_curie(result, TF_QNODE_ID)
-    target_curie = get_bound_node_curie(result, target_id)
+    target_curie = get_bound_node_curie(result, object_qid)
     if not source_curie or not tf_curie or not target_curie:
         return False
 
-    for analysis in cast(list[Analysis], result.analyses):
-        edge_bindings = analysis.edge_bindings
+    for analysis in result.analyses:
+        if not isinstance(analysis, Analysis): # TODO
+            continue
 
-        e0_bindings = edge_bindings.get("e0") or []
-        e1_bindings = edge_bindings.get("e1") or []
+        e0_bindings = analysis.edge_bindings.get("e0") or []
+        e1_bindings = analysis.edge_bindings.get("e1") or []
         if not e0_bindings or not e1_bindings:
             return False
 
         for binding in e0_bindings:
-            edge = kg_edges.get(binding.id)
+            edge = edges.get(binding.id)
             if not edge or edge.subject != source_curie or edge.object != tf_curie:
                 return False
 
         for binding in e1_bindings:
-            edge = kg_edges.get(binding.id)
+            edge = edges.get(binding.id)
             if not edge or edge.subject != tf_curie or edge.object != target_curie:
                 return False
 
@@ -892,25 +888,27 @@ def result_preserves_direction(
 
 def result_preserves_direct_direction(
     result: Result,
-    kg_edges: dict[EdgeID, Edge],
-    source_qnode_id: QNodeID,
-    target_qnode_id: QNodeID,
+    edges: dict[EdgeID, Edge],
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
 ) -> bool:
     """Check that a direct result preserves the original source->target direction."""
-    source_id = get_bound_node_curie(result, source_qnode_id)
-    target_id = get_bound_node_curie(result, target_qnode_id)
+    source_id = get_bound_node_curie(result, subject_qid)
+    target_id = get_bound_node_curie(result, object_qid)
     if not source_id or not target_id:
         return False
 
-    for analysis in cast(list[Analysis], result.analyses):
+    for analysis in result.analyses:
+        if not isinstance(analysis, Analysis):
+            continue
         edge_bindings = analysis.edge_bindings or {}
         direct_bindings = edge_bindings.get(DIRECT_QEDGE_ID) or []
         if not direct_bindings:
             return False
 
         for binding in direct_bindings:
-            kg_edge = kg_edges.get(binding.id)
-            if not kg_edge or kg_edge.subject != source_id or kg_edge.object != target_id:
+            edge = edges.get(binding.id)
+            if not edge or edge.subject != source_id or edge.object != target_id:
                 return False
 
     return True
@@ -918,22 +916,22 @@ def result_preserves_direct_direction(
 
 def filter_direct_response(
     response: Response,
-    source_id: QNodeID,
-    target_id: QNodeID,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
     config: XCRGConfig,
 ) -> Response:
     """Filter subclass and wrong-direction results from a direct Retriever response."""
     message = response.message
 
-    kg_edges = {}
+    edges = {}
     if message.knowledge_graph and message.knowledge_graph.edges:
-        kg_edges = message.knowledge_graph.edges
+        edges = message.knowledge_graph.edges
 
     filtered_results: list[Result] = []
-    for result in (message.results or []):
-        if result_has_bad_edge_predicate(result, kg_edges, "biolink:subclass_of"):
+    for result in message.results_list:
+        if result_has_bad_edge_predicate(result, edges, "biolink:subclass_of"):
             continue
-        if not result_preserves_direct_direction(result, kg_edges, source_id, target_id):
+        if not result_preserves_direct_direction(result, edges, subject_qid, object_qid):
             continue
         filtered_results.append(result)
 
@@ -948,7 +946,7 @@ def filter_direct_response(
 
 
 def merge_filtered_responses(
-    filtered_responses: list[Response],
+    responses: list[Response],
     query_graph: QueryGraph,
     config: XCRGConfig,
 ) -> Response:
@@ -959,7 +957,7 @@ def merge_filtered_responses(
     seen_results = set()
     results = list[Result]()
 
-    for response in filtered_responses:
+    for response in responses:
         message = response.message
 
         if kg_graph := message.knowledge_graph:
@@ -981,16 +979,16 @@ def merge_filtered_responses(
                 seen_results.add(key)
                 results.append(result)
 
-    response = Response(message = Message(
+    new_response = Response(message = Message(
         query_graph = query_graph,
         knowledge_graph = KnowledgeGraph(nodes = nodes, edges = edges),
         results = results,
         auxiliary_graphs = aux_graph
     ))
 
-    ensure_response_versions(response, config, *filtered_responses)
+    ensure_response_versions(new_response, config, *responses)
 
-    return response
+    return new_response
 
 
 def merge_retriever_nodes(merged_nodes: dict[CURIE, Node], incoming_nodes: dict[CURIE, Node]) -> None:
@@ -1009,6 +1007,7 @@ def merge_retriever_edges(merged_edges: dict[EdgeID, Edge], incoming_edges: dict
             merged_edges[edge_id] = deepcopy(incoming_edge)
 
 
+# TODO: This function needs to be reevaluated after the typing refactor
 def metadata_weight(entity: Edge | Node | None) -> int:
     """Approximate how much Retriever-provided metadata an entity carries."""
     if entity is None:
@@ -1017,10 +1016,8 @@ def metadata_weight(entity: Edge | Node | None) -> int:
     match entity:
         case Edge() as e:
             weight += len(e.sources)
-            if e.attributes:
-                weight += len(e.attributes)
-            if e.qualifiers:
-                weight += len(e.qualifiers)
+            weight += len(e.attributes_list)
+            weight += len(e.qualifiers_list)
         case Node() as n:
             weight += len(n.attributes)
             weight += len(n.categories)
@@ -1031,15 +1028,15 @@ def metadata_weight(entity: Edge | Node | None) -> int:
 
 def get_answer_qnode_id(
     query_graph: BaseQueryGraph,
-    source_id: QNodeID,
-    target_id: QNodeID,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
 ) -> QNodeID:
     """Return the unpinned endpoint qnode whose bindings are the answer list."""
-    for qnode_id in (source_id, target_id):
-        if qnode := query_graph.nodes.get(qnode_id):
+    for qid in (subject_qid, object_qid):
+        if qnode := query_graph.nodes.get(qid):
             if not qnode.ids:
-                return qnode_id
-    return target_id
+                return qid
+    return object_qid
 
 
 def result_edge_binding_keys(result: Result) -> set[str]:
@@ -1059,28 +1056,27 @@ def is_two_hop_result(result: Result) -> bool:
 
 def answer_qnode_uses_category_specificity(
     query_graph: BaseQueryGraph,
-    answer_qnode_id: QNodeID,
+    answer_qid: QNodeID,
     reporter: XCRGReporter,
 ) -> bool:
     """Chemical answers use Biolink specificity before information content."""
-    qnode = query_graph.nodes.get(answer_qnode_id)
+    qnode = query_graph.nodes.get(answer_qid)
     if not qnode:
         return False
-    categories = qnode.categories or []
-    return any(is_chemical_category(category, reporter) for category in categories)
+    return any(is_chemical_category(category, reporter) for category in qnode.categories_list)
 
 
 # TODO: should answer_id really be an empty string?
 def get_result_answer_metrics(
     result: Result,
-    kg_nodes: dict[CURIE, Node],
-    answer_qnode_id: QNodeID,
+    nodes: dict[CURIE, Node],
+    answer_qid: QNodeID,
     use_category_specificity: bool,
     reporter: XCRGReporter,
 ) -> tuple[int, float | None, CURIE]:
     """Return sort metrics for the answer node bound by a result."""
-    answer_id = get_bound_node_curie(result, answer_qnode_id) or ""
-    answer_node = kg_nodes.get(answer_id)
+    answer_id = get_bound_node_curie(result, answer_qid) or ""
+    answer_node = nodes.get(answer_id)
     specificity = (
         get_node_category_specificity(answer_node, reporter)
         if use_category_specificity
@@ -1102,25 +1098,25 @@ def ascending_optional(value: float | int | None) -> float:
 
 def get_result_endpoint_ngd(
     result: Result,
-    source_qnode_id: QNodeID,
-    target_qnode_id: QNodeID,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
     config: XCRGConfig,
     reporter: XCRGReporter,
 ) -> float | None:
     """Return direct source-answer NGD for the final source/target pair."""
-    source_id = get_bound_node_curie(result, source_qnode_id)
-    target_id = get_bound_node_curie(result, target_qnode_id)
+    source_id = get_bound_node_curie(result, subject_qid)
+    target_id = get_bound_node_curie(result, object_qid)
     return get_ngd_score(source_id, target_id, config, reporter)
 
 
 def get_result_answer_tf_ngd(
     result: Result,
-    answer_qnode_id: QNodeID,
+    answer_qid: QNodeID,
     config: XCRGConfig,
     reporter: XCRGReporter,
 ) -> float | None:
     """Return answer-to-TF NGD for ordering results within a TF bucket."""
-    answer_id = get_bound_node_curie(result, answer_qnode_id)
+    answer_id = get_bound_node_curie(result, answer_qid)
     tf_id = get_bound_node_curie(result, TF_QNODE_ID)
     return get_ngd_score(answer_id, tf_id, config, reporter)
 
@@ -1135,20 +1131,19 @@ def get_result_answer_tf_ngd(
 
 def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
     """Return copied edge bindings for a qedge across all analyses."""
-    results = list[EdgeBinding]()
+    bindings = list[EdgeBinding]()
     seen = set()
     for analysis in result.analyses:
         if not isinstance(analysis, Analysis):
             continue
-        bindings = analysis.edge_bindings.get(qedge_id) or []
-        for binding in bindings:
+        for binding in analysis.edge_bindings.get(qedge_id) or []:
             edge_id = binding.id
             if edge_id in seen:
                 continue
             seen.add(edge_id)
             copied_binding = deepcopy(binding)
-            results.append(copied_binding)
-    return results
+            bindings.append(copied_binding)
+    return bindings
 
 
 def get_result_score(result: Result) -> float | None:
@@ -1187,8 +1182,8 @@ def stamp_xcrg_rank_scores(results: list[Result], config: XCRGConfig) -> None:
 
 def sort_xcrg_combined_results(
     response: Response,
-    source_id: QNodeID,
-    target_id: QNodeID,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
     config: XCRGConfig,
     reporter: XCRGReporter,
 ) -> None:
@@ -1201,7 +1196,7 @@ def sort_xcrg_combined_results(
         if nodes := kg_graph.nodes:
             kg_nodes = nodes
 
-    answer_qnode_id = get_answer_qnode_id(query_graph, source_id, target_id)
+    answer_qnode_id = get_answer_qnode_id(query_graph, subject_qid, object_qid)
     use_category_specificity = answer_qnode_uses_category_specificity(
         query_graph,
         answer_qnode_id,
@@ -1230,8 +1225,8 @@ def sort_xcrg_combined_results(
         )
         ngd_score = get_result_endpoint_ngd(
             result,
-            source_id,
-            target_id,
+            subject_qid,
+            object_qid,
             config,
             reporter,
         )
@@ -1275,9 +1270,9 @@ def sort_xcrg_combined_results(
     message.results = sorted_results
 
 
-def query_qualifiers_to_edge_qualifiers(query_edge: QEdge) -> list[Qualifier]:
+def query_qualifiers_to_edge_qualifiers(qedge: QEdge) -> list[Qualifier]:
     """Convert the first QEdge qualifier set into KG edge qualifiers."""
-    qualifier_constraints = query_edge.qualifier_constraints_list
+    qualifier_constraints = qedge.qualifier_constraints_list
     if not qualifier_constraints:
         return []
 
@@ -1301,45 +1296,45 @@ def make_stable_id(prefix: str, payload: object) -> str:
 
 
 def ensure_response_versions(
-    new_response: Response,
+    response: Response,
     config: XCRGConfig,
     *responses: Response,
 ) -> Response:
     """Add response-level TRAPI/Biolink versions when upstream omitted them."""
     schema_versions = (r.schema_version for r in responses if r.schema_version)
-    new_response.schema_version = next(schema_versions, config.trapi_schema_version)
+    response.schema_version = next(schema_versions, config.trapi_schema_version)
 
     biolink_versions = (r.biolink_version for r in responses if r.biolink_version)
-    new_response.biolink_version = next(biolink_versions, config.biolink_version)
+    response.biolink_version = next(biolink_versions, config.biolink_version)
 
-    return new_response
+    return response
 
 
 def make_xcrg_inferred_edge(
-    source_id: CURIE,
-    target_id: CURIE,
-    original_query_edge: QEdge,
+    subject_id: CURIE,
+    object_id: CURIE,
+    original_qedge: QEdge,
     support_graph_ids: list[str],
     config: XCRGConfig,
 ) -> tuple[EdgeID, Edge]:
     """Create the final source->target inferred edge supported by TF paths."""
-    predicate = (original_query_edge.predicates_list or ["biolink:affects"])[0]
+    predicate = (original_qedge.predicates_list or ["biolink:affects"])[0]
 
     edge_id = make_stable_id(
         "xcrg_inferred_edge",
         {
-            "source": source_id,
-            "target": target_id,
+            "source": subject_id,
+            "target": object_id,
             "predicate": predicate,
             "support_graphs": support_graph_ids,
         },
     )
 
     edge = Edge(
-        subject = source_id,
+        subject = subject_id,
         predicate = predicate,
-        object = target_id,
-        qualifiers = query_qualifiers_to_edge_qualifiers(original_query_edge),
+        object = object_id,
+        qualifiers = query_qualifiers_to_edge_qualifiers(original_qedge),
         attributes = [
             Attribute(
                 attribute_type_id = "biolink:knowledge_level",
@@ -1353,7 +1348,7 @@ def make_xcrg_inferred_edge(
             ),
             Attribute(
                 attribute_type_id = "biolink:support_graphs",
-                value = cast(FastJsonValue, support_graph_ids),
+                value = cast(FastJsonValue, support_graph_ids), # TODO
                 attribute_source = config.resource_id
             ),
         ],
@@ -1372,8 +1367,8 @@ def make_xcrg_inferred_edge(
 
 
 def make_xcrg_ngd_edge(
-    source_id: CURIE,
-    target_id: CURIE,
+    subject_id: CURIE,
+    object_id: CURIE,
     ngd_score: float | str,
     publications: list[str] | None,
     config: XCRGConfig,
@@ -1382,15 +1377,15 @@ def make_xcrg_ngd_edge(
     edge_id = make_stable_id(
         "xcrg_ngd_edge",
         {
-            "source": source_id,
-            "target": target_id,
+            "source": subject_id,
+            "target": object_id,
             "ngd": ngd_score,
         },
     )
     edge = Edge(
-        subject = source_id,
+        subject = subject_id,
         predicate = "biolink:occurs_together_in_literature_with",
-        object = target_id,
+        object = object_id,
         attributes = [
             Attribute(
                 attribute_source = config.resource_id,
@@ -1439,14 +1434,14 @@ def make_xcrg_ngd_edge(
     )
 
     if publications:
-        assert edge.attributes is not None
+        assert edge.attributes is not None # TODO: this is guaranteed not to be null
         edge.attributes.append(
             Attribute(
                 attribute_source = config.resource_id,
                 attribute_type_id = "biolink:publications",
                 original_attribute_name = "publications",
                 value_type_id = "EDAM-DATA:1187",
-                value = cast(FastJsonValue, publications),
+                value = cast(FastJsonValue, publications), # TODO
             )
         )
 
@@ -1525,7 +1520,7 @@ def copy_retriever_edge_and_nodes(
         edge,
         retriever_edges,
         retriever_nodes,
-        cast(dict, retriever_auxiliary_graphs),
+        cast(dict, retriever_auxiliary_graphs), # TODO
         final_edges,
         final_nodes,
         final_auxiliary_graphs,
@@ -1571,7 +1566,7 @@ def copy_retriever_edge_support_graphs(
     trim_edge_support_graph_attrs(edge, final_auxiliary_graphs)
 
 
-def trim_edge_support_graph_attrs(edge: Edge, final_auxiliary_graphs: AuxiliaryGraphsDict) -> None:
+def trim_edge_support_graph_attrs(edge: Edge, aux_graph: AuxiliaryGraphsDict) -> None:
     """Drop support graph references that are not present in final aux graphs."""
     trimmed_attributes = []
 
@@ -1586,13 +1581,13 @@ def trim_edge_support_graph_attrs(edge: Edge, final_auxiliary_graphs: AuxiliaryG
             copied_values = [
                 support_graph_id
                 for support_graph_id in value
-                if support_graph_id in final_auxiliary_graphs
+                if support_graph_id in aux_graph
             ]
             if copied_values:
                 copied_attribute = deepcopy(attribute)
-                copied_attribute.value = cast(FastJsonValue, copied_values)
+                copied_attribute.value = cast(FastJsonValue, copied_values) # TODO
                 trimmed_attributes.append(copied_attribute)
-        elif isinstance(value, str) and value in final_auxiliary_graphs:
+        elif isinstance(value, str) and value in aux_graph:
             trimmed_attributes.append(attribute)
 
     edge.attributes = trimmed_attributes
@@ -1645,10 +1640,8 @@ def copy_retriever_auxiliary_graph(
     copied_edges = []
 
     for edge_id in aux_graph.edges:
-        if edge_id in final_edges:
-            copied_edges.append(edge_id)
-            continue
-        copied = copy_retriever_edge_and_nodes(
+        # TODO: This if block is pretty gnarly
+        if edge_id in final_edges or copy_retriever_edge_and_nodes(
             edge_id,
             retriever_edges,
             retriever_nodes,
@@ -1657,8 +1650,7 @@ def copy_retriever_auxiliary_graph(
             retriever_auxiliary_graphs,
             final_auxiliary_graphs,
             copied_auxiliary_graphs,
-        )
-        if copied:
+        ):
             copied_edges.append(edge_id)
 
     if not copied_edges:
@@ -1732,7 +1724,6 @@ def add_ngd_analysis_support_graph(
 
     if not analysis.support_graphs:
         analysis.support_graphs = []
-
     support_graphs = analysis.support_graphs_list
 
     if support_graph_id not in support_graphs:
