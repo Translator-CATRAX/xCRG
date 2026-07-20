@@ -1,28 +1,39 @@
-from dataclasses import dataclass
-from typing import Callable, TypeVar
+from dataclasses import dataclass, field
+from typing import (
+    Callable,
+    TypeVar
+)
 
-from translator_tom import Result
+from translator_tom import (
+    Analysis,
+    EdgeBinding,
+    EdgeID,
+    NodeBinding,
+    PathfinderAnalysis,
+    QNodeID,
+    Result
+)
 
 T = TypeVar("T")
 
 # TODO: Temporary until types are untangled
+#  This class is effectively a TRAPI Result + additional custom properties
+#  The original code would push + pop these xcrg properties
 @dataclass
 class XCRGResult:
-    node_bindings = {} #= node_bindings
-    analyses = [] # = analyses
-    xcrg_direct_bindings = []
-    xcrg_direct_binding_ids = set()
-    xcrg_support_edges = []
-    xcrg_support_edge_ids = set()
-    xcrg_first_score: float | None = None
-    xcrg_first_index: int | None = None # = len(final_results),
+    # TRAPI Result properties
+    node_bindings : dict[QNodeID, list[NodeBinding]]    = field(default_factory = dict)
+    analyses      : list[Analysis | PathfinderAnalysis] = field(default_factory = list)
+    # Custom xCRG properties
+    xcrg_direct_bindings    : list[EdgeBinding] = field(default_factory = list)
+    xcrg_direct_binding_ids : set[EdgeID]       = field(default_factory = set)
+  # xcrg_support_edges      : list[EdgeBinding] = field(default_factory = list)
+    xcrg_support_edge_ids   : set[EdgeID]       = field(default_factory = set)
+    xcrg_first_score        : float | None      = None
+    xcrg_first_index        : int | None        = None # = len(final_results),
 
-
-# TODO: Temporary until types are untangled
-@dataclass
-class ResultPair:
-    result: Result
-    xcrg: XCRGResult
+    def to_trapi_result(self):
+        return Result(node_bindings = self.node_bindings, analyses = self.analyses)
 
 
 def partition(items: list[T], predicate: Callable[[T], bool]) -> tuple[list[T], list[T]]:

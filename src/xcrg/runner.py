@@ -30,6 +30,7 @@ from translator_tom import (
     KnowledgeGraph,
     Message,
     Node,
+    NodeBinding,
     QEdge,
     QEdgeID,
     QNode,
@@ -46,7 +47,7 @@ from translator_tom import (
 from .debugging import DebugContext
 from .config import XCRGConfig
 from .reporting import XCRGReporter
-from .utilities import partition, require, ResultPair, XCRGResult
+from .utilities import partition, require, XCRGResult
 
 TF_QNODE_ID = "tf"
 TP53_CURIE = "NCBIGene:7157"
@@ -1733,26 +1734,23 @@ def add_ngd_analysis_support_graph(
 
 # TODO: This method uses the tmp types: ResultPair, XCRGResult
 def get_or_create_final_result(
-    final_results_by_pair: dict[tuple[CURIE, CURIE], ResultPair],
-    final_results: list[ResultPair],
+    final_results_by_pair: dict[tuple[CURIE, CURIE], XCRGResult],
+    final_results: list[XCRGResult],
     subject_qid: QNodeID,
     object_qid: QNodeID,
     subject_id: CURIE,
     object_id: CURIE,
-) -> ResultPair:
+) -> XCRGResult:
     """Return the final one-hop result for a source/target answer pair."""
     pair_key = (subject_id, object_id)
 
     if pair_key not in final_results_by_pair:
-        result = ResultPair(
-            result = Result(
-                node_bindings = {
-                    subject_qid: [{"id": subject_id, "attributes": []}],
-                    object_qid: [{"id": object_id, "attributes": []}],
-                },
-                analyses = []
-            ),
-            xcrg = XCRGResult(xcrg_first_index = len(final_results))
+        result = XCRGResult(
+            node_bindings = {
+                subject_qid: [NodeBinding(id = subject_id, attributes = [])],
+                object_qid: [NodeBinding(id = object_id, attributes = [])]
+            },
+            xcrg_first_index = len(final_results)
         )
         final_results_by_pair[pair_key] = result
         final_results.append(result)
@@ -1760,29 +1758,25 @@ def get_or_create_final_result(
     return final_results_by_pair[pair_key]
 
 
-# TODO: ResultPair
-def add_direct_evidence(final_result: ResultPair, bindings: list[EdgeBinding]) -> None:
+def add_direct_evidence(final_result: XCRGResult, bindings: list[EdgeBinding]) -> None:
     """Attach direct one-hop KG edge bindings to a final result."""
     for binding in bindings:
         edge_id = binding.id
-        if edge_id in final_result.xcrg.xcrg_direct_binding_ids:
+        if edge_id in final_result.xcrg_direct_binding_ids:
             continue
-        final_result.xcrg.xcrg_direct_binding_ids.add(edge_id)
-        final_result.xcrg.xcrg_direct_bindings.append(binding)
+        final_result.xcrg_direct_binding_ids.add(edge_id)
 
 
-# TODO: ResultPair
-def add_support_path_edges(final_result: ResultPair, path_edge_ids: list[EdgeID]) -> None:
+def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]) -> None:
     """Collect unique TF-mediated path edges for the final predicted edge."""
     for edge_id in path_edge_ids:
-        if edge_id in final_result.xcrg.xcrg_support_edge_ids:
+        if edge_id in final_result.xcrg_support_edge_ids:
             continue
-        final_result.xcrg.xcrg_support_edge_ids.add(edge_id)
-        final_result.xcrg.xcrg_support_edges.append(edge_id)
+        final_result.xcrg_support_edge_ids.add(edge_id)
 
 
 def finalize_clean_result_analyses(
-    result_pair: ResultPair, # TODO
+    final_result: XCRGResult,
     original_qgraph: BaseQueryGraph,
     retriever_nodes: dict[CURIE, Node],
     retriever_edges: dict[EdgeID, Edge],
@@ -1790,16 +1784,12 @@ def finalize_clean_result_analyses(
     kg_nodes: dict[CURIE, Node],
     kg_edges: dict[EdgeID, Edge],
     auxiliary_graphs: AuxiliaryGraphsDict,
-    original_qid: QEdgeID,
+    original_qedge_id: QEdgeID,
     original_qedge: QEdge,
     config: XCRGConfig,
     reporter: XCRGReporter,
 ) -> None:
     """Build final Retriever/xCRG analyses after evidence grouping."""
-    final_result = result_pair.result
-
-    # original_qgraph = require(original_qgraph, QueryGraph)
-
     source_qnode = original_qedge.subject
     source_id = final_result.node_bindings[source_qnode][0].id
     copy_query_bound_node(
@@ -1822,7 +1812,7 @@ def finalize_clean_result_analyses(
 
     xcrg_bindings = []
 
-    direct_bindings = result_pair.xcrg.xcrg_direct_bindings
+    direct_bindings = final_result.xcrg_direct_bindings
     for binding in direct_bindings:
         copied_binding = deepcopy(binding)
         edge_id = copied_binding.id
@@ -1837,7 +1827,7 @@ def finalize_clean_result_analyses(
         ):
             xcrg_bindings.append(copied_binding)
 
-    support_edges = result_pair.xcrg.xcrg_support_edges
+    support_edges = final_result.xcrg_support_edge_ids
     copied_support_edges = [
         edge_id
         for edge_id in support_edges
@@ -1885,7 +1875,7 @@ def finalize_clean_result_analyses(
         analysis = Analysis(
             resource_id = config.resource_id,
             edge_bindings = {
-                original_qid: xcrg_bindings,
+                original_qedge_id: xcrg_bindings,
             }
         )
         add_ngd_analysis_support_graph(
@@ -1903,12 +1893,10 @@ def finalize_clean_result_analyses(
     else:
         final_result.analyses = []
 
-    result_pair.result = final_result # TODO
-
 
 def build_trapi_clean_response(
-    original_query: Query,
-    original_response: Response,
+    query: Query,
+    old_response: Response,
     subject_qid: QNodeID,
     object_qid: QNodeID,
     config: XCRGConfig,
@@ -1916,50 +1904,40 @@ def build_trapi_clean_response(
 ) -> Response:
     """Convert debug-shaped direct+2-hop results into one-hop TRAPI results."""
     reporter = reporter or XCRGReporter() # reporter stub
-    original_qedge_id, original_query_edge = get_single_query_edge(original_query)
+    qedge_id, qedge = get_single_query_edge(query)
 
-    combined = original_response.message
-    combined_kg = combined.knowledge_graph or KnowledgeGraph.new()
-    combined_nodes = combined_kg.nodes or {}
-    combined_edges = combined_kg.edges or {}
-    combined_auxiliary_graphs = combined.auxiliary_graphs or AuxiliaryGraphsDict()
+    old_kgraph = old_response.message.knowledge_graph or KnowledgeGraph.new()
+    old_aux_graphs = old_response.message.auxiliary_graphs_dict
 
-    final_message = Response(
-        message = Message(
-            query_graph = deepcopy(original_query.message.query_graph),
-            knowledge_graph = KnowledgeGraph.new(),
-            results = []
-        )
-    )
-    auxiliary_graphs = AuxiliaryGraphsDict()
-    final_results_by_pair = {}
-    final_results = [ResultPair(r, XCRGResult()) for r in final_message.message.results_list]
+    new_qgraph = deepcopy(query.message.query_graph)
+    new_kgraph = KnowledgeGraph.new()
+    new_aux_graphs = AuxiliaryGraphsDict()
 
-    for result_index, result in enumerate(combined.results or []):
+    new_results_by_pair = {}
+    new_results = list[XCRGResult]()
+
+    for result_index, result in enumerate(old_response.message.results_list):
         source_id = get_bound_node_curie(result, subject_qid)
         target_id = get_bound_node_curie(result, object_qid)
         if not source_id or not target_id:
             continue
 
         pair_key = (source_id, target_id)
-        if (
-            pair_key not in final_results_by_pair
-            and len(final_results) >= config.max_results
-        ):
+        if pair_key not in new_results_by_pair and len(new_results) >= config.max_results:
             continue
 
         final_result = get_or_create_final_result(
-            final_results_by_pair,
-            final_results,
+            new_results_by_pair,
+            new_results,
             subject_qid,
             object_qid,
             source_id,
             target_id,
         )
 
-        if final_result.xcrg.xcrg_first_score is None:
-            final_result.xcrg.xcrg_first_score = get_result_score(result)
-            final_result.xcrg.xcrg_first_index = result_index
+        if final_result.xcrg_first_score is None:
+            final_result.xcrg_first_score = get_result_score(result)
+            final_result.xcrg_first_index = result_index
 
         if is_two_hop_result(result):
             path_edge_ids: list[str] = [
@@ -1978,44 +1956,45 @@ def build_trapi_clean_response(
                 get_edge_bindings(result, DIRECT_QEDGE_ID),
             )
 
-    kg_graph = final_message.message.knowledge_graph or KnowledgeGraph.new()
-
-    for final_result in final_results:
+    for final_result in new_results:
         finalize_clean_result_analyses(
             final_result,
-            final_message.message.query_graph,
-            combined_nodes,
-            combined_edges,
-            combined_auxiliary_graphs,
-            kg_graph.nodes,
-            kg_graph.edges,
-            auxiliary_graphs,
-            original_qedge_id,
-            original_query_edge,
+            require(new_qgraph, BaseQueryGraph), # TODO
+            old_kgraph.nodes,
+            old_kgraph.edges,
+            old_aux_graphs,
+            new_kgraph.nodes,
+            new_kgraph.edges,
+            new_aux_graphs,
+            qedge_id,
+            qedge,
             config,
             reporter,
         )
 
-    final_results[:] = [
-        final_result
-        for final_result in final_results
-        if final_result.result.analyses
-    ]
-    final_results.sort(
+    new_results.sort(
         key = lambda it: (
-            descending_optional(it.xcrg.xcrg_first_score),
-            it.xcrg.xcrg_first_index or 0,
+            descending_optional(it.xcrg_first_score),
+            it.xcrg_first_index or 0
         )
     )
 
-    final_results = final_message.message.results = [it.result for it in final_results]
+    new_response = Response(
+        message = Message(
+            query_graph = new_qgraph,
+            knowledge_graph = new_kgraph,
+            results = [
+                result.to_trapi_result()
+                for result in new_results
+                if result.analyses
+            ],
+            auxiliary_graphs = new_aux_graphs
+        )
+    )
 
-    stamp_xcrg_rank_scores(final_results, config)
+    stamp_xcrg_rank_scores(new_response.message.results_list, config)
 
-    if auxiliary_graphs:
-        final_message.message.auxiliary_graphs = auxiliary_graphs
-
-    return original_response
+    return ensure_response_versions(new_response, config, old_response)
 
 
 def write_debug_manifest(debug_context: DebugContext, reporter: XCRGReporter) -> None:
@@ -2441,17 +2420,17 @@ async def async_run_xcrg(
     else:
         response = await run_direct_lookup(query, config, reporter)
 
-    # TODO: Figure out if Query.schema_version is part of TRAPI
-    if schema_version := original_query.get("schema_version"):
-        response.schema_version = str(schema_version)
-    else:
-        response.schema_version = config.trapi_schema_version
-
-    # TODO: Figure out if Query.biolink_version is part of TRAPI
-    if biolink_version := original_query.get("biolink_version"):
-        response.biolink_version = str(biolink_version)
-    else:
-        response.biolink_version = config.biolink_version
+    # # TODO: Figure out if Query.schema_version is part of TRAPI
+    # if schema_version := original_query.get("schema_version"):
+    #     response.schema_version = str(schema_version)
+    # else:
+    #     response.schema_version = config.trapi_schema_version
+    #
+    # # TODO: Figure out if Query.biolink_version is part of TRAPI
+    # if biolink_version := original_query.get("biolink_version"):
+    #     response.biolink_version = str(biolink_version)
+    # else:
+    #     response.biolink_version = config.biolink_version
 
     return response.to_dict()
 
