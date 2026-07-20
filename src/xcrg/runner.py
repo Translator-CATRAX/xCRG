@@ -1604,7 +1604,7 @@ def remove_edge_support_graph_attrs(edge: Edge) -> None:
 
 def get_edge_support_graph_ids(edge: Edge) -> list[AuxGraphID]:
     """Return support graph IDs referenced by a Retriever KG edge."""
-    support_graph_ids = []
+    support_graph_ids = list[AuxGraphID]()
     for attribute in edge.attributes_list:
         if attribute.attribute_type_id != "biolink:support_graphs":
             continue
@@ -1724,37 +1724,43 @@ def add_ngd_analysis_support_graph(
 
     if not analysis.support_graphs:
         analysis.support_graphs = []
+    # explicit set above means we get the actual list ref
     support_graphs = analysis.support_graphs_list
 
     if support_graph_id not in support_graphs:
         support_graphs.append(support_graph_id)
 
 
+# TODO: This method uses the tmp types: ResultPair, XCRGResult
 def get_or_create_final_result(
     final_results_by_pair: dict[tuple[CURIE, CURIE], ResultPair],
     final_results: list[ResultPair],
-    source_id: QNodeID,
-    target_id: QNodeID,
-    source_curie: CURIE,
-    target_curie: CURIE,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
+    subject_id: CURIE,
+    object_id: CURIE,
 ) -> ResultPair:
     """Return the final one-hop result for a source/target answer pair."""
-    pair_key = (source_curie, target_curie)
+    pair_key = (subject_id, object_id)
 
     if pair_key not in final_results_by_pair:
-        result = Result(node_bindings = {}, analyses = [])
-        xcrg = XCRGResult()
-        final_results_by_pair[pair_key] = ResultPair(result, xcrg)
-        xcrg.xcrg_first_index = len(final_results)
-        xcrg.node_bindings = {
-            source_id: [{"id": source_id, "attributes": []}],
-            target_id: [{"id": target_id, "attributes": []}],
-        }
-        final_results.append(final_results_by_pair[pair_key])
+        result = ResultPair(
+            result = Result(
+                node_bindings = {
+                    subject_qid: [{"id": subject_id, "attributes": []}],
+                    object_qid: [{"id": object_id, "attributes": []}],
+                },
+                analyses = []
+            ),
+            xcrg = XCRGResult(xcrg_first_index = len(final_results))
+        )
+        final_results_by_pair[pair_key] = result
+        final_results.append(result)
 
     return final_results_by_pair[pair_key]
 
 
+# TODO: ResultPair
 def add_direct_evidence(final_result: ResultPair, bindings: list[EdgeBinding]) -> None:
     """Attach direct one-hop KG edge bindings to a final result."""
     for binding in bindings:
@@ -1765,6 +1771,7 @@ def add_direct_evidence(final_result: ResultPair, bindings: list[EdgeBinding]) -
         final_result.xcrg.xcrg_direct_bindings.append(binding)
 
 
+# TODO: ResultPair
 def add_support_path_edges(final_result: ResultPair, path_edge_ids: list[EdgeID]) -> None:
     """Collect unique TF-mediated path edges for the final predicted edge."""
     for edge_id in path_edge_ids:
@@ -1776,27 +1783,24 @@ def add_support_path_edges(final_result: ResultPair, path_edge_ids: list[EdgeID]
 
 def finalize_clean_result_analyses(
     result_pair: ResultPair, # TODO
-    original_qgraph: BaseQueryGraph | None,
+    original_qgraph: BaseQueryGraph,
     retriever_nodes: dict[CURIE, Node],
     retriever_edges: dict[EdgeID, Edge],
     retriever_auxiliary_graphs: AuxiliaryGraphsDict,
     kg_nodes: dict[CURIE, Node],
     kg_edges: dict[EdgeID, Edge],
     auxiliary_graphs: AuxiliaryGraphsDict,
-    original_qedge_id: QEdgeID,
-    original_query_edge: QEdge,
+    original_qid: QEdgeID,
+    original_qedge: QEdge,
     config: XCRGConfig,
     reporter: XCRGReporter,
 ) -> None:
     """Build final Retriever/xCRG analyses after evidence grouping."""
-    final_result = Result(
-        node_bindings = result_pair.result.node_bindings,
-        analyses = result_pair.result.analyses
-    )
+    final_result = result_pair.result
 
-    original_qgraph = require(original_qgraph, QueryGraph) # TODO
+    # original_qgraph = require(original_qgraph, QueryGraph)
 
-    source_qnode = original_query_edge.subject
+    source_qnode = original_qedge.subject
     source_id = final_result.node_bindings[source_qnode][0].id
     copy_query_bound_node(
         source_qnode,
@@ -1806,7 +1810,7 @@ def finalize_clean_result_analyses(
         kg_nodes,
     )
 
-    target_qnode = original_query_edge.object
+    target_qnode = original_qedge.object
     target_id = final_result.node_bindings[target_qnode][0].id
     copy_query_bound_node(
         target_qnode,
@@ -1869,7 +1873,7 @@ def finalize_clean_result_analyses(
         inferred_edge_id, inferred_edge = make_xcrg_inferred_edge(
             source_id,
             target_id,
-            original_query_edge,
+            original_qedge,
             [support_graph_id],
             config,
         )
@@ -1881,7 +1885,7 @@ def finalize_clean_result_analyses(
         analysis = Analysis(
             resource_id = config.resource_id,
             edge_bindings = {
-                original_qedge_id: xcrg_bindings,
+                original_qid: xcrg_bindings,
             }
         )
         add_ngd_analysis_support_graph(
@@ -1905,8 +1909,8 @@ def finalize_clean_result_analyses(
 def build_trapi_clean_response(
     original_query: Query,
     original_response: Response,
-    source_qnode: QNodeID,
-    target_qnode: QNodeID,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
     config: XCRGConfig,
     reporter: XCRGReporter | None = None,
 ) -> Response:
@@ -1932,8 +1936,8 @@ def build_trapi_clean_response(
     final_results = [ResultPair(r, XCRGResult()) for r in final_message.message.results_list]
 
     for result_index, result in enumerate(combined.results or []):
-        source_id = get_bound_node_curie(result, source_qnode)
-        target_id = get_bound_node_curie(result, target_qnode)
+        source_id = get_bound_node_curie(result, subject_qid)
+        target_id = get_bound_node_curie(result, object_qid)
         if not source_id or not target_id:
             continue
 
@@ -1947,8 +1951,8 @@ def build_trapi_clean_response(
         final_result = get_or_create_final_result(
             final_results_by_pair,
             final_results,
-            source_qnode,
-            target_qnode,
+            subject_qid,
+            object_qid,
             source_id,
             target_id,
         )
@@ -2067,8 +2071,8 @@ def debug_dump_json(
 
 def filter_inferred_response(
     response: Response,
-    source_qnode_id: QNodeID,
-    target_qnode_id: QNodeID,
+    subject_qid: QNodeID,
+    target_qid: QNodeID,
     config: XCRGConfig,
 ) -> Response:
     """Filter subclass and wrong-direction results from a two-hop Retriever response."""
@@ -2085,14 +2089,14 @@ def filter_inferred_response(
             continue
         if result_has_bad_edge_predicate(result, kg_edges, "biolink:subclass_of"):
             continue
-        if not result_preserves_direction(result, kg_edges, source_qnode_id, target_qnode_id):
+        if not result_preserves_direction(result, kg_edges, subject_qid, target_qid):
             continue
         filtered_results.append(result)
 
     filtered_message = deepcopy(message)
     filtered_message.results = filtered_results
     if not filtered_message.knowledge_graph:
-        filtered_message.knowledge_graph = KnowledgeGraph(nodes = {}, edges = {})
+        filtered_message.knowledge_graph = KnowledgeGraph.new()
     if not filtered_message.auxiliary_graphs:
         filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
 
@@ -2172,7 +2176,7 @@ async def run_sync_retriever_lookup(
     # )
 
     # TODO: figure out how the timeout ought to work
-    timeout = query.timeout or httpx.Timeout(timeout = 5.0)
+    timeout = httpx.Timeout(timeout = query.timeout or 5.0)
     async with httpx.AsyncClient(timeout = timeout) as client:
         try:
             http_response = await client.post(config.retriever_url, json = query)
@@ -2194,9 +2198,9 @@ async def run_sync_retriever_lookup(
     if not message.knowledge_graph:
         message.knowledge_graph = KnowledgeGraph.new()
     if not message.results:
-        message.results = []
+        message.results = list[Result]()
     if not message.auxiliary_graphs:
-        message.auxiliary_graphs = {}
+        message.auxiliary_graphs = AuxiliaryGraphsDict()
 
     log_retriever_response(response, http_response.status_code, reporter)
 
@@ -2227,12 +2231,12 @@ async def run_inferred_lookup(
         reporter,
         debug_context,
     )
-    source_qnode, target_qnode, edge = validate_inferred_query(query)
+    subject_qid, object_qid, edge = validate_inferred_query(query)
 
     qgraph = require(query.message.query_graph, QueryGraph)
-    source_ids: list[str] = qgraph.nodes[source_qnode].ids or []
-    target_ids: list[str] = qgraph.nodes[target_qnode].ids or []
-    endpoint_ids = set(source_ids) | set(target_ids)
+    subject_ids: list[str] = qgraph.nodes[subject_qid].ids or []
+    object_ids: list[str] = qgraph.nodes[object_qid].ids or []
+    endpoint_ids = set(subject_ids) | set(object_ids)
 
     tf_list = [
         tf_id
@@ -2242,7 +2246,7 @@ async def run_inferred_lookup(
     if not tf_list:
         raise ValueError("No transcription factors remain after TP53/target filtering.")
 
-    direct_message = build_direct_query_for_inferred(query, source_qnode, target_qnode)
+    direct_message = build_direct_query_for_inferred(query, subject_qid, object_qid)
     debug_dump_json(
         "direct_lookup_query",
         direct_message,
@@ -2258,8 +2262,8 @@ async def run_inferred_lookup(
     )
     filtered_direct_response = filter_direct_response(
         direct_response,
-        source_qnode,
-        target_qnode,
+        subject_qid,
+        object_qid,
         config,
     )
     debug_dump_json(
@@ -2270,7 +2274,7 @@ async def run_inferred_lookup(
     )
 
     final_direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
-    sign_templates = get_sign_templates(cast(str, final_direction))
+    sign_templates = get_sign_templates(cast(str, final_direction)) # TODO: cast
     tf_batches = chunk_values(tf_list, config.tf_batch_size)
     reporter.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
@@ -2299,8 +2303,8 @@ async def run_inferred_lookup(
         for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
             two_hop_query = build_two_hop_query(
                 query,
-                source_qnode,
-                target_qnode,
+                subject_qid,
+                object_qid,
                 tf_batch,
                 first_dir,
                 second_dir,
@@ -2325,8 +2329,8 @@ async def run_inferred_lookup(
             )
             filtered_response = filter_inferred_response(
                 response,
-                source_qnode,
-                target_qnode,
+                subject_qid,
+                object_qid,
                 config,
             )
             debug_dump_json(
@@ -2349,8 +2353,8 @@ async def run_inferred_lookup(
 
     merged_query_graph = build_combined_query_graph(
         query,
-        source_qnode,
-        target_qnode,
+        subject_qid,
+        object_qid,
         tf_list,
     )
 
@@ -2358,8 +2362,8 @@ async def run_inferred_lookup(
         filtered_responses,
         require(build_two_hop_query(
             query,
-            source_qnode,
-            target_qnode,
+            subject_qid,
+            object_qid,
             tf_list,
             sign_templates[0][0],
             sign_templates[0][1],
@@ -2371,7 +2375,7 @@ async def run_inferred_lookup(
         merged_query_graph,
         config,
     )
-    sort_xcrg_combined_results(merged, source_qnode, target_qnode, config, reporter)
+    sort_xcrg_combined_results(merged, subject_qid, object_qid, config, reporter)
     debug_dump_json(
         "merged_debug_response",
         merged,
@@ -2381,8 +2385,8 @@ async def run_inferred_lookup(
     final_response = build_trapi_clean_response(
         query,
         merged,
-        source_qnode,
-        target_qnode,
+        subject_qid,
+        object_qid,
         config,
         reporter,
     )

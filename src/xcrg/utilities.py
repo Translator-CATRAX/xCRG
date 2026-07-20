@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Callable, TypeVar
 
 from translator_tom import Result
@@ -5,24 +6,23 @@ from translator_tom import Result
 T = TypeVar("T")
 
 # TODO: Temporary until types are untangled
+@dataclass
 class XCRGResult:
-    def __init__(self):
-    #     super().__init__(node_bindings = node_bindings, analyses = analyses)
-        self.node_bindings = {} #= node_bindings
-        self.analyses = [] # = analyses
-        self.xcrg_direct_bindings = []
-        self.xcrg_direct_binding_ids = set()
-        self.xcrg_support_edges = []
-        self.xcrg_support_edge_ids = set()
-        self.xcrg_first_score: float | None = None
-        self.xcrg_first_index: int | None = None # = len(final_results),
+    node_bindings = {} #= node_bindings
+    analyses = [] # = analyses
+    xcrg_direct_bindings = []
+    xcrg_direct_binding_ids = set()
+    xcrg_support_edges = []
+    xcrg_support_edge_ids = set()
+    xcrg_first_score: float | None = None
+    xcrg_first_index: int | None = None # = len(final_results),
 
 
 # TODO: Temporary until types are untangled
+@dataclass
 class ResultPair:
-    def __init__(self, result: Result, xcrg: XCRGResult):
-        self.result = result
-        self.xcrg = xcrg
+    result: Result
+    xcrg: XCRGResult
 
 
 def partition(items: list[T], predicate: Callable[[T], bool]) -> tuple[list[T], list[T]]:
