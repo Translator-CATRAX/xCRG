@@ -45,7 +45,7 @@ def partition(items: list[T], predicate: Callable[[T], bool]) -> tuple[list[T], 
         if predicate(item):
             passed.append(item)
         else:
-            passed.append(item)
+            failed.append(item)
 
     return passed, failed
 
