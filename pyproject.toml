@@ -7,17 +7,17 @@ name = "catrax-xcrg"
 version = "0.1.0"
 description = "Reusable xCRG MVP2 TRAPI response generation."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "Translator CATRAX" }
 ]
 dependencies = [
+    "bmt>=1.4.6",
     "httpx~=0.28",
-    "bmt>=1.4.6"
+    "translator_tom==1.2.1",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Operating System :: OS Independent",
