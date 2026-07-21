@@ -14,7 +14,6 @@ from importlib import resources
 from typing import cast
 
 import httpx
-from pydantic import BaseModel
 from translator_tom import (
     CURIE,
     Analysis,
@@ -42,7 +41,8 @@ from translator_tom import (
     QueryGraph,
     Response,
     Result,
-    RetrievalSource
+    RetrievalSource,
+    TOMBase
 )
 
 from .debugging import DebugContext
@@ -394,7 +394,7 @@ def get_node_category_specificity(node: Node | None, reporter: XCRGReporter) -> 
         return 0
     chemical_categories = [
         category
-        for category in node.categories_list
+        for category in node.categories
         if is_chemical_category(category, reporter)
     ]
     if not chemical_categories:
@@ -975,10 +975,12 @@ def merge_filtered_responses(
         aux_graph.update(message.auxiliary_graphs_dict)
 
         for result in message.results_list:
+            # TODO: Is there a better way to do this?
+            result_dict = result.to_dict()
             key = json.dumps(
                 {
-                    "node_bindings": result.node_bindings,
-                    "analyses": result.analyses,
+                    "node_bindings": result_dict.get('node_bindings', {}),
+                    "analyses": result_dict.get('analyses', [])
                 },
                 sort_keys=True,
             )
@@ -2026,7 +2028,7 @@ def write_debug_manifest(debug_context: DebugContext, reporter: XCRGReporter) ->
 
 def debug_dump_json(
     label: str,
-    payload: object | BaseModel,
+    payload: object | TOMBase,
     reporter: XCRGReporter,
     debug_context: DebugContext | None = None,
 ) -> None:
@@ -2037,8 +2039,8 @@ def debug_dump_json(
         debug_context.run_dir.mkdir(parents=True, exist_ok=True)
         readable_path = debug_context.run_dir / f"{label}.json"
         with open(readable_path, "w", encoding="utf-8") as debug_file:
-            if isinstance(payload, BaseModel):
-                data = payload.model_dump(mode = "json")
+            if isinstance(payload, TOMBase):
+                data = payload.to_dict()
             else:
                 data = payload
             json.dump(data, debug_file, indent=2, sort_keys=True)
@@ -2106,10 +2108,10 @@ def summarize_response_counts(entity: Query | Response) -> dict:
     }
 
 
-def format_json_for_log(value: object | BaseModel) -> str:
+def format_json_for_log(value: object | TOMBase) -> str:
     """Return compact JSON for diagnostic logs."""
-    if isinstance(value, BaseModel):
-        data = value.model_dump(mode = "json")
+    if isinstance(value, TOMBase):
+        data = value.to_dict()
     else:
         data = value
     return json.dumps(data, sort_keys=True, separators=(",", ":"))
@@ -2174,7 +2176,7 @@ async def run_sync_retriever_lookup(
     timeout = httpx.Timeout(timeout = 5.0) # TODO: query.timeout or 5.0)
     async with httpx.AsyncClient(timeout = timeout) as client:
         try:
-            http_response = await client.post(config.retriever_url, json = query)
+            http_response = await client.post(config.retriever_url, json = query.to_dict())
             http_response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             reporter.error(
@@ -2402,7 +2404,7 @@ async def run_inferred_lookup(
     return final_response
 
 
-def is_xcrg_mvp2_query(query: dict[str, object]) -> bool:
+def is_xcrg_mvp2_query(query: dict) -> bool:
     """Return True when a query matches the MVP2 xCRG inferred shape."""
     try:
         validate_inferred_query(Query.from_dict(query))
