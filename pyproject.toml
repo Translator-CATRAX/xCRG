@@ -14,6 +14,7 @@ authors = [
 dependencies = [
     "bmt>=1.4.6",
     "httpx~=0.28",
+    "pytest==9.1.1",
     "translator_tom==1.2.1",
 ]
 classifiers = [
@@ -32,3 +33,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "xcrg.resources" = ["*.json"]
+
+[tool.pytest.ini_options]
+# Additional configuration in tests/conftest.py
+pythonpath = ["src"]
+testpaths = ["tests"]
