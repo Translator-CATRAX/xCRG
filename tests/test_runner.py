@@ -87,6 +87,56 @@ def primary_source() -> list[RetrievalSource]:
     ]
 
 
+def test_deserialize_example03_query():
+    query_dict = {
+        "message": {
+            "query_graph": {
+                "nodes": {
+                    "on": {
+                        "categories": [
+                            "biolink:Gene"
+                        ],
+                        "ids": [
+                            "NCBIGene:1576"
+                        ]
+                    },
+                    "sn": {
+                        "categories": [
+                            "biolink:ChemicalEntity"
+                        ]
+                    }
+                },
+                "edges": {
+                    "t_edge": {
+                        "knowledge_type": "inferred",
+                        "object": "on",
+                        "predicates": [
+                            "biolink:affects"
+                        ],
+                        "qualifier_constraints": [
+                            {
+                                "qualifier_set": [
+                                    {
+                                        "qualifier_type_id": "biolink:object_aspect_qualifier",
+                                        "qualifier_value": "activity_or_abundance"
+                                    },
+                                    {
+                                        "qualifier_type_id": "biolink:object_direction_qualifier",
+                                        "qualifier_value": "increased"
+                                    }
+                                ]
+                            }
+                        ],
+                        "subject": "sn"
+                    }
+                }
+            }
+        }
+    }
+    query = Query.from_dict(query_dict)
+    assert isinstance(query, Query)
+
+
 def test_is_xcrg_mvp2_query_detects_supported_shape():
     query = {
         "message": {

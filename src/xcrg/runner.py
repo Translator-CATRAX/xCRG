@@ -2412,6 +2412,8 @@ async def async_run_xcrg(
     reporter = logger or XCRGReporter() # reporter stub
     query_id = query_id or uuid.uuid4().hex[:8]
 
+    reporter.debug("Original Query:\n" + str(original_query))
+
     query = Query.from_dict(deepcopy(original_query))
     query.timeout = config.timeout # TODO: query.timeout or config.timeout
     # TODO: tiers parameter?
