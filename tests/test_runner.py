@@ -1,6 +1,7 @@
 """Smoke tests for the reusable xCRG package."""
 import json
 import sqlite3
+from typing import cast
 
 from translator_tom import (
     Analysis,
@@ -353,9 +354,11 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
 
     merged = runner.merge_filtered_responses(responses, qgraph, config)
 
+    assert merged.message.knowledge_graph
     merged_node = merged.message.knowledge_graph.nodes["NCBIGene:1991"]
     merged_edge = merged.message.knowledge_graph.edges["edge1"]
 
+    assert rich_response.message.knowledge_graph
     assert merged_node == rich_response.message.knowledge_graph.nodes["NCBIGene:1991"]
     assert merged_edge == rich_response.message.knowledge_graph.edges["edge1"]
 
@@ -454,6 +457,9 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
     #     for binding in bindings
     #     if not binding.attributes
     # ]
+
+    assert response.message.knowledge_graph
+
     datetime_attrs = [
         attr
         for edge in response.message.knowledge_graph.edges.values()
@@ -463,7 +469,7 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
     creation_attrs = [
         attr
         for edge in response.message.knowledge_graph.edges.values()
-        for attr in edge.attributes
+        for attr in edge.attributes or []
         if attr.attribute_type_id == "biolink:creation_date"
     ]
     auxiliary_graphs = response.message.auxiliary_graphs_dict
@@ -536,6 +542,8 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
         "gene",
         config,
     )
+
+    assert response.message.knowledge_graph
 
     ngd_edges = [
         edge
@@ -654,6 +662,7 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
         config,
     )
 
+    assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
     assert final_nodes["CHEBI:1"] == chem_node
     assert final_nodes["NCBIGene:1"] == gene_node
@@ -664,6 +673,7 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
 def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
     config = make_config()
     original_message = make_inferred_query()
+    assert original_message.message.query_graph
     original_message.message.query_graph.nodes["gene"] = QNode(
         ids = ["NCBIGene:1"],
         categories = ["biolink:gene"]
@@ -715,6 +725,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
         config,
     )
 
+    assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
     final_edges = response.message.knowledge_graph.edges
     assert final_nodes["NCBIGene:1"] == Node(
@@ -794,12 +805,14 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
         config,
     )
 
+    assert response.message.knowledge_graph
+
     final_nodes = response.message.knowledge_graph.nodes
     inferred_bindings = [
         binding
         for result in response.message.results_list
         for analysis in result.analyses
-        for bindings in analysis.edge_bindings.values()
+        for bindings in cast(Analysis, analysis).edge_bindings.values()
         for binding in bindings
         if binding.id.startswith("xcrg_inferred_edge_")
     ]
@@ -862,6 +875,7 @@ def test_clean_response_limits_to_configured_top_result_count():
     )
 
     final_results = response.message.results_list
+    assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
     answer_ids = [
         result.node_bindings["gene"][0].id
@@ -941,13 +955,14 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
     )
 
     message = response.message
+    assert message.knowledge_graph
     final_edges = message.knowledge_graph.edges
     final_aux_graphs = message.auxiliary_graphs_dict
 
     assert "retriever_support_0" in final_aux_graphs
     assert final_aux_graphs["retriever_support_0"].edges == ["support0"]
     assert "support0" in final_edges
-    assert final_edges["direct0"].attributes[0].value == ["retriever_support_0"]
+    assert final_edges["direct0"].attributes_list[0].value == ["retriever_support_0"]
 
 
 def test_xcrg_ngd_edge_skips_empty_publications_attribute():
