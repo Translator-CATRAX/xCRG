@@ -2162,7 +2162,7 @@ async def run_sync_retriever_lookup(
     # )
 
     # TODO: figure out how the timeout ought to work
-    timeout = httpx.Timeout(timeout = query.timeout or 5.0)
+    timeout = httpx.Timeout(timeout = 5.0) # TODO: query.timeout or 5.0)
     async with httpx.AsyncClient(timeout = timeout) as client:
         try:
             http_response = await client.post(config.retriever_url, json = query)
@@ -2295,7 +2295,7 @@ async def run_inferred_lookup(
                 first_dir,
                 second_dir,
             )
-            two_hop_query.timeout = two_hop_query.timeout or config.timeout
+            two_hop_query.timeout = config.timeout # TODO: two_hop_query.timeout or config.timeout
             # TODO: q.tiers = q.tiers or config.normalized_tiers()
 
             if not two_hop_query.submitter:
@@ -2413,7 +2413,7 @@ async def async_run_xcrg(
     query_id = query_id or uuid.uuid4().hex[:8]
 
     query = Query.from_dict(deepcopy(original_query))
-    query.timeout = query.timeout or config.timeout
+    query.timeout = config.timeout # TODO: query.timeout or config.timeout
     # TODO: tiers parameter?
 
     if not query.submitter:
