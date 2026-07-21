@@ -499,7 +499,10 @@ def get_ngd_neighbors(
         return None
 
     try:
-        row = connection.execute("SELECT ngd FROM curie_ngd WHERE curie = ?", curie).fetchone()
+        row = connection.execute(
+            "SELECT ngd FROM curie_ngd WHERE curie = ?",
+            (curie,),
+        ).fetchone()
     except sqlite3.Error:
         return None
 
@@ -623,7 +626,10 @@ def get_curie_pmids(
         return None
 
     try:
-        row = connection.execute("SELECT pmids FROM curie_to_pmids WHERE curie = ?", curie).fetchone()
+        row = connection.execute(
+            "SELECT pmids FROM curie_to_pmids WHERE curie = ?",
+            (curie,),
+        ).fetchone()
     except sqlite3.Error:
         pmids = set()
     else:
@@ -1765,6 +1771,7 @@ def add_direct_evidence(final_result: XCRGResult, bindings: list[EdgeBinding]) -
         if edge_id in final_result.xcrg_direct_binding_ids:
             continue
         final_result.xcrg_direct_binding_ids.add(edge_id)
+        final_result.xcrg_direct_bindings.append(binding)
 
 
 def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]) -> None:
@@ -1810,7 +1817,7 @@ def finalize_clean_result_analyses(
         kg_nodes,
     )
 
-    xcrg_bindings = []
+    xcrg_bindings = list[EdgeBinding]()
 
     direct_bindings = final_result.xcrg_direct_bindings
     for binding in direct_bindings:
@@ -1869,7 +1876,7 @@ def finalize_clean_result_analyses(
         )
 
         kg_edges[inferred_edge_id] = inferred_edge
-        xcrg_bindings.append({"id": inferred_edge_id, "attributes": []})
+        xcrg_bindings.append(EdgeBinding(id = inferred_edge_id, attributes = []))
 
     if xcrg_bindings:
         analysis = Analysis(
