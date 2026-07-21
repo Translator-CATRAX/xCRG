@@ -1,5 +1,4 @@
 """Smoke tests for the reusable xCRG package."""
-
 import json
 import sqlite3
 
@@ -24,13 +23,8 @@ from translator_tom import (
     RetrievalSource
 )
 
-from xcrg import XCRGConfig, is_xcrg_mvp2_query
-from xcrg.runner import (
-    build_trapi_clean_response,
-    load_tf_list,
-    make_xcrg_ngd_edge,
-    merge_filtered_responses, validate_inferred_query,
-)
+import xcrg.runner as runner
+from xcrg.config import XCRGConfig
 
 
 def make_config() -> XCRGConfig:
@@ -134,7 +128,74 @@ def test_deserialize_example03_query():
         }
     }
     query = Query.from_dict(query_dict)
-    assert isinstance(query, Query)
+    assert runner.validate_inferred_query(query)
+
+
+def test_deserialize_example03_query_with_extra_fields():
+    query_dict = {
+        'message':
+            {
+                'results': [],
+                'query_graph': {
+                    'nodes': {
+                        'on': {
+                            'ids': ['NCBIGene:1576'],
+                            'categories': ['biolink:Gene'],
+                            'is_set': False,
+                            'set_id': None,
+                            'set_interpretation': None,
+                            'constraints': [],
+                            'option_group_id': None
+                        },
+                        'sn': {
+                            'ids': None,
+                            'categories': ['biolink:ChemicalEntity'],
+                            'is_set': False,
+                            'set_id': None,
+                            'set_interpretation': None,
+                            'constraints': [],
+                            'option_group_id': None
+                        }
+                    },
+                    'edges': {
+                        't_edge': {
+                            'knowledge_type': 'inferred',
+                            'predicates': ['biolink:affects'],
+                            'subject': 'sn',
+                            'object': 'on',
+                            'attribute_constraints': [],
+                            'qualifier_constraints': [
+                                {
+                                    'qualifier_set': [
+                                        {
+                                            'qualifier_type_id': 'biolink:object_aspect_qualifier',
+                                            'qualifier_value': 'activity_or_abundance'},
+                                        {
+                                            'qualifier_type_id': 'biolink:object_direction_qualifier',
+                                            'qualifier_value': 'increased'
+                                        }
+                                    ]
+                                }
+                            ],
+                            'exclude': None,
+                            'option_group_id': None
+                        }
+                    }
+                },
+                'knowledge_graph': {
+                    'nodes': {},
+                    'edges': {}
+                },
+                'auxiliary_graphs': None
+            }
+    }
+    query = Query.from_dict(query_dict)
+    assert runner.validate_inferred_query(query)
+
+
+def test_debug_logging01():
+    query = make_inferred_query()
+    runner.format_json_for_log(query)
 
 
 def test_is_xcrg_mvp2_query_detects_supported_shape():
@@ -174,7 +235,7 @@ def test_is_xcrg_mvp2_query_detects_supported_shape():
         }
     }
 
-    assert is_xcrg_mvp2_query(query)
+    assert runner.is_xcrg_mvp2_query(query)
 
 
 def test_validate_inferred_query():
@@ -214,11 +275,11 @@ def test_validate_inferred_query():
         )
     )
 
-    assert validate_inferred_query(query)
+    assert runner.validate_inferred_query(query)
 
 
 def test_load_tf_list_uses_bundled_default_resource():
-    tf_list = load_tf_list(make_config())
+    tf_list = runner.load_tf_list(make_config())
 
     assert "NCBIGene:7157" in tf_list
     assert len(tf_list) > 100
@@ -290,7 +351,7 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
     responses = [rich_response, sparse_response]
     qgraph = QueryGraph(nodes = {}, edges = {})
 
-    merged = merge_filtered_responses(responses, qgraph, config)
+    merged = runner.merge_filtered_responses(responses, qgraph, config)
 
     merged_node = merged.message.knowledge_graph.nodes["NCBIGene:1991"]
     merged_edge = merged.message.knowledge_graph.edges["edge1"]
@@ -370,7 +431,7 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
         )
     )
 
-    response = build_trapi_clean_response(
+    response = runner.build_trapi_clean_response(
         original_message,
         combined_message,
         "chem",
@@ -468,7 +529,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
         )
     )
 
-    response = build_trapi_clean_response(
+    response = runner.build_trapi_clean_response(
         original_message,
         combined_message,
         "chem",
@@ -585,7 +646,7 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
         )
     )
 
-    response = build_trapi_clean_response(
+    response = runner.build_trapi_clean_response(
         original_message,
         combined_message,
         "chem",
@@ -646,7 +707,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
         )
     )
 
-    response = build_trapi_clean_response(
+    response = runner.build_trapi_clean_response(
         original_message,
         combined_message,
         "chem",
@@ -725,7 +786,7 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
         )
     )
 
-    response = build_trapi_clean_response(
+    response = runner.build_trapi_clean_response(
         original_message,
         combined_message,
         "chem",
@@ -792,7 +853,7 @@ def test_clean_response_limits_to_configured_top_result_count():
         )
     )
 
-    response = build_trapi_clean_response(
+    response = runner.build_trapi_clean_response(
         original_message,
         combined_message,
         "chem",
@@ -871,7 +932,7 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
         )
     )
 
-    response = build_trapi_clean_response(
+    response = runner.build_trapi_clean_response(
         original_message,
         combined_message,
         "chem",
@@ -890,7 +951,7 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
 
 
 def test_xcrg_ngd_edge_skips_empty_publications_attribute():
-    _, edge = make_xcrg_ngd_edge(
+    _, edge = runner.make_xcrg_ngd_edge(
         "CHEBI:1",
         "NCBIGene:1",
         0.5,

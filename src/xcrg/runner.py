@@ -14,6 +14,7 @@ from importlib import resources
 from typing import cast
 
 import httpx
+from pydantic import BaseModel
 from translator_tom import (
     CURIE,
     Analysis,
@@ -2025,7 +2026,7 @@ def write_debug_manifest(debug_context: DebugContext, reporter: XCRGReporter) ->
 
 def debug_dump_json(
     label: str,
-    payload: dict | Query | Response,
+    payload: object | BaseModel,
     reporter: XCRGReporter,
     debug_context: DebugContext | None = None,
 ) -> None:
@@ -2036,7 +2037,11 @@ def debug_dump_json(
         debug_context.run_dir.mkdir(parents=True, exist_ok=True)
         readable_path = debug_context.run_dir / f"{label}.json"
         with open(readable_path, "w", encoding="utf-8") as debug_file:
-            json.dump(payload, debug_file, indent=2, sort_keys=True)
+            if isinstance(payload, BaseModel):
+                data = payload.model_dump(mode = "json")
+            else:
+                data = payload
+            json.dump(data, debug_file, indent=2, sort_keys=True)
         match payload:
             case Query() | Response() as entity:
                 summary = summarize_response_counts(entity)
@@ -2101,9 +2106,13 @@ def summarize_response_counts(entity: Query | Response) -> dict:
     }
 
 
-def format_json_for_log(value: object) -> str:
+def format_json_for_log(value: object | BaseModel) -> str:
     """Return compact JSON for diagnostic logs."""
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    if isinstance(value, BaseModel):
+        data = value.model_dump(mode = "json")
+    else:
+        data = value
+    return json.dumps(data, sort_keys=True, separators=(",", ":"))
 
 
 def log_retriever_response(
