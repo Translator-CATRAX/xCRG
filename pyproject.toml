@@ -38,3 +38,6 @@ where = ["src"]
 # Additional configuration in tests/conftest.py
 pythonpath = ["src"]
 testpaths = ["tests"]
+# Only run unit tests by default.
+# Comment this line if you want better support in PyCharm, etc.
+addopts = ["-m unit"]
