@@ -76,4 +76,16 @@ class LogReporter(Reporter):
     def handle_message(self, message: Message) -> None:
         match message:
             case LogMessage() as log:
-                self.logger.log(log.level, log.msg, *log.args)
+                # self.logger.log(log.level, log.msg, *log.args)
+                # TODO: ARAXXCRGLogger does not fulfill entire logging interface (no 'log' method).
+                #  Use this match statement until we have refactored to enforce new xcrg.Reporter.
+                #  We can remove the match statement and uncomment the single line above afterwwards.
+                match log.level:
+                    case LogLevel.DEBUG:
+                        self.logger.debug(log.msg, *log.args)
+                    case LogLevel.INFO:
+                        self.logger.info(log.msg, *log.args)
+                    case LogLevel.WARNING:
+                        self.logger.warning(log.msg, *log.args)
+                    case LogLevel.ERROR:
+                        self.logger.error(log.msg, *log.args)
