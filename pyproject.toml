@@ -14,14 +14,22 @@ authors = [
 dependencies = [
     "bmt>=1.4.6",
     "httpx~=0.28",
-    "pytest==9.1.1",
     "translator_tom==1.2.1",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
+]
+
+[dependency-groups]
+dev = [
+    "pyright==1.1.411",
+    "pytest==9.1.1",
+    "ruff==0.15.22",
+    "ty==0.0.63"
 ]
 
 [project.urls]

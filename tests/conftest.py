@@ -54,7 +54,7 @@ def curie_to_pmids_db_file(request) -> Path | None:
 
 @pytest.fixture()
 def save_response(request) -> bool:
-    return request.config.getoption("--save_response") == True
+    return bool(request.config.getoption("--save_response"))
 
 
 def pytest_configure(config):

@@ -2306,7 +2306,8 @@ async def run_inferred_lookup(
                 first_dir,
                 second_dir,
             )
-            two_hop_query.timeout = config.timeout # TODO: two_hop_query.timeout or config.timeout
+            # TODO: Query.timeout will become available in TRAPI 2.0
+            # two_hop_query.timeout = two_hop_query.timeout or config.timeout
             # TODO: q.tiers = q.tiers or config.normalized_tiers()
 
             if not two_hop_query.submitter:
@@ -2426,7 +2427,8 @@ async def async_run_xcrg(
     reporter.debug("Original Query:\n" + str(original_query))
 
     query = Query.from_dict(deepcopy(original_query))
-    query.timeout = config.timeout # TODO: query.timeout or config.timeout
+    # TODO: Query.timeout will become available in TRAPI 2.0
+    # query.timeout = query.timeout or config.timeout
     # TODO: tiers parameter?
 
     if not query.submitter:
