@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import sqlite3
 import uuid
@@ -47,7 +48,7 @@ from translator_tom import (
 
 from .debugging import DebugContext
 from .config import XCRGConfig
-from .reporting import XCRGReporter
+from .reporting import LogReporter, Reporter
 from .utilities import partition, require, XCRGResult
 
 TF_QNODE_ID = "tf"
@@ -290,7 +291,7 @@ def load_tf_list(config: XCRGConfig) -> list[str]:
 
 
 # TODO: Should we just expect that the user has installed the bmt library?
-def get_bmt_toolkit(reporter: XCRGReporter):
+def get_bmt_toolkit(reporter: Reporter):
     """Return a cached Biolink Toolkit instance when the dependency is available."""
     global _BMT_TOOLKIT, _BMT_WARNING_EMITTED
     if Toolkit is None:
@@ -341,7 +342,7 @@ def get_valid_aspect_qualifiers() -> frozenset[str]:
     return _VALID_ASPECT_QUALIFIERS
 
 
-def get_category_specificity(category: str, reporter: XCRGReporter) -> int:
+def get_category_specificity(category: str, reporter: Reporter) -> int:
     """Return a Biolink specificity heuristic based on non-mixin ancestor count."""
     bmt_toolkit = get_bmt_toolkit(reporter)
     if bmt_toolkit:
@@ -365,7 +366,7 @@ def get_category_specificity(category: str, reporter: XCRGReporter) -> int:
     return FALLBACK_CATEGORY_DEPTH.get(category, 0)
 
 
-def is_chemical_category(category: str, reporter: XCRGReporter) -> bool:
+def is_chemical_category(category: str, reporter: Reporter) -> bool:
     """Return True when a category is ChemicalEntity or a chemical descendant."""
     if category == "biolink:ChemicalEntity" or category in FALLBACK_CATEGORY_DEPTH:
         return True
@@ -388,7 +389,7 @@ def is_chemical_category(category: str, reporter: XCRGReporter) -> bool:
         return False
 
 
-def get_node_category_specificity(node: Node | None, reporter: XCRGReporter) -> int:
+def get_node_category_specificity(node: Node | None, reporter: Reporter) -> int:
     """Return the most specific chemical category score attached to a KG node."""
     if node is None:
         return 0
@@ -438,7 +439,7 @@ def get_node_information_content(node: Node | None) -> float | None:
 
 def get_ngd_connection(
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> sqlite3.Connection | None:
     """Return a cached read-only NGD SQLite connection when the local DB exists."""
     global _NGD_WARNING_EMITTED
@@ -485,7 +486,7 @@ def get_ngd_connection(
 def get_ngd_neighbors(
     curie: CURIE | None,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> dict[CURIE, float] | None:
     """Return cached NGD neighbors for one CURIE from the adjacency-list DB."""
     if not curie:
@@ -536,7 +537,7 @@ def get_ngd_score(
     curie_a: CURIE | None,
     curie_b: CURIE | None,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> float | None:
     """Return lower-is-better NGD for a CURIE pair, if present in the local DB."""
     if not curie_a or not curie_b:
@@ -562,7 +563,7 @@ def get_ngd_score(
 
 def get_pmid_connection(
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> sqlite3.Connection | None:
     """Return a cached read-only CURIE-to-PMID SQLite connection."""
     global _PMID_WARNING_EMITTED
@@ -611,7 +612,7 @@ def get_pmid_connection(
 def get_curie_pmids(
     curie: CURIE | None,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> set[str] | None:
     """Return normalized PMID identifiers for one CURIE from curie_to_pmids."""
     if not curie:
@@ -669,7 +670,7 @@ def get_ngd_publications(
     curie_a: CURIE | None,
     curie_b: CURIE | None,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> list[str] | None:
     """Return PMID intersection from the same CURIE-to-PMID source as NGD."""
     pmids_a = get_curie_pmids(curie_a, config, reporter)
@@ -1067,7 +1068,7 @@ def is_two_hop_result(result: Result) -> bool:
 def answer_qnode_uses_category_specificity(
     query_graph: BaseQueryGraph,
     answer_qid: QNodeID,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> bool:
     """Chemical answers use Biolink specificity before information content."""
     qnode = query_graph.nodes.get(answer_qid)
@@ -1082,7 +1083,7 @@ def get_result_answer_metrics(
     nodes: dict[CURIE, Node],
     answer_qid: QNodeID,
     use_category_specificity: bool,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> tuple[int, float | None, CURIE]:
     """Return sort metrics for the answer node bound by a result."""
     answer_id = get_bound_node_curie(result, answer_qid) or ""
@@ -1111,7 +1112,7 @@ def get_result_endpoint_ngd(
     subject_qid: QNodeID,
     object_qid: QNodeID,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> float | None:
     """Return direct source-answer NGD for the final source/target pair."""
     source_id = get_bound_node_curie(result, subject_qid)
@@ -1123,7 +1124,7 @@ def get_result_answer_tf_ngd(
     result: Result,
     answer_qid: QNodeID,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> float | None:
     """Return answer-to-TF NGD for ordering results within a TF bucket."""
     answer_id = get_bound_node_curie(result, answer_qid)
@@ -1195,7 +1196,7 @@ def sort_xcrg_combined_results(
     subject_qid: QNodeID,
     object_qid: QNodeID,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> None:
     """Sort direct results first, then TF-mediated results by the xCRG policy."""
     message = response.message
@@ -1695,7 +1696,7 @@ def add_ngd_analysis_support_graph(
     source_id: CURIE,
     target_id: CURIE,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> None:
     """Attach a virtual NGD edge as analysis-level support.
 
@@ -1797,7 +1798,7 @@ def finalize_clean_result_analyses(
     original_qedge_id: QEdgeID,
     original_qedge: QEdge,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> None:
     """Build final Retriever/xCRG analyses after evidence grouping."""
     source_qnode = original_qedge.subject
@@ -1910,10 +1911,9 @@ def build_trapi_clean_response(
     subject_qid: QNodeID,
     object_qid: QNodeID,
     config: XCRGConfig,
-    reporter: XCRGReporter | None = None,
+    reporter: Reporter = LogReporter(),
 ) -> Response:
     """Convert debug-shaped direct+2-hop results into one-hop TRAPI results."""
-    reporter = reporter or XCRGReporter() # reporter stub
     qedge_id, qedge = get_single_query_edge(query)
 
     old_kgraph = old_response.message.knowledge_graph or KnowledgeGraph.new()
@@ -2007,7 +2007,7 @@ def build_trapi_clean_response(
     return ensure_response_versions(new_response, config, old_response)
 
 
-def write_debug_manifest(debug_context: DebugContext, reporter: XCRGReporter) -> None:
+def write_debug_manifest(debug_context: DebugContext, reporter: Reporter) -> None:
     """Write or refresh the human-readable debug manifest for one query."""
     if not debug_context.run_dir:
         return
@@ -2029,7 +2029,7 @@ def write_debug_manifest(debug_context: DebugContext, reporter: XCRGReporter) ->
 def debug_dump_json(
     label: str,
     payload: object | TOMBase,
-    reporter: XCRGReporter,
+    reporter: Reporter,
     debug_context: DebugContext | None = None,
 ) -> None:
     """Best-effort debug JSON dump for inferred xCRG runs."""
@@ -2120,7 +2120,7 @@ def format_json_for_log(value: object | TOMBase) -> str:
 def log_retriever_response(
     response: Response,
     http_status_code: int,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> None:
     """Emit useful Retriever status/counts without requiring debug files."""
     counts = summarize_response_counts(response)
@@ -2156,7 +2156,7 @@ def log_retriever_response(
 async def run_sync_retriever_lookup(
     query: Query,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> Response:
     """Run a sync Retriever lookup and return its TRAPI response."""
     reporter.info("Sending xCRG lookup query to %s", config.retriever_url)
@@ -2207,7 +2207,7 @@ async def run_sync_retriever_lookup(
 async def run_direct_lookup(
     query: Query,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> Response:
     """Run the original one-hop direct xCRG lookup."""
     validate_direct_lookup_query(query)
@@ -2218,7 +2218,7 @@ async def run_inferred_lookup(
     query_id: str,
     query: Query,
     config: XCRGConfig,
-    reporter: XCRGReporter,
+    reporter: Reporter,
 ) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
     debug_context = make_debug_run_context(query_id, query, config)
@@ -2415,24 +2415,25 @@ def is_xcrg_mvp2_query(query: dict) -> bool:
 
 
 async def async_run_xcrg(
-    original_query: dict[str, object], # TODO: original_query -> query
+    message: dict,
     config: XCRGConfig,
-    logger: XCRGReporter | None = None, # TODO: logger -> reporter
+    logger: logging.Logger | None = None,
     query_id: str | None = None,
 ) -> dict:
     """Run xCRG and return a complete TRAPI response."""
-    reporter = logger or XCRGReporter() # reporter stub
+    reporter: Reporter
+    if logger is None:
+        reporter = LogReporter()
+    else:
+        reporter = LogReporter(logger)
+
     query_id = query_id or uuid.uuid4().hex[:8]
 
-    reporter.debug("Original Query:\n" + str(original_query))
+    query = Query.from_dict(message)
 
-    query = Query.from_dict(deepcopy(original_query))
     # TODO: Query.timeout will become available in TRAPI 2.0
     # query.timeout = query.timeout or config.timeout
-    # TODO: tiers parameter?
-
-    if not query.submitter:
-        query.submitter = config.resource_id
+    query.submitter = query.submitter or config.resource_id
 
     _, edge = get_single_query_edge(query)
 
@@ -2442,33 +2443,23 @@ async def async_run_xcrg(
     else:
         response = await run_direct_lookup(query, config, reporter)
 
-    # # TODO: Figure out if Query.schema_version is part of TRAPI
-    # if schema_version := original_query.get("schema_version"):
-    #     response.schema_version = str(schema_version)
-    # else:
-    #     response.schema_version = config.trapi_schema_version
-    #
-    # # TODO: Figure out if Query.biolink_version is part of TRAPI
-    # if biolink_version := original_query.get("biolink_version"):
-    #     response.biolink_version = str(biolink_version)
-    # else:
-    #     response.biolink_version = config.biolink_version
+    # TODO: ensure_response_versions? This very likely already happened upstream...
 
     return response.to_dict()
 
 
 def run_xcrg(
-    query: dict[str, object],
+    message: dict,
     config: XCRGConfig,
-    logger: XCRGReporter | None = None, # TODO: logger -> reporter
+    logger: logging.Logger | None = None,
     query_id: str | None = None,
 ) -> dict:
     """Synchronous wrapper for callers that are not already running an event loop."""
     return asyncio.run(
         async_run_xcrg(
-            original_query = query,
-            config = config,
-            logger = logger,
-            query_id = query_id,
+            message=message,
+            config=config,
+            logger=logger,
+            query_id=query_id,
         )
     )

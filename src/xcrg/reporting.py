@@ -1,24 +1,79 @@
+import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import IntEnum
 
 
-class XCRGReporter:
-    """Interface for xCRG reporter that informs caller about events and progress."""
+# The default logger for the LogReporter
+_LOGGER = logging.getLogger(__name__)
 
-    def debug(self, message: str, *args: object) -> None:
-        """Capture a debug message."""
+
+class Message:
+    """Marker class for messages reported by the xCRG module."""
+    pass
+
+
+class LogLevel(IntEnum):
+    DEBUG    = logging.DEBUG
+    INFO     = logging.INFO
+    WARNING  = logging.WARNING
+    ERROR    = logging.ERROR
+    CRITICAL = logging.CRITICAL
+    FATAL    = logging.FATAL
+
+
+@dataclass
+class LogMessage(Message):
+    level : LogLevel
+    msg   : str
+    args  : tuple[object, ...] = field(default_factory = tuple)
+    time  : datetime           = field(default = datetime.now(timezone.utc))
+
+
+# @dataclass
+# class ProgressMessage(Message):
+#     pct_done: float
+
+
+class Reporter(ABC):
+    """Abstract class for xCRG reporter that informs caller about events and progress."""
+    @abstractmethod
+    def handle_message(self, message: Message) -> None:
+        """Handle a message from the xCRG module."""
+        ...
+
+    def debug(self, msg: str, *args: object):
+        self.handle_message(LogMessage(LogLevel.DEBUG, msg, args))
+
+    def info(self, msg: str, *args: object):
+        self.handle_message(LogMessage(LogLevel.INFO, msg, args))
+
+    def warning(self, msg: str, *args: object):
+        self.handle_message(LogMessage(LogLevel.WARNING, msg, args))
+
+    def error(self, msg: str, *args: object):
+        self.handle_message(LogMessage(LogLevel.ERROR, msg, args))
+
+    def critical(self, msg: str, *args: object):
+        self.handle_message(LogMessage(LogLevel.CRITICAL, msg, args))
+
+    def fatal(self, msg: str, *args: object):
+        self.handle_message(LogMessage(LogLevel.FATAL, msg, args))
+
+
+class StubReporter(Reporter):
+    """A reporter that does nothing with messages."""
+    def handle_message(self, message: Message) -> None:
         pass
 
-    def info(self, message: str, *args: object) -> None:
-        """Capture an info message."""
-        pass
 
-    def warning(self, message: str, *args: object) -> None:
-        """Capture a warning message."""
-        pass
+@dataclass
+class LogReporter(Reporter):
+    """A reporter that wraps the standard logging.Logger module."""
+    logger: logging.Logger = field(default = _LOGGER)
 
-    def error(self, message: str, *args: object) -> None:
-        """Capture an error message."""
-        pass
-
-    def progress(self, pct_done: float):
-        """Capture the current progress of the runner."""
-        pass
+    def handle_message(self, message: Message) -> None:
+        match message:
+            case LogMessage() as log:
+                self.logger.log(log.level, log.msg, *log.args)
