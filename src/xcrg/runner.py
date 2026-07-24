@@ -48,13 +48,20 @@ from . import biolink, trapi
 from .config import XCRGConfig
 from .context import RunContext
 from .reporting import LogReporter, Reporter
-from .utilities import partition, require, XCRGResult
+from .utilities import (
+    asc_optional,
+    chunk_values,
+    desc_optional,
+    make_stable_id,
+    partition,
+    require,
+    XCRGResult
+)
 
 
 TF_QNODE_ID = "tf"
 TP53_CURIE = "NCBIGene:7157"
 DIRECT_QEDGE_ID = "direct"
-MISSING_SORT_VALUE = float("inf")
 NGD_CACHE_MAX_ROWS = 256
 PMID_CACHE_MAX_ROWS = 512
 MAX_NGD_PUBLICATIONS = 30
@@ -433,13 +440,6 @@ def get_sign_templates(final_direction: str) -> list[tuple[str, str]]:
     if final_direction == "decreased":
         return [("increased", "decreased"), ("decreased", "increased")]
     raise ValueError(f"Unsupported final direction: {final_direction}")
-
-
-def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
-    """Split values into non-empty batches."""
-    if chunk_size <= 0:
-        raise ValueError("xCRG TF batch size must be positive.")
-    return [values[i : i + chunk_size] for i in range(0, len(values), chunk_size)]
 
 
 def build_two_hop_query(
@@ -833,47 +833,6 @@ def get_result_answer_metrics(
     return specificity, information_content, answer_id
 
 
-def descending_optional(value: float | int | None) -> float:
-    """Convert optional descending values into ascending sort components."""
-    return -float(value) if value is not None else MISSING_SORT_VALUE
-
-
-def ascending_optional(value: float | int | None) -> float:
-    """Convert optional ascending values into sort components."""
-    return float(value) if value is not None else MISSING_SORT_VALUE
-
-
-def get_result_endpoint_ngd(
-    ctx: RunContext,
-    result: Result,
-    subject_qid: QNodeID,
-    object_qid: QNodeID,
-) -> float | None:
-    """Return direct source-answer NGD for the final source/target pair."""
-    source_id = get_bound_node_curie(result, subject_qid)
-    target_id = get_bound_node_curie(result, object_qid)
-    return get_ngd_score(ctx, source_id, target_id)
-
-
-def get_result_answer_tf_ngd(
-    ctx: RunContext,
-    result: Result,
-    answer_qid: QNodeID,
-) -> float | None:
-    """Return answer-to-TF NGD for ordering results within a TF bucket."""
-    answer_id = get_bound_node_curie(result, answer_qid)
-    tf_id = get_bound_node_curie(result, TF_QNODE_ID)
-    return get_ngd_score(ctx, answer_id, tf_id)
-
-
-# def get_original_query_edge_id(message: Message) -> str:
-#     """Return the original single qedge id from an xCRG response/query."""
-#     qedges = message.message.query_graph.edges
-#     if len(qedges) != 1:
-#         raise ValueError("xCRG final response expects the original single query edge.")
-#     return next(iter(qedges))
-
-
 def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
     """Return copied edge bindings for a qedge across all analyses."""
     bindings = list[EdgeBinding]()
@@ -889,14 +848,6 @@ def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
             copied_binding = deepcopy(binding)
             bindings.append(copied_binding)
     return bindings
-
-
-def get_result_score(result: Result) -> float | None:
-    """Return the first score attached to a result analysis."""
-    for analysis in result.analyses:
-        if score := analysis.score:
-            return score
-    return None
 
 
 def stamp_rank_scores(results: list[Result], scoring_method: str) -> None:
@@ -963,11 +914,17 @@ def sort_xcrg_combined_results(
             answer_qnode_id,
             use_category_specificity
         )
-        ngd_score = get_result_endpoint_ngd(ctx, result, subject_qid, object_qid)
+
+        ngd_score = get_ngd_score(
+            ctx,
+            get_bound_node_curie(result, subject_qid),
+            get_bound_node_curie(result, object_qid)
+        )
+
         return (
-            descending_optional(specificity),
-            descending_optional(information_content),
-            ascending_optional(ngd_score),
+            desc_optional(specificity),
+            desc_optional(information_content),
+            asc_optional(ngd_score),
             answer_id,
             indices.get(result, 0)
         )
@@ -981,13 +938,19 @@ def sort_xcrg_combined_results(
             answer_qnode_id,
             use_category_specificity
         )
-        ngd_score = get_result_answer_tf_ngd(ctx, result, answer_qnode_id)
+
+        ngd_score = get_ngd_score(
+            ctx,
+            get_bound_node_curie(result, answer_qnode_id),
+            get_bound_node_curie(result, TF_QNODE_ID)
+        )
+
         return (
             tf_degrees.get(tf_id, 0),
             tf_id,
-            descending_optional(specificity),
-            descending_optional(information_content),
-            ascending_optional(ngd_score),
+            desc_optional(specificity),
+            desc_optional(information_content),
+            asc_optional(ngd_score),
             answer_id,
             indices.get(result, 0)
         )
@@ -1015,13 +978,6 @@ def query_qualifiers_to_edge_qualifiers(qedge: QEdge) -> list[Qualifier]:
         for qualifier in qualifiers
         # if qualifier.qualifier_type_id and qualifier.qualifier_value
     ]
-
-
-def make_stable_id(prefix: str, payload: object) -> str:
-    """Return a deterministic compact id for generated KG/support entries."""
-    key = json.dumps(payload, sort_keys=True)
-    suffix = uuid.uuid5(uuid.NAMESPACE_URL, key).hex[:16]
-    return f"{prefix}_{suffix}"
 
 
 def ensure_response_versions(
@@ -1660,7 +1616,9 @@ def build_trapi_clean_response(
         )
 
         if final_result.xcrg_first_score is None:
-            final_result.xcrg_first_score = get_result_score(result)
+            for analysis in result.analyses:
+                if score := analysis.score:
+                    final_result.xcrg_first_score = score
             final_result.xcrg_first_index = result_index
 
         if is_two_hop_result(result):
@@ -1697,7 +1655,7 @@ def build_trapi_clean_response(
 
     new_results.sort(
         key = lambda it: (
-            descending_optional(it.xcrg_first_score),
+            desc_optional(it.xcrg_first_score),
             it.xcrg_first_index or 0
         )
     )
