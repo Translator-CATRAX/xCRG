@@ -7,20 +7,29 @@ name = "catrax-xcrg"
 version = "0.1.0"
 description = "Reusable xCRG MVP2 TRAPI response generation."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
-  { name = "Translator CATRAX" }
+    { name = "Translator CATRAX" }
 ]
 dependencies = [
-  "httpx~=0.28",
-  "bmt>=1.4.6"
+    "bmt>=1.4.6",
+    "httpx~=0.28",
+    "translator_tom==1.2.1",
 ]
 classifiers = [
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+[dependency-groups]
+dev = [
+    "pyright==1.1.411",
+    "pytest==9.1.1",
+    "ruff==0.15.22",
+    "ty==0.0.63"
 ]
 
 [project.urls]
@@ -32,3 +41,11 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "xcrg.resources" = ["*.json"]
+
+[tool.pytest.ini_options]
+# Additional configuration in tests/conftest.py
+pythonpath = ["src"]
+testpaths = ["tests"]
+# Only run unit tests by default.
+# Comment this line if you want better support in PyCharm, etc.
+addopts = ["-m unit"]

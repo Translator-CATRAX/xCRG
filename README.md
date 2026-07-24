@@ -189,13 +189,25 @@ deployments unless the caller has storage/retention controls in place.
 ## Local Tests
 
 ```bash
-PYTHONPATH=src python -m pytest tests
+# Run unit tests
+pytest
+
+# Run integration tests
+#
+# These may be ran locally, but are slow and depend heavily on external
+# resources like servers, database files, etc.
+#
+# There are several CLI args that may be provided (documented in tests/conftest.py).
+pytest -m integration
+
+# Run all tests
+pytest -m "unit or integration"
 ```
 
 Recommended validation before updating an integration pin:
 
 ```bash
-python -m pytest tests
+pytest
 git diff --check
 ```
 

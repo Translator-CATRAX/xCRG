@@ -1,3 +1,6 @@
+# Vim swap files
+*.swp
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -98,7 +101,9 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-# uv.lock
+#
+# Note: I think it is best if the project is tool agnostic, at least for now - Jonathan (2026-07-24)
+uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -186,7 +191,7 @@ cython_debug/
 #   be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #   and can be added to the global gitignore or merged into this file.  For a more nuclear
 #   option (not recommended) you can uncomment the following to ignore the entire idea folder.
-# .idea/
+.idea/
 
 # Abstra
 #   Abstra is an AI-powered process automation framework.
@@ -220,6 +225,7 @@ __marimo__/
 # xCRG local smoke-test/debug artifacts
 smoke_debug/
 cached_debug/
+test_output/
 *_response.json
 *_validator_stderr.log
 *.sqlite
