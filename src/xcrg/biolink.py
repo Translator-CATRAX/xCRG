@@ -1,10 +1,10 @@
+from xcrg.context import RunnerContext
+
 try:
     from bmt import Toolkit
 except ImportError:  # pragma: no cover - local unit env may not install worker deps.
     Toolkit = None
 from translator_tom import Node
-
-from .reporting import Reporter
 
 
 _BMT_TOOLKIT = None
@@ -41,12 +41,12 @@ FALLBACK_CATEGORY_DEPTH: dict[str, int] = {
 
 
 # TODO: Should we just expect that the user has installed the bmt library?
-def get_bmt_toolkit(reporter: Reporter):
+def get_bmt_toolkit(ctx: RunnerContext):
     """Return a cached Biolink Toolkit instance when the dependency is available."""
     global _BMT_TOOLKIT, _BMT_WARNING_EMITTED
     if Toolkit is None:
         if not _BMT_WARNING_EMITTED:
-            reporter.warning("BMT is unavailable; using fallback specificity scores.")
+            ctx.reporter.warning("BMT is unavailable; using fallback specificity scores.")
             _BMT_WARNING_EMITTED = True
         return None
     if _BMT_TOOLKIT is None:
@@ -54,7 +54,7 @@ def get_bmt_toolkit(reporter: Reporter):
             _BMT_TOOLKIT = Toolkit()
         except Exception as exc:
             if not _BMT_WARNING_EMITTED:
-                reporter.warning(
+                ctx.reporter.warning(
                     f"Failed to initialize BMT; using fallback specificity scores: {exc}"
                 )
                 _BMT_WARNING_EMITTED = True
@@ -92,9 +92,9 @@ def get_valid_aspect_qualifiers() -> frozenset[str]:
     return _VALID_ASPECT_QUALIFIERS
 
 
-def get_category_specificity(category: str, reporter: Reporter) -> int:
+def get_category_specificity(ctx: RunnerContext, category: str) -> int:
     """Return a Biolink specificity heuristic based on non-mixin ancestor count."""
-    bmt_toolkit = get_bmt_toolkit(reporter)
+    bmt_toolkit = get_bmt_toolkit(ctx)
     if bmt_toolkit:
         try:
             if not bmt_toolkit.get_element(category):
@@ -110,17 +110,17 @@ def get_category_specificity(category: str, reporter: Reporter) -> int:
             )
             return max(len(ancestors), FALLBACK_CATEGORY_DEPTH.get(category, 0))
         except Exception as exc:
-            reporter.warning(
+            ctx.reporter.warning(
                 f"Could not calculate BMT specificity for {category}: {exc}"
             )
     return FALLBACK_CATEGORY_DEPTH.get(category, 0)
 
 
-def is_chemical_category(category: str, reporter: Reporter) -> bool:
+def is_chemical_category(ctx: RunnerContext, category: str) -> bool:
     """Return True when a category is ChemicalEntity or a chemical descendant."""
     if category == "biolink:ChemicalEntity" or category in FALLBACK_CATEGORY_DEPTH:
         return True
-    bmt_toolkit = get_bmt_toolkit(reporter)
+    bmt_toolkit = get_bmt_toolkit(ctx)
     if not bmt_toolkit:
         return False
     try:
@@ -135,33 +135,33 @@ def is_chemical_category(category: str, reporter: Reporter) -> bool:
         )
         return "biolink:ChemicalEntity" in ancestors
     except Exception as exc:
-        reporter.warning(f"Could not inspect category ancestry for {category}: {exc}")
+        ctx.reporter.warning(f"Could not inspect category ancestry for {category}: {exc}")
         return False
 
 
-def get_node_category_specificity(node: Node | None, reporter: Reporter) -> int:
+def get_node_category_specificity(ctx: RunnerContext, node: Node | None) -> int:
     """Return the most specific chemical category score attached to a KG node."""
     if node is None:
         return 0
     chemical_categories = [
         category
         for category in node.categories
-        if is_chemical_category(category, reporter)
+        if is_chemical_category(ctx, category)
     ]
     if not chemical_categories:
         return 0
 
-    bmt_toolkit = get_bmt_toolkit(reporter)
+    bmt_toolkit = get_bmt_toolkit(ctx)
     if bmt_toolkit and hasattr(bmt_toolkit, "get_most_specific_category"):
         try:
             most_specific = bmt_toolkit.get_most_specific_category(
                 chemical_categories,
                 formatted=True,
             )
-            if is_chemical_category(most_specific, reporter):
-                return get_category_specificity(most_specific, reporter)
+            if is_chemical_category(ctx, most_specific):
+                return get_category_specificity(ctx, most_specific)
         except Exception as exc:
-            reporter.warning(f"Could not select most specific category with BMT: {exc}")
+            ctx.reporter.warning(f"Could not select most specific category with BMT: {exc}")
 
     return max(
         FALLBACK_CATEGORY_DEPTH.get(category, 0)

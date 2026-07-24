@@ -19,7 +19,7 @@ class XCRGConfig:
     tiers: Sequence[int] = field(default_factory=lambda: [0])
     tf_batch_size: int = 50
     resource_id: str = "infores:arax"
-    scoring_method: str = "xcrg-result-filtering-v2"
+    scoring_method: str = "xcrg-result-filtering-v2" # TODO: StrEnum?
     max_results: int = 500
     trapi_schema_version: str = "1.6.0"
     biolink_version: str = "4.3.2"

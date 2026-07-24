@@ -11,7 +11,6 @@ import uuid
 from collections import Counter, OrderedDict
 from copy import deepcopy
 from datetime import datetime, timezone
-from importlib import resources
 from typing import cast
 
 import httpx
@@ -45,8 +44,9 @@ from translator_tom import (
     TOMBase
 )
 
-from . import biolink, debugging, trapi
+from . import biolink, trapi
 from .config import XCRGConfig
+from .context import RunnerContext
 from .reporting import LogReporter, Reporter
 from .utilities import partition, require, XCRGResult
 
@@ -167,22 +167,6 @@ def validate_inferred_query(query: Query) -> tuple[QNodeID, QNodeID, QEdge]:
     return subject_qid, object_qid, qedge
 
 
-def load_tf_list(config: XCRGConfig) -> list[str]:
-    """Load transcription factors from config or bundled package resources."""
-    tf_path = config.normalized_tf_path()
-    if tf_path:
-        with tf_path.open(encoding = "utf-8") as tf_file:
-            tf_data = json.load(tf_file)
-    else:
-        resource = resources.files("xcrg.resources").joinpath("transcription_factors.json")
-        with resource.open(encoding = "utf-8") as tf_file:
-            tf_data = json.load(tf_file)
-    tf_list = tf_data.get("tf") or []
-    if not tf_list:
-        raise ValueError("No transcription factors were found in transcription_factors.json.")
-    return tf_list
-
-
 def get_node_information_content(node: Node | None) -> float | None:
     """Return a node's Biolink information content attribute, when present."""
     if node is None:
@@ -201,17 +185,14 @@ def get_node_information_content(node: Node | None) -> float | None:
     return max(values) if values else None
 
 
-def get_ngd_connection(
-    config: XCRGConfig,
-    reporter: Reporter,
-) -> sqlite3.Connection | None:
+def get_ngd_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
     """Return a cached read-only NGD SQLite connection when the local DB exists."""
     global _NGD_WARNING_EMITTED
 
-    db_path = config.normalized_ngd_db_path()
+    db_path = ctx.config.normalized_ngd_db_path()
     if db_path is None:
         if not _NGD_WARNING_EMITTED:
-            reporter.warning("xCRG NGD DB path is not configured; NGD tie-breaker is disabled.")
+            ctx.reporter.warning("xCRG NGD DB path is not configured; NGD tie-breaker is disabled.")
             _NGD_WARNING_EMITTED = True
         return None
 
@@ -221,7 +202,7 @@ def get_ngd_connection(
 
     if not db_path.exists():
         if not _NGD_WARNING_EMITTED:
-            reporter.warning(
+            ctx.reporter.warning(
                 "xCRG NGD DB not found at %s; NGD tie-breaker is disabled.",
                 db_path,
             )
@@ -238,7 +219,7 @@ def get_ngd_connection(
         return connection
     except sqlite3.Error as exc:
         if not _NGD_WARNING_EMITTED:
-            reporter.warning(
+            ctx.reporter.warning(
                 "Failed to open xCRG NGD DB at %s; NGD tie-breaker is disabled: %s",
                 db_path,
                 exc,
@@ -248,9 +229,8 @@ def get_ngd_connection(
 
 
 def get_ngd_neighbors(
+    ctx: RunnerContext,
     curie: CURIE | None,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> dict[CURIE, float] | None:
     """Return cached NGD neighbors for one CURIE from the adjacency-list DB."""
     if not curie:
@@ -260,7 +240,7 @@ def get_ngd_neighbors(
         _NGD_NEIGHBOR_CACHE.move_to_end(curie)
         return _NGD_NEIGHBOR_CACHE[curie]
 
-    connection = get_ngd_connection(config, reporter)
+    connection = get_ngd_connection(ctx)
     if connection is None:
         return None
 
@@ -298,10 +278,9 @@ def get_ngd_neighbors(
 
 
 def get_ngd_score(
+    ctx: RunnerContext,
     curie_a: CURIE | None,
     curie_b: CURIE | None,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> float | None:
     """Return lower-is-better NGD for a CURIE pair, if present in the local DB."""
     if not curie_a or not curie_b:
@@ -309,7 +288,7 @@ def get_ngd_score(
     if curie_a == curie_b:
         return None
 
-    neighbors = get_ngd_neighbors(curie_a, config, reporter)
+    neighbors = get_ngd_neighbors(ctx, curie_a)
     if neighbors:
         score = neighbors.get(curie_b)
         if score is not None:
@@ -317,7 +296,7 @@ def get_ngd_score(
 
     # The DB is expected to be symmetric, but this fallback is cheap insurance
     # for partial rows or future DB variants.
-    reverse_neighbors = get_ngd_neighbors(curie_b, config, reporter)
+    reverse_neighbors = get_ngd_neighbors(ctx, curie_b)
     if reverse_neighbors:
         score = reverse_neighbors.get(curie_a)
         if score is not None:
@@ -325,17 +304,14 @@ def get_ngd_score(
     return None
 
 
-def get_pmid_connection(
-    config: XCRGConfig,
-    reporter: Reporter,
-) -> sqlite3.Connection | None:
+def get_pmid_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
     """Return a cached read-only CURIE-to-PMID SQLite connection."""
     global _PMID_WARNING_EMITTED
 
-    db_path = config.normalized_curie_to_pmids_db_path()
+    db_path = ctx.config.normalized_curie_to_pmids_db_path()
     if db_path is None:
         if not _PMID_WARNING_EMITTED:
-            reporter.warning(
+            ctx.reporter.warning(
                 "xCRG curie_to_pmids DB path is not configured; NGD PMID support is disabled."
             )
             _PMID_WARNING_EMITTED = True
@@ -347,7 +323,7 @@ def get_pmid_connection(
 
     if not db_path.exists():
         if not _PMID_WARNING_EMITTED:
-            reporter.warning(
+            ctx.reporter.warning(
                 "xCRG curie_to_pmids DB not found at %s; NGD PMID support is disabled.",
                 db_path,
             )
@@ -364,7 +340,7 @@ def get_pmid_connection(
         return connection
     except sqlite3.Error as exc:
         if not _PMID_WARNING_EMITTED:
-            reporter.warning(
+            ctx.reporter.warning(
                 "Failed to open xCRG curie_to_pmids DB at %s; NGD PMID support is disabled: %s",
                 db_path,
                 exc,
@@ -373,21 +349,17 @@ def get_pmid_connection(
         return None
 
 
-def get_curie_pmids(
-    curie: CURIE | None,
-    config: XCRGConfig,
-    reporter: Reporter,
-) -> set[str] | None:
+def get_curie_pmids(ctx: RunnerContext, curie: CURIE | None) -> set[str] | None:
     """Return normalized PMID identifiers for one CURIE from curie_to_pmids."""
     if not curie:
         return None
 
-    cache_key = (config.curie_to_pmids_db_path, curie)
+    cache_key = (ctx.config.curie_to_pmids_db_path, curie)
     if cache_key in _PMID_CACHE:
         _PMID_CACHE.move_to_end(cache_key)
         return _PMID_CACHE[cache_key]
 
-    connection = get_pmid_connection(config, reporter)
+    connection = get_pmid_connection(ctx)
     if connection is None:
         return None
 
@@ -431,14 +403,13 @@ def normalize_pmid(pmid: object | None) -> str | None:
 
 
 def get_ngd_publications(
+    ctx: RunnerContext,
     curie_a: CURIE | None,
     curie_b: CURIE | None,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> list[str] | None:
     """Return PMID intersection from the same CURIE-to-PMID source as NGD."""
-    pmids_a = get_curie_pmids(curie_a, config, reporter)
-    pmids_b = get_curie_pmids(curie_b, config, reporter)
+    pmids_a = get_curie_pmids(ctx, curie_a)
+    pmids_b = get_curie_pmids(ctx, curie_b)
     if pmids_a is None or pmids_b is None:
         return None
     shared_pmids = pmids_a & pmids_b
@@ -688,10 +659,10 @@ def result_preserves_direct_direction(
 
 
 def filter_direct_response(
+    ctx: RunnerContext,
     response: Response,
     subject_qid: QNodeID,
-    object_qid: QNodeID,
-    config: XCRGConfig,
+    object_qid: QNodeID
 ) -> Response:
     """Filter subclass and wrong-direction results from a direct Retriever response."""
     message = response.message
@@ -715,13 +686,13 @@ def filter_direct_response(
     if not filtered_message.auxiliary_graphs:
         filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    return ensure_response_versions(Response(message = filtered_message), config, response)
+    return ensure_response_versions(ctx, Response(message = filtered_message), response)
 
 
 def merge_filtered_responses(
+    ctx: RunnerContext,
     responses: list[Response],
-    query_graph: QueryGraph,
-    config: XCRGConfig,
+    query_graph: QueryGraph
 ) -> Response:
     """Merge filtered Retriever responses into a single TRAPI response."""
     nodes = dict[CURIE, Node]()
@@ -761,7 +732,7 @@ def merge_filtered_responses(
         auxiliary_graphs = aux_graph
     ))
 
-    ensure_response_versions(new_response, config, *responses)
+    ensure_response_versions(ctx, new_response, *responses)
 
     return new_response
 
@@ -830,30 +801,30 @@ def is_two_hop_result(result: Result) -> bool:
 
 
 def answer_qnode_uses_category_specificity(
+    ctx: RunnerContext,
     query_graph: BaseQueryGraph,
-    answer_qid: QNodeID,
-    reporter: Reporter,
+    answer_qid: QNodeID
 ) -> bool:
     """Chemical answers use Biolink specificity before information content."""
     qnode = query_graph.nodes.get(answer_qid)
     if not qnode:
         return False
-    return any(biolink.is_chemical_category(category, reporter) for category in qnode.categories_list)
+    return any(biolink.is_chemical_category(ctx, category) for category in qnode.categories_list)
 
 
 # TODO: should answer_id really be an empty string?
 def get_result_answer_metrics(
+    ctx: RunnerContext,
     result: Result,
     nodes: dict[CURIE, Node],
     answer_qid: QNodeID,
     use_category_specificity: bool,
-    reporter: Reporter,
 ) -> tuple[int, float | None, CURIE]:
     """Return sort metrics for the answer node bound by a result."""
     answer_id = get_bound_node_curie(result, answer_qid) or ""
     answer_node = nodes.get(answer_id)
     specificity = (
-        biolink.get_node_category_specificity(answer_node, reporter)
+        biolink.get_node_category_specificity(ctx, answer_node)
         if use_category_specificity
         else 0
     )
@@ -872,28 +843,26 @@ def ascending_optional(value: float | int | None) -> float:
 
 
 def get_result_endpoint_ngd(
+    ctx: RunnerContext,
     result: Result,
     subject_qid: QNodeID,
     object_qid: QNodeID,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> float | None:
     """Return direct source-answer NGD for the final source/target pair."""
     source_id = get_bound_node_curie(result, subject_qid)
     target_id = get_bound_node_curie(result, object_qid)
-    return get_ngd_score(source_id, target_id, config, reporter)
+    return get_ngd_score(ctx, source_id, target_id)
 
 
 def get_result_answer_tf_ngd(
+    ctx: RunnerContext,
     result: Result,
     answer_qid: QNodeID,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> float | None:
     """Return answer-to-TF NGD for ordering results within a TF bucket."""
     answer_id = get_bound_node_curie(result, answer_qid)
     tf_id = get_bound_node_curie(result, TF_QNODE_ID)
-    return get_ngd_score(answer_id, tf_id, config, reporter)
+    return get_ngd_score(ctx, answer_id, tf_id)
 
 
 # def get_original_query_edge_id(message: Message) -> str:
@@ -929,7 +898,7 @@ def get_result_score(result: Result) -> float | None:
     return None
 
 
-def stamp_rank_scores(results: list[Result], config: XCRGConfig) -> None:
+def stamp_rank_scores(results: list[Result], scoring_method: str) -> None:
     """Assign rank-derived TRAPI Analysis.score values after sorting."""
     total = len(results)
     if total == 0:
@@ -938,10 +907,10 @@ def stamp_rank_scores(results: list[Result], config: XCRGConfig) -> None:
         score = float(total - index) / total
         for analysis in result.analyses:
             analysis.score = score
-            analysis.scoring_method = config.scoring_method
+            analysis.scoring_method = scoring_method
 
 
-def stamp_xcrg_rank_scores(results: list[Result], config: XCRGConfig) -> None:
+def stamp_xcrg_rank_scores(results: list[Result], resource_id: str, scoring_method: str) -> None:
     """Assign rank-derived scores only to xCRG analyses in final output."""
     total = len(results)
     if total == 0:
@@ -949,18 +918,17 @@ def stamp_xcrg_rank_scores(results: list[Result], config: XCRGConfig) -> None:
     for index, result in enumerate(results):
         score = float(total - index) / total
         for analysis in result.analyses:
-            if analysis.resource_id != config.resource_id:
+            if analysis.resource_id != resource_id:
                 continue
             analysis.score = score
-            analysis.scoring_method = config.scoring_method
+            analysis.scoring_method = scoring_method
 
 
 def sort_xcrg_combined_results(
+    ctx: RunnerContext,
     response: Response,
     subject_qid: QNodeID,
     object_qid: QNodeID,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> None:
     """Sort direct results first, then TF-mediated results by the xCRG policy."""
     message = response.message
@@ -972,11 +940,7 @@ def sort_xcrg_combined_results(
             kg_nodes = nodes
 
     answer_qnode_id = get_answer_qnode_id(query_graph, subject_qid, object_qid)
-    use_category_specificity = answer_qnode_uses_category_specificity(
-        query_graph,
-        answer_qnode_id,
-        reporter,
-    )
+    use_category_specificity = answer_qnode_uses_category_specificity(ctx, query_graph, answer_qnode_id)
 
     results: list[Result] = message.results or []
     # Table so we can look up the original index later in sorting functions
@@ -992,19 +956,13 @@ def sort_xcrg_combined_results(
 
     def direct_key(result: Result) -> tuple:
         specificity, information_content, answer_id = get_result_answer_metrics(
+            ctx,
             result,
             kg_nodes,
             answer_qnode_id,
-            use_category_specificity,
-            reporter,
+            use_category_specificity
         )
-        ngd_score = get_result_endpoint_ngd(
-            result,
-            subject_qid,
-            object_qid,
-            config,
-            reporter,
-        )
+        ngd_score = get_result_endpoint_ngd(ctx, result, subject_qid, object_qid)
         return (
             descending_optional(specificity),
             descending_optional(information_content),
@@ -1016,18 +974,13 @@ def sort_xcrg_combined_results(
     def inferred_key(result: Result) -> tuple:
         tf_id = get_bound_node_curie(result, TF_QNODE_ID) or ""
         specificity, information_content, answer_id = get_result_answer_metrics(
+            ctx,
             result,
             kg_nodes,
             answer_qnode_id,
-            use_category_specificity,
-            reporter,
+            use_category_specificity
         )
-        ngd_score = get_result_answer_tf_ngd(
-            result,
-            answer_qnode_id,
-            config,
-            reporter,
-        )
+        ngd_score = get_result_answer_tf_ngd(ctx, result, answer_qnode_id)
         return (
             tf_degrees.get(tf_id, 0),
             tf_id,
@@ -1041,7 +994,7 @@ def sort_xcrg_combined_results(
     sorted_results = sorted(direct_results, key = direct_key) + \
                      sorted(inferred_results, key = inferred_key)
 
-    stamp_rank_scores(sorted_results, config)
+    stamp_rank_scores(sorted_results, ctx.config.scoring_method)
     message.results = sorted_results
 
 
@@ -1071,26 +1024,26 @@ def make_stable_id(prefix: str, payload: object) -> str:
 
 
 def ensure_response_versions(
+    ctx: RunnerContext,
     response: Response,
-    config: XCRGConfig,
     *responses: Response,
 ) -> Response:
     """Add response-level TRAPI/Biolink versions when upstream omitted them."""
     schema_versions = (r.schema_version for r in responses if r.schema_version)
-    response.schema_version = next(schema_versions, config.trapi_schema_version)
+    response.schema_version = next(schema_versions, ctx.config.trapi_schema_version)
 
     biolink_versions = (r.biolink_version for r in responses if r.biolink_version)
-    response.biolink_version = next(biolink_versions, config.biolink_version)
+    response.biolink_version = next(biolink_versions, ctx.config.biolink_version)
 
     return response
 
 
 def make_xcrg_inferred_edge(
+    ctx: RunnerContext,
     subject_id: CURIE,
     object_id: CURIE,
     original_qedge: QEdge,
     support_graph_ids: list[str],
-    config: XCRGConfig,
 ) -> tuple[EdgeID, Edge]:
     """Create the final source->target inferred edge supported by TF paths."""
     predicate = (original_qedge.predicates_list or ["biolink:affects"])[0]
@@ -1114,22 +1067,22 @@ def make_xcrg_inferred_edge(
             Attribute(
                 attribute_type_id = "biolink:knowledge_level",
                 value = "prediction",
-                attribute_source = config.resource_id
+                attribute_source = ctx.config.resource_id
             ),
             Attribute(
                 attribute_type_id = "biolink:agent_type",
                 value = "computational_model",
-                attribute_source = config.resource_id
+                attribute_source = ctx.config.resource_id
             ),
             Attribute(
                 attribute_type_id = "biolink:support_graphs",
                 value = cast(FastJsonValue, support_graph_ids), # TODO
-                attribute_source = config.resource_id
+                attribute_source = ctx.config.resource_id
             ),
         ],
         sources = [
             RetrievalSource(
-                resource_id = config.resource_id,
+                resource_id = ctx.config.resource_id,
                 resource_role = "primary_knowledge_source"
             )
         ]
@@ -1142,11 +1095,11 @@ def make_xcrg_inferred_edge(
 
 
 def make_xcrg_ngd_edge(
+    ctx: RunnerContext,
     subject_id: CURIE,
     object_id: CURIE,
     ngd_score: float | str,
     publications: list[str] | None,
-    config: XCRGConfig,
 ) -> tuple[EdgeID, Edge]:
     """Create an ARAX-style virtual NGD edge for analysis support graphs."""
     edge_id = make_stable_id(
@@ -1163,7 +1116,7 @@ def make_xcrg_ngd_edge(
         object = object_id,
         attributes = [
             Attribute(
-                attribute_source = config.resource_id,
+                attribute_source = ctx.config.resource_id,
                 attribute_type_id = "EDAM-DATA:2526",
                 description = NGD_DESCRIPTION,
                 original_attribute_name = "normalized_google_distance",
@@ -1171,38 +1124,38 @@ def make_xcrg_ngd_edge(
                 value = ngd_score,
             ),
             Attribute(
-                attribute_source = config.resource_id,
+                attribute_source = ctx.config.resource_id,
                 attribute_type_id = "EDAM-OPERATION:0226",
                 original_attribute_name = "virtual_relation_label",
                 value = "N1",
             ),
             Attribute(
-                attribute_source = config.resource_id,
+                attribute_source = ctx.config.resource_id,
                 attribute_type_id = "biolink:creation_date",
                 original_attribute_name = "defined_datetime",
                 value = datetime.now(timezone.utc).isoformat(),
             ),
             Attribute(
-                attribute_source = config.resource_id,
+                attribute_source = ctx.config.resource_id,
                 attribute_type_id = "EDAM-DATA:1772",
                 description = COMPUTED_EDGE_CONTAINER_DESCRIPTION,
                 value_type_id = "metatype:Boolean",
                 value = True,
             ),
             Attribute(
-                attribute_source = config.resource_id,
+                attribute_source = ctx.config.resource_id,
                 attribute_type_id = "biolink:knowledge_level",
                 value = "statistical_association",
             ),
             Attribute(
-                attribute_source = config.resource_id,
+                attribute_source = ctx.config.resource_id,
                 attribute_type_id = "biolink:agent_type",
                 value = "automated_agent",
             ),
         ],
         sources = [
             RetrievalSource(
-                resource_id = config.resource_id,
+                resource_id = ctx.config.resource_id,
                 resource_role = "primary_knowledge_source",
             )
         ]
@@ -1212,7 +1165,7 @@ def make_xcrg_ngd_edge(
         assert edge.attributes is not None # TODO: this is guaranteed not to be null
         edge.attributes.append(
             Attribute(
-                attribute_source = config.resource_id,
+                attribute_source = ctx.config.resource_id,
                 attribute_type_id = "biolink:publications",
                 original_attribute_name = "publications",
                 value_type_id = "EDAM-DATA:1187",
@@ -1452,6 +1405,7 @@ def node_is_present_for_evidence(
 
 
 def add_ngd_analysis_support_graph(
+    ctx: RunnerContext,
     analysis: Analysis,
     kg_edges: dict[EdgeID, Edge],
     kg_nodes: dict[CURIE, Node],
@@ -1459,8 +1413,6 @@ def add_ngd_analysis_support_graph(
     retriever_nodes: dict[CURIE, Node],
     source_id: CURIE,
     target_id: CURIE,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> None:
     """Attach a virtual NGD edge as analysis-level support.
 
@@ -1468,16 +1420,16 @@ def add_ngd_analysis_support_graph(
     displaying the NGD value as "inf". Keep that as a string to avoid emitting
     non-standard JSON numeric Infinity.
     """
-    ngd_score = get_ngd_score(source_id, target_id, config, reporter)
+    ngd_score = get_ngd_score(ctx, source_id, target_id)
     ngd_value: float | str = ngd_score if ngd_score is not None else "inf"
-    publications = get_ngd_publications(source_id, target_id, config, reporter)
+    publications = get_ngd_publications(ctx, source_id, target_id)
 
     ngd_edge_id, ngd_edge = make_xcrg_ngd_edge(
+        ctx,
         source_id,
         target_id,
         ngd_value,
-        publications,
-        config,
+        publications
     )
 
     copy_retriever_node(source_id, retriever_nodes, kg_nodes)
@@ -1551,6 +1503,7 @@ def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]
 
 
 def finalize_clean_result_analyses(
+    ctx: RunnerContext,
     final_result: XCRGResult,
     original_qgraph: BaseQueryGraph,
     retriever_nodes: dict[CURIE, Node],
@@ -1561,8 +1514,6 @@ def finalize_clean_result_analyses(
     auxiliary_graphs: AuxiliaryGraphsDict,
     original_qedge_id: QEdgeID,
     original_qedge: QEdge,
-    config: XCRGConfig,
-    reporter: Reporter,
 ) -> None:
     """Build final Retriever/xCRG analyses after evidence grouping."""
     source_qnode = original_qedge.subject
@@ -1636,11 +1587,11 @@ def finalize_clean_result_analyses(
         copy_retriever_node(target_id, retriever_nodes, kg_nodes)
 
         inferred_edge_id, inferred_edge = make_xcrg_inferred_edge(
+            ctx,
             source_id,
             target_id,
             original_qedge,
-            [support_graph_id],
-            config,
+            [support_graph_id]
         )
 
         kg_edges[inferred_edge_id] = inferred_edge
@@ -1648,21 +1599,20 @@ def finalize_clean_result_analyses(
 
     if xcrg_bindings:
         analysis = Analysis(
-            resource_id = config.resource_id,
+            resource_id = ctx.config.resource_id,
             edge_bindings = {
                 original_qedge_id: xcrg_bindings,
             }
         )
         add_ngd_analysis_support_graph(
+            ctx,
             analysis,
             kg_edges,
             kg_nodes,
             auxiliary_graphs,
             retriever_nodes,
             source_id,
-            target_id,
-            config,
-            reporter,
+            target_id
         )
         final_result.analyses = [analysis]
     else:
@@ -1670,12 +1620,11 @@ def finalize_clean_result_analyses(
 
 
 def build_trapi_clean_response(
+    ctx: RunnerContext,
     query: Query,
     old_response: Response,
     subject_qid: QNodeID,
     object_qid: QNodeID,
-    config: XCRGConfig,
-    reporter: Reporter = LogReporter(),
 ) -> Response:
     """Convert debug-shaped direct+2-hop results into one-hop TRAPI results."""
     qedge_id, qedge = trapi.get_single_query_edge(query)
@@ -1697,7 +1646,7 @@ def build_trapi_clean_response(
             continue
 
         pair_key = (source_id, target_id)
-        if pair_key not in new_results_by_pair and len(new_results) >= config.max_results:
+        if pair_key not in new_results_by_pair and len(new_results) >= ctx.config.max_results:
             continue
 
         final_result = get_or_create_final_result(
@@ -1732,6 +1681,7 @@ def build_trapi_clean_response(
 
     for final_result in new_results:
         finalize_clean_result_analyses(
+            ctx,
             final_result,
             require(new_qgraph, BaseQueryGraph), # TODO
             old_kgraph.nodes,
@@ -1741,9 +1691,7 @@ def build_trapi_clean_response(
             new_kgraph.edges,
             new_aux_graphs,
             qedge_id,
-            qedge,
-            config,
-            reporter,
+            qedge
         )
 
     new_results.sort(
@@ -1766,16 +1714,20 @@ def build_trapi_clean_response(
         )
     )
 
-    stamp_xcrg_rank_scores(new_response.message.results_list, config)
+    stamp_xcrg_rank_scores(
+        new_response.message.results_list,
+        ctx.config.resource_id,
+        ctx.config.scoring_method
+    )
 
-    return ensure_response_versions(new_response, config, old_response)
+    return ensure_response_versions(ctx, new_response, old_response)
 
 
 def filter_inferred_response(
+    ctx: RunnerContext,
     response: Response,
     subject_qid: QNodeID,
     target_qid: QNodeID,
-    config: XCRGConfig,
 ) -> Response:
     """Filter subclass and wrong-direction results from a two-hop Retriever response."""
     message = response.message
@@ -1802,7 +1754,7 @@ def filter_inferred_response(
     if not filtered_message.auxiliary_graphs:
         filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    return ensure_response_versions(Response(message = filtered_message), config, response)
+    return ensure_response_versions(ctx, Response(message = filtered_message), response)
 
 
 def format_json_for_log(value: object | TOMBase) -> str:
@@ -1815,15 +1767,15 @@ def format_json_for_log(value: object | TOMBase) -> str:
 
 
 def log_retriever_response(
+    ctx: RunnerContext,
     response: Response,
     http_status_code: int,
-    reporter: Reporter,
 ) -> None:
     """Emit useful Retriever status/counts without requiring debug files."""
     counts = trapi.summarize_response_counts(response)
     retriever_status = response.status
     description = response.description
-    reporter.info(
+    ctx.reporter.info(
         "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
         http_status_code,
         retriever_status,
@@ -1833,7 +1785,7 @@ def log_retriever_response(
         description,
     )
     if retriever_status and retriever_status != "Complete":
-        reporter.warning(
+        ctx.reporter.warning(
             "xCRG Retriever returned non-complete status %s: %s",
             retriever_status,
             description,
@@ -1841,23 +1793,19 @@ def log_retriever_response(
     if counts.result_count == 0 or retriever_status != "Complete":
         for entry in response.logs[:5]:
             if isinstance(entry, dict):
-                reporter.info(
+                ctx.reporter.info(
                     "xCRG Retriever log [%s] %s",
                     entry.get("level", "INFO"),
                     entry.get("message"),
                 )
             else:
-                reporter.info("xCRG Retriever log %s", entry)
+                ctx.reporter.info("xCRG Retriever log %s", entry)
 
 
-async def run_sync_retriever_lookup(
-    query: Query,
-    config: XCRGConfig,
-    reporter: Reporter,
-) -> Response:
+async def run_sync_retriever_lookup(ctx: RunnerContext, query: Query) -> Response:
     """Run a sync Retriever lookup and return its TRAPI response."""
-    reporter.info("Sending xCRG lookup query to %s", config.retriever_url)
-    reporter.debug(
+    ctx.reporter.info("Sending xCRG lookup query to %s", ctx.config.retriever_url)
+    ctx.reporter.debug(
         "xCRG Retriever query graph: %s",
         format_json_for_log(query.message.query_graph),
     )
@@ -1873,13 +1821,13 @@ async def run_sync_retriever_lookup(
     timeout = httpx.Timeout(timeout = 5.0) # TODO: query.timeout or 5.0)
     async with httpx.AsyncClient(timeout = timeout) as client:
         try:
-            http_response = await client.post(config.retriever_url, json = query.to_dict())
+            http_response = await client.post(ctx.config.retriever_url, json = query.to_dict())
             http_response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            reporter.error(
+            ctx.reporter.error(
                 "xCRG Retriever HTTP error %s from %s: %s",
                 exc.response.status_code,
-                config.retriever_url,
+                ctx.config.retriever_url,
                 exc.response.text[:2000],
             )
             raise
@@ -1896,93 +1844,65 @@ async def run_sync_retriever_lookup(
     if not message.auxiliary_graphs:
         message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    log_retriever_response(response, http_response.status_code, reporter)
+    log_retriever_response(ctx, response, http_response.status_code)
 
     return response
 
 
-async def run_direct_lookup(
-    query: Query,
-    config: XCRGConfig,
-    reporter: Reporter,
-) -> Response:
+async def run_direct_lookup(ctx: RunnerContext) -> Response:
     """Run the original one-hop direct xCRG lookup."""
-    validate_direct_lookup_query(query)
-    return await run_sync_retriever_lookup(query, config, reporter)
+    validate_direct_lookup_query(ctx.original_query)
+    return await run_sync_retriever_lookup(ctx, ctx.original_query)
 
 
-async def run_inferred_lookup(
-    query_id: str,
-    query: Query,
-    config: XCRGConfig,
-    reporter: Reporter,
-) -> Response:
+async def run_inferred_lookup(ctx: RunnerContext) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
-    debug_context = debugging.make_debug_run_context(query_id, query, config)
-    debugging.debug_dump_json(
-        "original_inferred_query",
-        query,
-        reporter,
-        debug_context,
-    )
-    subject_qid, object_qid, edge = validate_inferred_query(query)
+    ctx.debug_dump_json("original_inferred_query", ctx.original_query)
+    subject_qid, object_qid, edge = validate_inferred_query(ctx.original_query)
 
-    qgraph = require(query.message.query_graph, QueryGraph)
+    qgraph = require(ctx.original_query.message.query_graph, QueryGraph) # TODO
     subject_ids: list[str] = qgraph.nodes[subject_qid].ids or []
     object_ids: list[str] = qgraph.nodes[object_qid].ids or []
     endpoint_ids = set(subject_ids) | set(object_ids)
 
     tf_list = [
         tf_id
-        for tf_id in load_tf_list(config)
+        for tf_id in ctx.load_tf_list()
         if tf_id != TP53_CURIE and tf_id not in endpoint_ids
     ]
     if not tf_list:
         raise ValueError("No transcription factors remain after TP53/target filtering.")
 
-    direct_message = build_direct_query_for_inferred(query, subject_qid, object_qid)
-    debugging.debug_dump_json(
-        "direct_lookup_query",
-        direct_message,
-        reporter,
-        debug_context,
-    )
-    direct_response = await run_sync_retriever_lookup(direct_message, config, reporter)
-    debugging.debug_dump_json(
-        "direct_raw_response",
-        direct_response,
-        reporter,
-        debug_context,
-    )
+    direct_message = build_direct_query_for_inferred(ctx.original_query, subject_qid, object_qid)
+    ctx.debug_dump_json("direct_lookup_query", direct_message)
+
+    direct_response = await run_sync_retriever_lookup(ctx, direct_message)
+    ctx.debug_dump_json("direct_raw_response", direct_response)
+
     filtered_direct_response = filter_direct_response(
+        ctx,
         direct_response,
         subject_qid,
-        object_qid,
-        config,
+        object_qid
     )
-    debugging.debug_dump_json(
-        "direct_filtered_response",
-        filtered_direct_response,
-        reporter,
-        debug_context,
-    )
+    ctx.debug_dump_json("direct_filtered_response", filtered_direct_response)
 
     final_direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
     sign_templates = get_sign_templates(cast(str, final_direction)) # TODO: cast
-    tf_batches = chunk_values(tf_list, config.tf_batch_size)
-    reporter.info(
+    tf_batches = chunk_values(tf_list, ctx.config.tf_batch_size)
+    ctx.reporter.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
         len(tf_list),
         len(tf_batches),
-        config.tf_batch_size,
+        ctx.config.tf_batch_size,
     )
 
     filtered_responses = []
     debug_summary = {
-        "query_id": query_id,
+        "query_id": ctx.query_id,
         "final_direction": final_direction,
         "tf_count": len(tf_list),
-        "batch_size": config.tf_batch_size,
+        "batch_size": ctx.config.tf_batch_size,
         "batch_count": len(tf_batches),
         "direct_response": trapi.summarize_response_counts(filtered_direct_response),
         "templates": [],
@@ -1996,7 +1916,7 @@ async def run_inferred_lookup(
         }
         for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
             two_hop_query = build_two_hop_query(
-                query,
+                ctx.original_query,
                 subject_qid,
                 object_qid,
                 tf_batch,
@@ -2008,32 +1928,15 @@ async def run_inferred_lookup(
             # TODO: q.tiers = q.tiers or config.normalized_tiers()
 
             if not two_hop_query.submitter:
-                two_hop_query.submitter = config.resource_id
-            debugging.debug_dump_json(
-                f"template_{template_idx}_batch_{batch_idx}_query",
-                two_hop_query,
-                reporter,
-                debug_context,
-            )
-            response = await run_sync_retriever_lookup(two_hop_query, config, reporter)
-            debugging.debug_dump_json(
-                f"template_{template_idx}_batch_{batch_idx}_raw_response",
-                response,
-                reporter,
-                debug_context,
-            )
-            filtered_response = filter_inferred_response(
-                response,
-                subject_qid,
-                object_qid,
-                config,
-            )
-            debugging.debug_dump_json(
-                f"template_{template_idx}_batch_{batch_idx}_filtered_response",
-                filtered_response,
-                reporter,
-                debug_context,
-            )
+                two_hop_query.submitter = ctx.config.resource_id
+            ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_query", two_hop_query)
+
+            response = await run_sync_retriever_lookup(ctx, two_hop_query)
+            ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_raw_response", response)
+
+            filtered_response = filter_inferred_response(ctx, response, subject_qid, object_qid)
+            ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_filtered_response", filtered_response)
+
             filtered_responses.append(filtered_response)
             template_summary["batches"].append(
                 {
@@ -2047,58 +1950,40 @@ async def run_inferred_lookup(
         debug_summary["templates"].append(template_summary)
 
     merged_query_graph = build_combined_query_graph(
-        query,
+        ctx.original_query,
         subject_qid,
         object_qid,
         tf_list,
     )
 
-    merged_inferred = merge_filtered_responses(
-        filtered_responses,
-        require(build_two_hop_query(
-            query,
-            subject_qid,
-            object_qid,
-            tf_list,
-            sign_templates[0][0],
-            sign_templates[0][1],
-        ).message.query_graph, QueryGraph), # TODO: require
-        config,
-    )
-    merged = merge_filtered_responses(
-        [filtered_direct_response, merged_inferred],
-        merged_query_graph,
-        config,
-    )
-    sort_xcrg_combined_results(merged, subject_qid, object_qid, config, reporter)
-    debugging.debug_dump_json(
-        "merged_debug_response",
-        merged,
-        reporter,
-        debug_context,
-    )
-    final_response = build_trapi_clean_response(
-        query,
-        merged,
+    qgraph = build_two_hop_query(
+        ctx.original_query,
         subject_qid,
         object_qid,
-        config,
-        reporter,
+        tf_list,
+        sign_templates[0][0],
+        sign_templates[0][1],
+    ).message.query_graph
+    merged_inferred = merge_filtered_responses(
+        ctx,
+        filtered_responses,
+        require(qgraph, QueryGraph) # TODO
     )
+    merged = merge_filtered_responses(
+        ctx,
+        [filtered_direct_response, merged_inferred],
+        merged_query_graph
+    )
+    sort_xcrg_combined_results(ctx, merged, subject_qid, object_qid)
+    ctx.debug_dump_json("merged_debug_response", merged)
+
+    final_response = build_trapi_clean_response(ctx, ctx.original_query, merged, subject_qid, object_qid)
     debug_summary["merged_response"] = trapi.summarize_response_counts(final_response)
-    debug_summary["debug_run_dir"] = str(debug_context.run_dir)
-    debugging.debug_dump_json(
-        "inferred_debug_summary",
-        debug_summary,
-        reporter,
-        debug_context,
-    )
-    debugging.debug_dump_json(
-        "merged_inferred_response",
-        final_response,
-        reporter,
-        debug_context,
-    )
+    debug_summary["debug_run_dir"] = str(ctx.debug_ctx and ctx.debug_ctx.run_dir) # TODO
+
+    ctx.debug_dump_json("inferred_debug_summary", debug_summary)
+    ctx.debug_dump_json("merged_inferred_response", final_response)
+
     return final_response
 
 
@@ -2118,27 +2003,32 @@ async def async_run_xcrg(
     query_id: str | None = None,
 ) -> dict:
     """Run xCRG and return a complete TRAPI response."""
+
     reporter: Reporter
     if logger is None:
         reporter = LogReporter()
     else:
         reporter = LogReporter(logger)
 
-    query_id = query_id or uuid.uuid4().hex[:8]
-
     query = Query.from_dict(message)
-
     # TODO: Query.timeout will become available in TRAPI 2.0
     # query.timeout = query.timeout or config.timeout
     query.submitter = query.submitter or config.resource_id
 
     _, edge = trapi.get_single_query_edge(query)
 
+    ctx = RunnerContext.new(
+        query_id = query_id or uuid.uuid4().hex[:8],
+        query = query,
+        config = config,
+        reporter = reporter
+    )
+
     response: Response
     if edge.knowledge_type == "inferred":
-        response = await run_inferred_lookup(query_id, query, config, reporter)
+        response = await run_inferred_lookup(ctx)
     else:
-        response = await run_direct_lookup(query, config, reporter)
+        response = await run_direct_lookup(ctx)
 
     # TODO: ensure_response_versions? This very likely already happened upstream...
 
