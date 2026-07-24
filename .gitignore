@@ -101,7 +101,9 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-# uv.lock
+#
+# Note: I think it is best if the project is tool agnostic, at least for now - Jonathan (2026-07-24)
+uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -223,6 +225,7 @@ __marimo__/
 # xCRG local smoke-test/debug artifacts
 smoke_debug/
 cached_debug/
+test_output/
 *_response.json
 *_validator_stderr.log
 *.sqlite

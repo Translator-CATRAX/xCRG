@@ -75,7 +75,11 @@ def test_retriever_roundtrip(
     response = Response.from_dict(response)
 
     if save_response:
-        out_file = project_dir / "test_retriever_roundtrip.json"
+        # TODO: At some point, we may want to have test utilities
+        test_output_dir = project_dir / "test_output"
+        if not test_output_dir.exists():
+            test_output_dir.mkdir()
+        out_file = test_output_dir / "test_retriever_roundtrip.json"
         with open(out_file, "w") as f:
             import json
             json.dump(response.to_dict(), f, indent = 4)
