@@ -189,7 +189,7 @@ def get_ngd_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
     """Return a cached read-only NGD SQLite connection when the local DB exists."""
     global _NGD_WARNING_EMITTED
 
-    db_path = ctx.config.normalized_ngd_db_path()
+    db_path = ctx.ngd_db_file
     if db_path is None:
         if not _NGD_WARNING_EMITTED:
             ctx.reporter.warning("xCRG NGD DB path is not configured; NGD tie-breaker is disabled.")
@@ -308,7 +308,7 @@ def get_pmid_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
     """Return a cached read-only CURIE-to-PMID SQLite connection."""
     global _PMID_WARNING_EMITTED
 
-    db_path = ctx.config.normalized_curie_to_pmids_db_path()
+    db_path = ctx.curie_to_pmids_db_file
     if db_path is None:
         if not _PMID_WARNING_EMITTED:
             ctx.reporter.warning(

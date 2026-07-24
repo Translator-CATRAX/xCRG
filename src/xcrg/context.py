@@ -18,6 +18,14 @@ class RunnerContext:
     reporter: Reporter
     debug_ctx: DebugContext | None = None
 
+    @property
+    def ngd_db_file(self) -> Path | None:
+        return path_or_none(self.config.ngd_db_path)
+
+    @property
+    def curie_to_pmids_db_file(self) -> Path | None:
+        return path_or_none(self.config.curie_to_pmids_db_path)
+
     @staticmethod
     def new(
         query_id: str,
