@@ -23,7 +23,6 @@ from translator_tom import (
     AuxiliaryGraph,
     AuxiliaryGraphsDict,
     BaseQueryGraph,
-    Biolink,
     Edge,
     EdgeBinding,
     EdgeID,
@@ -46,7 +45,7 @@ from translator_tom import (
     TOMBase
 )
 
-from .debugging import DebugContext
+from . import debugging, trapi
 from .config import XCRGConfig
 from .reporting import LogReporter, Reporter
 from .utilities import partition, require, XCRGResult
@@ -110,27 +109,6 @@ FALLBACK_CATEGORY_DEPTH: dict[str, int] = {
 }
 
 
-def get_single_query_edge(query: Query) -> tuple[QEdgeID, QEdge]:
-    """Return the single query edge for xCRG queries."""
-    qedges = require(query.message.query_graph, QueryGraph).edges # TODO
-    if len(qedges) != 1:
-        raise ValueError("xCRG runner currently supports only one query edge.")
-    qedge_id = next(iter(qedges))
-    return qedge_id, qedges[qedge_id]
-
-
-def get_qualifier_value(edge: QEdge, qualifier_type_id: Biolink.Qualifier) -> str | None:
-    """Return a qualifier value from the first qualifier set, if present."""
-    qualifier_constraints = edge.qualifier_constraints_list
-    if not qualifier_constraints:
-        return None
-    qualifier_set = qualifier_constraints[0].qualifier_set
-    for qualifier in qualifier_set:
-        if qualifier.qualifier_type_id == qualifier_type_id:
-            return qualifier.qualifier_value
-    return None
-
-
 def get_endpoint_type(categories: list[str] | None) -> str | None:
     """Return the supported xCRG endpoint type for a QNode."""
     if categories is None:
@@ -142,61 +120,10 @@ def get_endpoint_type(categories: list[str] | None) -> str | None:
     return None
 
 
-def safe_debug_token(value: str | None) -> str:
-    """Return a filesystem-friendly token for debug run names."""
-    if not value:
-        return "unbound"
-    token = "".join(char if char.isalnum() else "_" for char in value)
-    token = "_".join(part for part in token.split("_") if part)
-    return token[:80] or "unbound"
-
-
-def describe_qnode_for_debug(qnode: QNode | None) -> str:
-    """Return a compact qnode label for human-readable debug paths."""
-    if qnode is None:
-        return "unbound"
-    ids = qnode.ids or []
-    if ids:
-        return safe_debug_token(ids[0])
-    categories = qnode.categories_list
-    if categories:
-        return safe_debug_token(categories[0].removeprefix("biolink:"))
-    return "unbound"
-
-
-def make_debug_run_context(query_id: str, query: Query, config: XCRGConfig) -> DebugContext:
-    """Create human-readable debug path metadata for one xCRG query."""
-    created_at = datetime.now(timezone.utc)
-    qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
-    edge_id, edge = get_single_query_edge(query)
-    direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
-    source_label = describe_qnode_for_debug(qnodes.get(edge.subject))
-    target_label = describe_qnode_for_debug(qnodes.get(edge.object))
-    direction_label = safe_debug_token(direction)
-    run_name = (
-        f"{created_at.strftime('%Y%m%d_%H%M%S')}_{query_id}_"
-        f"{source_label}_to_{target_label}_{direction_label}"
-    )
-    debug_dir = config.normalized_debug_dir()
-    return DebugContext(
-        query_id = query_id,
-        created_at = created_at.isoformat(),
-        run_name = run_name,
-        run_dir = debug_dir / run_name if debug_dir else None,
-        query_edge_id = edge_id,
-        source_qnode = edge.subject,
-        target_qnode = edge.object,
-        source_label = source_label,
-        target_label = target_label,
-        direction = direction,
-        artifacts = []
-    )
-
-
 def validate_direct_lookup_query(query: Query) -> None:
     """Validate the direct one-hop xCRG query shape. Raise Error if invalid."""
     qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
-    _, edge = get_single_query_edge(query)
+    _, edge = trapi.get_single_query_edge(query)
 
     if edge.knowledge_type == "inferred":
         raise ValueError("xCRG direct lookup does not support inferred edges.")
@@ -229,7 +156,7 @@ def validate_direct_lookup_query(query: Query) -> None:
 def validate_inferred_query(query: Query) -> tuple[QNodeID, QNodeID, QEdge]:
     """Validate a phase-one inferred xCRG query while preserving user direction."""
     qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
-    _, qedge = get_single_query_edge(query)
+    _, qedge = trapi.get_single_query_edge(query)
 
     if qedge.knowledge_type != "inferred":
         raise ValueError("Expected an inferred query edge.")
@@ -259,8 +186,8 @@ def validate_inferred_query(query: Query) -> tuple[QNodeID, QNodeID, QEdge]:
             "and one 'Gene' endpoint."
         )
 
-    direction = get_qualifier_value(qedge, "biolink:object_direction_qualifier")
-    aspect = get_qualifier_value(qedge, "biolink:object_aspect_qualifier")
+    direction = trapi.get_qualifier_value(qedge, "biolink:object_direction_qualifier")
+    aspect = trapi.get_qualifier_value(qedge, "biolink:object_aspect_qualifier")
     if direction not in {"increased", "decreased"}:
         raise ValueError("Inferred xCRG query direction must be 'increased' or 'decreased'.")
     valid_aspects = get_valid_aspect_qualifiers()
@@ -783,7 +710,7 @@ def build_direct_query_for_inferred(
 ) -> Query:
     """Build the direct one-hop query that accompanies inferred xCRG mode."""
     query_graph = require(original_query.message.query_graph, QueryGraph) # TODO
-    _, original_edge = get_single_query_edge(original_query)
+    _, original_edge = trapi.get_single_query_edge(original_query)
     direct_edge = deepcopy(original_edge)
     direct_edge.knowledge_type = None
 
@@ -1914,7 +1841,7 @@ def build_trapi_clean_response(
     reporter: Reporter = LogReporter(),
 ) -> Response:
     """Convert debug-shaped direct+2-hop results into one-hop TRAPI results."""
-    qedge_id, qedge = get_single_query_edge(query)
+    qedge_id, qedge = trapi.get_single_query_edge(query)
 
     old_kgraph = old_response.message.knowledge_graph or KnowledgeGraph.new()
     old_aux_graphs = old_response.message.auxiliary_graphs_dict
@@ -2007,61 +1934,6 @@ def build_trapi_clean_response(
     return ensure_response_versions(new_response, config, old_response)
 
 
-def write_debug_manifest(debug_context: DebugContext, reporter: Reporter) -> None:
-    """Write or refresh the human-readable debug manifest for one query."""
-    if not debug_context.run_dir:
-        return
-    try:
-        # manifest = {
-        #     key: value
-        #     for key, value in debug_context.items()
-        #     if key not in {"run_dir"}
-        # }
-        manifest = vars(debug_context)
-        manifest["run_dir"] = str(debug_context.run_dir)
-        manifest_path = debug_context.run_dir / "manifest.json"
-        with open(manifest_path, "w", encoding="utf-8") as manifest_file:
-            json.dump(manifest, manifest_file, indent=2, sort_keys=True)
-    except Exception as exc:
-        reporter.warning(f"Failed to write xCRG debug manifest: {exc}")
-
-
-def debug_dump_json(
-    label: str,
-    payload: object | TOMBase,
-    reporter: Reporter,
-    debug_context: DebugContext | None = None,
-) -> None:
-    """Best-effort debug JSON dump for inferred xCRG runs."""
-    if not debug_context or not debug_context.run_dir:
-        return
-    try:
-        debug_context.run_dir.mkdir(parents=True, exist_ok=True)
-        readable_path = debug_context.run_dir / f"{label}.json"
-        with open(readable_path, "w", encoding="utf-8") as debug_file:
-            if isinstance(payload, TOMBase):
-                data = payload.to_dict()
-            else:
-                data = payload
-            json.dump(data, debug_file, indent=2, sort_keys=True)
-        match payload:
-            case Query() | Response() as entity:
-                summary = summarize_response_counts(entity)
-            case _:
-                summary = ""
-        debug_context.artifacts.append(
-            {
-                "label": label,
-                "path": str(readable_path),
-                "written_at": datetime.now(timezone.utc).isoformat(),
-                "summary": summary,
-            }
-        )
-        write_debug_manifest(debug_context, reporter)
-    except Exception as exc:
-        reporter.warning(f"Failed to write debug JSON {label}: {exc}")
-
-
 def filter_inferred_response(
     response: Response,
     subject_qid: QNodeID,
@@ -2096,18 +1968,6 @@ def filter_inferred_response(
     return ensure_response_versions(Response(message = filtered_message), config, response)
 
 
-# TODO: typing
-def summarize_response_counts(entity: Query | Response) -> dict:
-    """Return compact counts for a TRAPI response."""
-    message = entity.message
-    knowledge_graph = message.knowledge_graph or KnowledgeGraph.new()
-    return {
-        "result_count": len(message.results_list),
-        "node_count": len(knowledge_graph.nodes),
-        "edge_count": len(knowledge_graph.edges),
-    }
-
-
 def format_json_for_log(value: object | TOMBase) -> str:
     """Return compact JSON for diagnostic logs."""
     if isinstance(value, TOMBase):
@@ -2123,16 +1983,16 @@ def log_retriever_response(
     reporter: Reporter,
 ) -> None:
     """Emit useful Retriever status/counts without requiring debug files."""
-    counts = summarize_response_counts(response)
+    counts = trapi.summarize_response_counts(response)
     retriever_status = response.status
     description = response.description
     reporter.info(
         "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
         http_status_code,
         retriever_status,
-        counts["result_count"],
-        counts["node_count"],
-        counts["edge_count"],
+        counts.result_count,
+        counts.node_count,
+        counts.edge_count,
         description,
     )
     if retriever_status and retriever_status != "Complete":
@@ -2141,7 +2001,7 @@ def log_retriever_response(
             retriever_status,
             description,
         )
-    if counts["result_count"] == 0 or retriever_status != "Complete":
+    if counts.result_count == 0 or retriever_status != "Complete":
         for entry in response.logs[:5]:
             if isinstance(entry, dict):
                 reporter.info(
@@ -2221,8 +2081,8 @@ async def run_inferred_lookup(
     reporter: Reporter,
 ) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
-    debug_context = make_debug_run_context(query_id, query, config)
-    debug_dump_json(
+    debug_context = debugging.make_debug_run_context(query_id, query, config)
+    debugging.debug_dump_json(
         "original_inferred_query",
         query,
         reporter,
@@ -2244,14 +2104,14 @@ async def run_inferred_lookup(
         raise ValueError("No transcription factors remain after TP53/target filtering.")
 
     direct_message = build_direct_query_for_inferred(query, subject_qid, object_qid)
-    debug_dump_json(
+    debugging.debug_dump_json(
         "direct_lookup_query",
         direct_message,
         reporter,
         debug_context,
     )
     direct_response = await run_sync_retriever_lookup(direct_message, config, reporter)
-    debug_dump_json(
+    debugging.debug_dump_json(
         "direct_raw_response",
         direct_response,
         reporter,
@@ -2263,14 +2123,14 @@ async def run_inferred_lookup(
         object_qid,
         config,
     )
-    debug_dump_json(
+    debugging.debug_dump_json(
         "direct_filtered_response",
         filtered_direct_response,
         reporter,
         debug_context,
     )
 
-    final_direction = get_qualifier_value(edge, "biolink:object_direction_qualifier")
+    final_direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
     sign_templates = get_sign_templates(cast(str, final_direction)) # TODO: cast
     tf_batches = chunk_values(tf_list, config.tf_batch_size)
     reporter.info(
@@ -2287,7 +2147,7 @@ async def run_inferred_lookup(
         "tf_count": len(tf_list),
         "batch_size": config.tf_batch_size,
         "batch_count": len(tf_batches),
-        "direct_response": summarize_response_counts(filtered_direct_response),
+        "direct_response": trapi.summarize_response_counts(filtered_direct_response),
         "templates": [],
     }
     for template_idx, (first_dir, second_dir) in enumerate(sign_templates, start = 1):
@@ -2312,14 +2172,14 @@ async def run_inferred_lookup(
 
             if not two_hop_query.submitter:
                 two_hop_query.submitter = config.resource_id
-            debug_dump_json(
+            debugging.debug_dump_json(
                 f"template_{template_idx}_batch_{batch_idx}_query",
                 two_hop_query,
                 reporter,
                 debug_context,
             )
             response = await run_sync_retriever_lookup(two_hop_query, config, reporter)
-            debug_dump_json(
+            debugging.debug_dump_json(
                 f"template_{template_idx}_batch_{batch_idx}_raw_response",
                 response,
                 reporter,
@@ -2331,7 +2191,7 @@ async def run_inferred_lookup(
                 object_qid,
                 config,
             )
-            debug_dump_json(
+            debugging.debug_dump_json(
                 f"template_{template_idx}_batch_{batch_idx}_filtered_response",
                 filtered_response,
                 reporter,
@@ -2343,8 +2203,8 @@ async def run_inferred_lookup(
                     "batch_index": batch_idx,
                     "tf_ids": tf_batch,
                     "tf_count": len(tf_batch),
-                    "raw_response": summarize_response_counts(response),
-                    "filtered_response": summarize_response_counts(filtered_response),
+                    "raw_response": trapi.summarize_response_counts(response),
+                    "filtered_response": trapi.summarize_response_counts(filtered_response),
                 }
             )
         debug_summary["templates"].append(template_summary)
@@ -2374,7 +2234,7 @@ async def run_inferred_lookup(
         config,
     )
     sort_xcrg_combined_results(merged, subject_qid, object_qid, config, reporter)
-    debug_dump_json(
+    debugging.debug_dump_json(
         "merged_debug_response",
         merged,
         reporter,
@@ -2388,15 +2248,15 @@ async def run_inferred_lookup(
         config,
         reporter,
     )
-    debug_summary["merged_response"] = summarize_response_counts(final_response)
+    debug_summary["merged_response"] = trapi.summarize_response_counts(final_response)
     debug_summary["debug_run_dir"] = str(debug_context.run_dir)
-    debug_dump_json(
+    debugging.debug_dump_json(
         "inferred_debug_summary",
         debug_summary,
         reporter,
         debug_context,
     )
-    debug_dump_json(
+    debugging.debug_dump_json(
         "merged_inferred_response",
         final_response,
         reporter,
@@ -2435,7 +2295,7 @@ async def async_run_xcrg(
     # query.timeout = query.timeout or config.timeout
     query.submitter = query.submitter or config.resource_id
 
-    _, edge = get_single_query_edge(query)
+    _, edge = trapi.get_single_query_edge(query)
 
     response: Response
     if edge.knowledge_type == "inferred":
