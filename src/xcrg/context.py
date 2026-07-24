@@ -10,7 +10,7 @@ from .debugging import DebugContext, debug_dump_json
 from .reporting import Reporter
 
 @dataclass
-class RunnerContext:
+class RunContext:
     """A RunnerContext maintains state for a run through the xCRG module."""
     query_id: str
     original_query: Query
@@ -32,7 +32,7 @@ class RunnerContext:
         query: Query,
         config: Config,
         reporter: Reporter,
-    ) -> "RunnerContext":
+    ) -> "RunContext":
 
         debug_dir: Path | None = None
         if isinstance(config.debug_dir, Path):
@@ -44,7 +44,7 @@ class RunnerContext:
         if debug_dir and debug_dir.exists():
             debug_ctx = DebugContext.new(debug_dir = debug_dir, query = query, query_id = query_id)
 
-        return RunnerContext(
+        return RunContext(
             query_id = query_id,
             original_query = query,
             config = config,

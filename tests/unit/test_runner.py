@@ -26,16 +26,16 @@ from translator_tom import (
 
 import xcrg.runner as runner
 from xcrg.config import XCRGConfig as Config # TODO
-from xcrg.context import RunnerContext
+from xcrg.context import RunContext
 from xcrg.reporting import StubReporter
 
 
 def make_context(
     query: Query | None = None,
     config: Config | None = None,
-) -> RunnerContext:
+) -> RunContext:
     """Create a fake xCRG runner context."""
-    return RunnerContext.new(
+    return RunContext.new(
         query_id = "foo",
         query = query or make_inferred_query(),
         config = config or Config(

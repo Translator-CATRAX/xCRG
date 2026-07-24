@@ -46,7 +46,7 @@ from translator_tom import (
 
 from . import biolink, trapi
 from .config import XCRGConfig
-from .context import RunnerContext
+from .context import RunContext
 from .reporting import LogReporter, Reporter
 from .utilities import partition, require, XCRGResult
 
@@ -185,7 +185,7 @@ def get_node_information_content(node: Node | None) -> float | None:
     return max(values) if values else None
 
 
-def get_ngd_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
+def get_ngd_connection(ctx: RunContext) -> sqlite3.Connection | None:
     """Return a cached read-only NGD SQLite connection when the local DB exists."""
     global _NGD_WARNING_EMITTED
 
@@ -229,7 +229,7 @@ def get_ngd_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
 
 
 def get_ngd_neighbors(
-    ctx: RunnerContext,
+    ctx: RunContext,
     curie: CURIE | None,
 ) -> dict[CURIE, float] | None:
     """Return cached NGD neighbors for one CURIE from the adjacency-list DB."""
@@ -278,7 +278,7 @@ def get_ngd_neighbors(
 
 
 def get_ngd_score(
-    ctx: RunnerContext,
+    ctx: RunContext,
     curie_a: CURIE | None,
     curie_b: CURIE | None,
 ) -> float | None:
@@ -305,7 +305,7 @@ def get_ngd_score(
     return None
 
 
-def get_pmid_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
+def get_pmid_connection(ctx: RunContext) -> sqlite3.Connection | None:
     """Return a cached read-only CURIE-to-PMID SQLite connection."""
     global _PMID_WARNING_EMITTED
 
@@ -350,7 +350,7 @@ def get_pmid_connection(ctx: RunnerContext) -> sqlite3.Connection | None:
         return None
 
 
-def get_curie_pmids(ctx: RunnerContext, curie: CURIE | None) -> set[str] | None:
+def get_curie_pmids(ctx: RunContext, curie: CURIE | None) -> set[str] | None:
     """Return normalized PMID identifiers for one CURIE from curie_to_pmids."""
     if not curie:
         return None
@@ -404,7 +404,7 @@ def normalize_pmid(pmid: object | None) -> str | None:
 
 
 def get_ngd_publications(
-    ctx: RunnerContext,
+    ctx: RunContext,
     curie_a: CURIE | None,
     curie_b: CURIE | None,
 ) -> list[str] | None:
@@ -660,7 +660,7 @@ def result_preserves_direct_direction(
 
 
 def filter_direct_response(
-    ctx: RunnerContext,
+    ctx: RunContext,
     response: Response,
     subject_qid: QNodeID,
     object_qid: QNodeID
@@ -691,7 +691,7 @@ def filter_direct_response(
 
 
 def merge_filtered_responses(
-    ctx: RunnerContext,
+    ctx: RunContext,
     responses: list[Response],
     query_graph: QueryGraph
 ) -> Response:
@@ -802,7 +802,7 @@ def is_two_hop_result(result: Result) -> bool:
 
 
 def answer_qnode_uses_category_specificity(
-    ctx: RunnerContext,
+    ctx: RunContext,
     query_graph: BaseQueryGraph,
     answer_qid: QNodeID
 ) -> bool:
@@ -815,7 +815,7 @@ def answer_qnode_uses_category_specificity(
 
 # TODO: should answer_id really be an empty string?
 def get_result_answer_metrics(
-    ctx: RunnerContext,
+    ctx: RunContext,
     result: Result,
     nodes: dict[CURIE, Node],
     answer_qid: QNodeID,
@@ -844,7 +844,7 @@ def ascending_optional(value: float | int | None) -> float:
 
 
 def get_result_endpoint_ngd(
-    ctx: RunnerContext,
+    ctx: RunContext,
     result: Result,
     subject_qid: QNodeID,
     object_qid: QNodeID,
@@ -856,7 +856,7 @@ def get_result_endpoint_ngd(
 
 
 def get_result_answer_tf_ngd(
-    ctx: RunnerContext,
+    ctx: RunContext,
     result: Result,
     answer_qid: QNodeID,
 ) -> float | None:
@@ -926,7 +926,7 @@ def stamp_xcrg_rank_scores(results: list[Result], resource_id: str, scoring_meth
 
 
 def sort_xcrg_combined_results(
-    ctx: RunnerContext,
+    ctx: RunContext,
     response: Response,
     subject_qid: QNodeID,
     object_qid: QNodeID,
@@ -1025,7 +1025,7 @@ def make_stable_id(prefix: str, payload: object) -> str:
 
 
 def ensure_response_versions(
-    ctx: RunnerContext,
+    ctx: RunContext,
     response: Response,
     *responses: Response,
 ) -> Response:
@@ -1040,7 +1040,7 @@ def ensure_response_versions(
 
 
 def make_xcrg_inferred_edge(
-    ctx: RunnerContext,
+    ctx: RunContext,
     subject_id: CURIE,
     object_id: CURIE,
     original_qedge: QEdge,
@@ -1096,7 +1096,7 @@ def make_xcrg_inferred_edge(
 
 
 def make_xcrg_ngd_edge(
-    ctx: RunnerContext,
+    ctx: RunContext,
     subject_id: CURIE,
     object_id: CURIE,
     ngd_score: float | str,
@@ -1406,7 +1406,7 @@ def node_is_present_for_evidence(
 
 
 def add_ngd_analysis_support_graph(
-    ctx: RunnerContext,
+    ctx: RunContext,
     analysis: Analysis,
     kg_edges: dict[EdgeID, Edge],
     kg_nodes: dict[CURIE, Node],
@@ -1504,7 +1504,7 @@ def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]
 
 
 def finalize_clean_result_analyses(
-    ctx: RunnerContext,
+    ctx: RunContext,
     final_result: XCRGResult,
     original_qgraph: BaseQueryGraph,
     retriever_nodes: dict[CURIE, Node],
@@ -1621,7 +1621,7 @@ def finalize_clean_result_analyses(
 
 
 def build_trapi_clean_response(
-    ctx: RunnerContext,
+    ctx: RunContext,
     query: Query,
     old_response: Response,
     subject_qid: QNodeID,
@@ -1725,7 +1725,7 @@ def build_trapi_clean_response(
 
 
 def filter_inferred_response(
-    ctx: RunnerContext,
+    ctx: RunContext,
     response: Response,
     subject_qid: QNodeID,
     target_qid: QNodeID,
@@ -1768,7 +1768,7 @@ def format_json_for_log(value: object | TOMBase) -> str:
 
 
 def log_retriever_response(
-    ctx: RunnerContext,
+    ctx: RunContext,
     response: Response,
     http_status_code: int,
 ) -> None:
@@ -1803,7 +1803,7 @@ def log_retriever_response(
                 ctx.reporter.info("xCRG Retriever log %s", entry)
 
 
-async def run_sync_retriever_lookup(ctx: RunnerContext, query: Query) -> Response:
+async def run_sync_retriever_lookup(ctx: RunContext, query: Query) -> Response:
     """Run a sync Retriever lookup and return its TRAPI response."""
     ctx.reporter.info("Sending xCRG lookup query to %s", ctx.config.retriever_url)
     ctx.reporter.debug(
@@ -1850,13 +1850,13 @@ async def run_sync_retriever_lookup(ctx: RunnerContext, query: Query) -> Respons
     return response
 
 
-async def run_direct_lookup(ctx: RunnerContext) -> Response:
+async def run_direct_lookup(ctx: RunContext) -> Response:
     """Run the original one-hop direct xCRG lookup."""
     validate_direct_lookup_query(ctx.original_query)
     return await run_sync_retriever_lookup(ctx, ctx.original_query)
 
 
-async def run_inferred_lookup(ctx: RunnerContext) -> Response:
+async def run_inferred_lookup(ctx: RunContext) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
     ctx.debug_dump_json("original_inferred_query", ctx.original_query)
     subject_qid, object_qid, edge = validate_inferred_query(ctx.original_query)
@@ -2018,7 +2018,7 @@ async def async_run_xcrg(
 
     _, edge = trapi.get_single_query_edge(query)
 
-    ctx = RunnerContext.new(
+    ctx = RunContext.new(
         query_id = query_id or uuid.uuid4().hex[:8],
         query = query,
         config = config,
