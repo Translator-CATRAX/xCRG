@@ -298,6 +298,7 @@ def get_ngd_score(
     # for partial rows or future DB variants.
     reverse_neighbors = get_ngd_neighbors(ctx, curie_b)
     if reverse_neighbors:
+        assert curie_a # Because PyCharm cannot infer that it cannot be null here
         score = reverse_neighbors.get(curie_a)
         if score is not None:
             return score
