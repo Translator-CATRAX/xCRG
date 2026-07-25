@@ -109,5 +109,3 @@ def get_curie_pmids(ctx: RunContext, curie: CURIE | None) -> set[str] | None:
     while len(_PMID_CACHE) > _PMID_CACHE_MAX_ROWS:
         _PMID_CACHE.popitem(last=False)
     return pmids
-
-
