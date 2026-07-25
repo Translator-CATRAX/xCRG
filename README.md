@@ -201,7 +201,7 @@ pytest
 pytest -m integration
 
 # Run all tests
-pytest -m "unit or integration"
+pytest -m all
 ```
 
 Recommended validation before updating an integration pin:

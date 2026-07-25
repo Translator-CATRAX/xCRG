@@ -58,12 +58,16 @@ def save_response(request) -> bool:
 
 
 def pytest_configure(config):
+    # pytest has been configured in this project to run unit tests by default. And so the "all" marker is
+    # here to make it easy to run everything again, instead of having to type "unit or integration", etc.
+    config.addinivalue_line("markers", "all: run all tests")
     config.addinivalue_line("markers", "integration: run integration tests; requires additional configuration")
     config.addinivalue_line("markers", "unit: run local unit tests")
 
 
 def pytest_collection_modifyitems(items):
     for item in items:
+        item.add_marker(pytest.mark.all)
         if "tests/integration/" in str(item.fspath):
             item.add_marker(pytest.mark.integration)
         elif "tests/unit/" in str(item.fspath):

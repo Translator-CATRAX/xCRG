@@ -43,9 +43,9 @@ where = ["src"]
 "xcrg.resources" = ["*.json"]
 
 [tool.pytest.ini_options]
-# Additional configuration in tests/conftest.py
+# Additional pytest configuration is performed in tests/conftest.py
 pythonpath = ["src"]
 testpaths = ["tests"]
 # Only run unit tests by default.
-# Comment this line if you want better support in PyCharm, etc.
+# Comment this line if you want better support in IDE's like PyCharm, etc.
 addopts = ["-m unit"]
