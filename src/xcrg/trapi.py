@@ -1,8 +1,11 @@
+from copy import deepcopy
 from dataclasses import dataclass
 
 from translator_tom import (
     Biolink,
+    CURIE,
     KnowledgeGraph,
+    Node,
     QEdge,
     QEdgeID,
     Query,
@@ -54,3 +57,13 @@ def summarize_response_counts(entity: Query | Response) -> SummaryCount:
         node_count = len(knowledge_graph.nodes),
         edge_count = len(knowledge_graph.edges),
     )
+
+
+def copy_node(
+    node_id: CURIE | None,
+    nodes: dict[CURIE, Node],
+    final_nodes: dict[CURIE, Node],
+) -> None:
+    """Copy a Retriever-provided KG node verbatim into the final KG."""
+    if node_id and node_id in nodes and node_id not in final_nodes:
+        final_nodes[node_id] = deepcopy(nodes[node_id])

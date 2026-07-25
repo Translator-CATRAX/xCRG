@@ -24,6 +24,7 @@ from translator_tom import (
     RetrievalSource
 )
 
+import xcrg.ngd as ngd
 import xcrg.runner as runner
 from xcrg.config import XCRGConfig as Config # TODO
 from xcrg.context import RunContext
@@ -979,7 +980,7 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
 
 
 def test_xcrg_ngd_edge_skips_empty_publications_attribute():
-    _, edge = runner.make_xcrg_ngd_edge(
+    _, edge = ngd.make_xcrg_ngd_edge(
         make_context(),
         "CHEBI:1",
         "NCBIGene:1",
