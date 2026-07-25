@@ -44,9 +44,10 @@ from translator_tom import (
     TOMBase
 )
 
-from . import biolink, pmids, trapi
+from . import biolink, trapi
 from .config import XCRGConfig
 from .context import RunContext
+from .pmid import get_curie_pmids
 from .reporting import LogReporter, Reporter
 from .utilities import (
     asc_optional,
@@ -314,8 +315,8 @@ def get_ngd_publications(
     curie_b: CURIE | None,
 ) -> list[str] | None:
     """Return PMID intersection from the same CURIE-to-PMID source as NGD."""
-    pmids_a = pmids.get_curie_pmids(ctx, curie_a)
-    pmids_b = pmids.get_curie_pmids(ctx, curie_b)
+    pmids_a = get_curie_pmids(ctx, curie_a)
+    pmids_b = get_curie_pmids(ctx, curie_b)
     if pmids_a is None or pmids_b is None:
         return None
     shared_pmids = pmids_a & pmids_b
