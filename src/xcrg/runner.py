@@ -58,6 +58,10 @@ from .utilities import (
 
 
 TF_QNODE_ID = "tf"
+# TP53 is a "master regulator" and regulates hundreds of genes.
+# We were finding it showed up everywhere (in paths of all lengths).
+# It's manually removed so we don't drown in X<-TP53->Y paths.
+# Maybe with better ranking, we could leave it in there, but for now, it's manually removed
 TP53_CURIE = "NCBIGene:7157"
 DIRECT_QEDGE_ID = "direct"
 
