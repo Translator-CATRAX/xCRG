@@ -52,7 +52,6 @@ from .utilities import (
     format_json_for_log,
     make_stable_id,
     partition,
-    require,
     XCRGResult
 )
 
@@ -182,22 +181,22 @@ def build_combined_query_graph(
 ) -> QueryGraph:
     """Build a response query graph that can bind direct and TF-mediated results."""
     direct_query = build_direct_query_for_inferred(original_query, subject_qid, object_qid)
-    query_graph = require(direct_query.message.query_graph, QueryGraph) # TODO
-    query_graph.nodes[TF_QNODE_ID] = QNode(
+    qgraph = cast(QueryGraph, direct_query.message.query_graph)
+    qgraph.nodes[TF_QNODE_ID] = QNode(
         ids = tf_list,
         categories = ["biolink:Gene"]
     )
-    query_graph.edges["e0"] = QEdge(
+    qgraph.edges["e0"] = QEdge(
         subject = subject_qid,
         predicates = ["biolink:affects"],
         object = TF_QNODE_ID
     )
-    query_graph.edges["e1"] = QEdge(
+    qgraph.edges["e1"] = QEdge(
         subject = TF_QNODE_ID,
         predicates = ["biolink:affects"],
         object = object_qid
     )
-    return query_graph
+    return qgraph
 
 
 def result_has_edge_predicate(
@@ -1130,7 +1129,7 @@ def build_trapi_clean_response(
         finalize_clean_result_analyses(
             ctx,
             final_result,
-            require(new_qgraph, BaseQueryGraph), # TODO
+            cast(QueryGraph, new_qgraph),
             old_kgraph.nodes,
             old_kgraph.edges,
             old_aux_graphs,
@@ -1174,23 +1173,23 @@ def filter_inferred_response(
     ctx: RunContext,
     response: Response,
     subject_qid: QNodeID,
-    target_qid: QNodeID,
+    object_qid: QNodeID,
 ) -> Response:
     """Filter subclass and wrong-direction results from a two-hop Retriever response."""
     message = response.message
 
-    kg_edges = dict[EdgeID, Edge]()
+    edges = dict[EdgeID, Edge]()
     if message.knowledge_graph:
-        kg_edges = message.knowledge_graph.edges
+        edges = message.knowledge_graph.edges
 
     filtered_results = []
     for result in message.results_list:
         tf_id = get_bound_node_curie(result, TF_QNODE_ID)
         if tf_id == TP53_CURIE:
             continue
-        if result_has_edge_predicate(result, kg_edges, "biolink:subclass_of"):
+        if result_has_edge_predicate(result, edges, "biolink:subclass_of"):
             continue
-        if not result_preserves_direction(result, kg_edges, subject_qid, target_qid):
+        if not result_preserves_direction(result, edges, subject_qid, object_qid):
             continue
         filtered_results.append(result)
 
@@ -1392,7 +1391,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     merged_inferred = merge_filtered_responses(
         ctx,
         filtered_responses,
-        require(qgraph, QueryGraph) # TODO
+        cast(QueryGraph, qgraph)
     )
     merged = merge_filtered_responses(
         ctx,

@@ -2,6 +2,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import cast
 
 from translator_tom import (
     QEdgeID,
@@ -13,7 +14,6 @@ from translator_tom import (
 )
 
 from . import trapi
-from .utilities import require
 
 
 @dataclass
@@ -38,7 +38,7 @@ class DebugContext:
         assert debug_dir and debug_dir.exists()
 
         created_at = datetime.now(timezone.utc)
-        qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
+        qnodes = cast(QueryGraph, query.message.query_graph).nodes
         edge_id, edge = trapi.get_single_query_edge(query)
         direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
         source_label = describe_qnode_for_debug(qnodes.get(edge.subject))
