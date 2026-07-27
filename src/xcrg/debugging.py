@@ -116,7 +116,7 @@ def debug_dump_json(ctx: DebugContext, label: str, payload: object | TOMBase) ->
             json.dump(data, debug_file, indent=2, sort_keys=True)
         match payload:
             case Query() | Response() as entity:
-                summary = trapi.summarize_response_counts(entity)
+                summary = trapi.get_message_statistics(entity)
             case _:
                 summary = ""
         ctx.artifacts.append(

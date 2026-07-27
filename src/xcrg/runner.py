@@ -80,16 +80,14 @@ def build_two_hop_query(
     second_direction: str,
 ) -> Query:
     """Build a TF-mediated two-hop TRAPI query from the original inferred query."""
-    query_graph = require(original_query.message.query_graph, QueryGraph) # TODO
-    subject_qnode = deepcopy(query_graph.nodes[subject_qid])
-    object_qnode = deepcopy(query_graph.nodes[object_qid])
+    query_graph = cast(QueryGraph, original_query.message.query_graph)
     return Query(
         message = Message(
             query_graph = QueryGraph(
                 nodes = {
-                    subject_qid: subject_qnode,
+                    subject_qid: deepcopy(query_graph.nodes[subject_qid]),
                     TF_QNODE_ID: QNode(ids = tf_list, categories = ["biolink:Gene"]),
-                    object_qid: object_qnode,
+                    object_qid: deepcopy(query_graph.nodes[object_qid]),
                 },
                 edges = {
                     "e0": QEdge(
@@ -147,7 +145,7 @@ def build_direct_query_for_inferred(
     object_qid: QNodeID,
 ) -> Query:
     """Build the direct one-hop query that accompanies inferred xCRG mode."""
-    query_graph = require(original_query.message.query_graph, QueryGraph) # TODO
+    query_graph = cast(QueryGraph, original_query.message.query_graph)
     _, original_edge = trapi.get_single_query_edge(original_query)
     direct_edge = deepcopy(original_edge)
     direct_edge.knowledge_type = None
@@ -198,7 +196,7 @@ def build_combined_query_graph(
     return query_graph
 
 
-def result_has_bad_edge_predicate(
+def result_has_edge_predicate(
     result: Result,
     edges: dict[EdgeID, Edge],
     predicate: str
@@ -297,13 +295,13 @@ def filter_direct_response(
     """Filter subclass and wrong-direction results from a direct Retriever response."""
     message = response.message
 
-    edges = {}
-    if message.knowledge_graph and message.knowledge_graph.edges:
+    edges: dict[EdgeID, Edge] = {}
+    if message.knowledge_graph:
         edges = message.knowledge_graph.edges
 
     filtered_results: list[Result] = []
     for result in message.results_list:
-        if result_has_bad_edge_predicate(result, edges, "biolink:subclass_of"):
+        if result_has_edge_predicate(result, edges, "biolink:subclass_of"):
             continue
         if not result_preserves_direct_direction(result, edges, subject_qid, object_qid):
             continue
@@ -1186,7 +1184,7 @@ def filter_inferred_response(
         tf_id = get_bound_node_curie(result, TF_QNODE_ID)
         if tf_id == TP53_CURIE:
             continue
-        if result_has_bad_edge_predicate(result, kg_edges, "biolink:subclass_of"):
+        if result_has_edge_predicate(result, kg_edges, "biolink:subclass_of"):
             continue
         if not result_preserves_direction(result, kg_edges, subject_qid, target_qid):
             continue
@@ -1244,7 +1242,7 @@ async def run_sync_retriever_lookup(ctx: RunContext, query: Query) -> Response:
     if not message.auxiliary_graphs:
         message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    counts = trapi.summarize_response_counts(response)
+    counts = trapi.get_message_statistics(response)
 
     ctx.reporter.info(
         "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
@@ -1283,7 +1281,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     subject_qid = edge.subject
     object_qid = edge.object
 
-    qgraph = require(ctx.original_query.message.query_graph, QueryGraph) # TODO
+    qgraph = cast(QueryGraph, ctx.original_query.message.query_graph)
     subject_ids: list[str] = qgraph.nodes[subject_qid].ids or []
     object_ids: list[str] = qgraph.nodes[object_qid].ids or []
     endpoint_ids = set(subject_ids) | set(object_ids)
@@ -1311,7 +1309,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     ctx.debug_dump_json("direct_filtered_response", filtered_direct_response)
 
     final_direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
-    sign_templates = get_sign_templates(cast(str, final_direction)) # TODO: cast
+    sign_templates = get_sign_templates(final_direction or "")
     tf_batches = chunk_values(tf_list, ctx.config.tf_batch_size)
     ctx.reporter.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
@@ -1327,7 +1325,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
         "tf_count": len(tf_list),
         "batch_size": ctx.config.tf_batch_size,
         "batch_count": len(tf_batches),
-        "direct_response": trapi.summarize_response_counts(filtered_direct_response),
+        "direct_response": trapi.get_message_statistics(filtered_direct_response),
         "templates": [],
     }
     for template_idx, (first_dir, second_dir) in enumerate(sign_templates, start = 1):
@@ -1366,8 +1364,8 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
                     "batch_index": batch_idx,
                     "tf_ids": tf_batch,
                     "tf_count": len(tf_batch),
-                    "raw_response": trapi.summarize_response_counts(response),
-                    "filtered_response": trapi.summarize_response_counts(filtered_response),
+                    "raw_response": trapi.get_message_statistics(response),
+                    "filtered_response": trapi.get_message_statistics(filtered_response),
                 }
             )
         debug_summary["templates"].append(template_summary)
@@ -1401,7 +1399,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     ctx.debug_dump_json("merged_debug_response", merged)
 
     final_response = build_trapi_clean_response(ctx, ctx.original_query, merged, subject_qid, object_qid)
-    debug_summary["merged_response"] = trapi.summarize_response_counts(final_response)
+    debug_summary["merged_response"] = trapi.get_message_statistics(final_response)
     debug_summary["debug_run_dir"] = str(ctx.debug_ctx and ctx.debug_ctx.run_dir) # TODO
 
     ctx.debug_dump_json("inferred_debug_summary", debug_summary)
