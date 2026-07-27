@@ -24,6 +24,7 @@ from translator_tom import (
     EdgeID,
     FastJsonValue,
     KnowledgeGraph,
+    KnowledgeType,
     Message,
     Node,
     NodeBinding,
@@ -59,98 +60,6 @@ from .utilities import (
 TF_QNODE_ID = "tf"
 TP53_CURIE = "NCBIGene:7157"
 DIRECT_QEDGE_ID = "direct"
-
-
-def get_endpoint_type(categories: list[str] | None) -> str | None:
-    """Return the supported xCRG endpoint type for a QNode."""
-    if categories is None:
-        return None
-    if "biolink:ChemicalEntity" in categories:
-        return "chemical"
-    if "biolink:Gene" in categories:
-        return "gene"
-    return None
-
-
-def validate_direct_lookup_query(query: Query) -> None:
-    """Validate the direct one-hop xCRG query shape. Raise Error if invalid."""
-    qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
-    _, edge = trapi.get_single_query_edge(query)
-
-    if edge.knowledge_type == "inferred":
-        raise ValueError("xCRG direct lookup does not support inferred edges.")
-
-    if "biolink:affects" not in edge.predicates_list:
-        raise ValueError("xCRG direct lookup requires biolink:affects predicate.")
-
-    if edge.subject not in qnodes:
-        raise ValueError("Query edge is missing 'subject' query node reference.")
-    if edge.object not in qnodes:
-        raise ValueError("Query edge is missing 'object' query node reference.")
-
-    pinned_ids = [qid for qid, qnode in qnodes.items() if qnode.ids]
-    if len(pinned_ids) != 1:
-        raise ValueError("xCRG direct lookup supports exactly one pinned query node.")
-
-    unbound_ids = [qid for qid, qnode in qnodes.items() if not qnode.ids]
-    if len(unbound_ids) != 1:
-        raise ValueError("xCRG direct lookup supports exactly one unbound query node.")
-
-    pinned_node = qnodes[pinned_ids[0]]
-    unbound_node = qnodes[unbound_ids[0]]
-
-    if "biolink:Gene" not in pinned_node.categories_list:
-        raise ValueError("xCRG direct lookup requires the pinned node to be a Gene.")
-    if "biolink:ChemicalEntity" not in unbound_node.categories_list:
-        raise ValueError("xCRG direct lookup requires the unbound node to be a ChemicalEntity.")
-
-
-def validate_inferred_query(query: Query) -> tuple[QNodeID, QNodeID, QEdge]:
-    """Validate a phase-one inferred xCRG query while preserving user direction."""
-    qnodes = require(query.message.query_graph, QueryGraph).nodes # TODO
-    _, qedge = trapi.get_single_query_edge(query)
-
-    if qedge.knowledge_type != "inferred":
-        raise ValueError("Expected an inferred query edge.")
-
-    if "biolink:affects" not in qedge.predicates_list:
-        raise ValueError("Inferred xCRG query requires 'biolink:affects' predicate.")
-
-    subject_qid = qedge.subject
-    if subject_qid not in qnodes:
-        raise ValueError("xCRG query is missing 'subject' node.")
-    subject_qnode = qnodes[subject_qid]
-
-    object_qid = qedge.object
-    if object_qid not in qnodes:
-        raise ValueError("xCRG query is missing 'object' node.")
-    object_qnode = qnodes[object_qid]
-
-    endpoint_nodes = [subject_qnode, object_qnode]
-    pinned_count = sum(1 for node in endpoint_nodes if node.ids)
-    if pinned_count != 1:
-        raise ValueError("Inferred xCRG query requires exactly one pinned endpoint node.")
-
-    if get_endpoint_type(subject_qnode.categories_list) != "chemical" and \
-       get_endpoint_type(object_qnode.categories_list) != "gene":
-        raise ValueError(
-            "Inferred xCRG query currently requires one 'ChemicalEntity' endpoint "
-            "and one 'Gene' endpoint."
-        )
-
-    direction = trapi.get_qualifier_value(qedge, "biolink:object_direction_qualifier")
-    aspect = trapi.get_qualifier_value(qedge, "biolink:object_aspect_qualifier")
-    if direction not in {"increased", "decreased"}:
-        raise ValueError("Inferred xCRG query direction must be 'increased' or 'decreased'.")
-    valid_aspects = biolink.get_valid_aspect_qualifiers()
-    if aspect not in valid_aspects:
-        raise ValueError(
-            f"Inferred xCRG query requires an 'object_aspect_qualifier' that is a "
-            f"descendant of {biolink.ASPECT_QUALIFIER_ROOT!r} "
-            f"(e.g. {', '.join(sorted(valid_aspects))}); but got {aspect!r}."
-        )
-
-    return subject_qid, object_qid, qedge
 
 
 def get_node_information_content(node: Node | None) -> float | None:
@@ -1400,16 +1309,13 @@ async def run_sync_retriever_lookup(ctx: RunContext, query: Query) -> Response:
     return response
 
 
-async def run_direct_lookup(ctx: RunContext) -> Response:
-    """Run the original one-hop direct xCRG lookup."""
-    validate_direct_lookup_query(ctx.original_query)
-    return await run_sync_retriever_lookup(ctx, ctx.original_query)
-
-
 async def run_inferred_lookup(ctx: RunContext) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
     ctx.debug_dump_json("original_inferred_query", ctx.original_query)
-    subject_qid, object_qid, edge = validate_inferred_query(ctx.original_query)
+
+    _, edge = trapi.get_single_query_edge(ctx.original_query)
+    subject_qid = edge.subject
+    object_qid = edge.object
 
     qgraph = require(ctx.original_query.message.query_graph, QueryGraph) # TODO
     subject_ids: list[str] = qgraph.nodes[subject_qid].ids or []
@@ -1538,13 +1444,79 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     return final_response
 
 
-def is_xcrg_mvp2_query(query: dict) -> bool:
-    """Return True when a query matches the MVP2 xCRG inferred shape."""
+def validate_query(query: Query) -> KnowledgeType:
+    """Raise an Error if the given query fails to adhere to a valid xCRG query shape."""
+    qgraph = query.message.query_graph
+    if not isinstance(qgraph, QueryGraph):
+        raise ValueError("xCRG query requires a non-pathfinder query graph.")
+
+    _, qedge = trapi.get_single_query_edge(query)
+
+    if "biolink:affects" not in qedge.predicates_list:
+        raise ValueError("xCRG query requires a biolink:affects predicate.")
+
+    qnodes = qgraph.nodes
+
+    subject_qnode = qnodes.get(qedge.subject)
+    if not subject_qnode:
+        raise ValueError("xCRG query edge requires a 'subject' node reference.")
+    object_qnode = qnodes.get(qedge.object)
+    if not object_qnode:
+        raise ValueError("xCRG query edge requires an 'object' node reference.")
+
+    match qedge.knowledge_type or "lookup": # default per TRAPI spec; subject to change
+        # Validate a phase-one inferred xCRG query while preserving user direction.
+        case "inferred":
+            pinned_count = sum(1 for node in [subject_qnode, object_qnode] if node.ids)
+            if pinned_count != 1:
+                raise ValueError("xCRG inferred query requires exactly one pinned endpoint node.")
+
+            if "biolink:ChemicalEntity" not in subject_qnode.categories_list:
+                raise ValueError("xCRG inferred query requires one 'ChemicalEntity' endpoint.")
+            if "biolink:Gene" not in object_qnode.categories_list:
+                raise ValueError("xCRG inferred query requires one 'Gene' endpoint.")
+
+            direction = trapi.get_qualifier_value(qedge, "biolink:object_direction_qualifier")
+            if direction not in {"increased", "decreased"}:
+                raise ValueError("xCRG inferred query direction must be 'increased' or 'decreased'.")
+
+            valid_aspects = biolink.get_valid_aspect_qualifiers()
+            aspect = trapi.get_qualifier_value(qedge, "biolink:object_aspect_qualifier")
+            if aspect not in valid_aspects:
+                raise ValueError(
+                    f"Inferred xCRG query requires an 'object_aspect_qualifier' that is a "
+                    f"descendant of {biolink.ASPECT_QUALIFIER_ROOT!r} "
+                    f"(e.g. {', '.join(sorted(valid_aspects))}); but got {aspect!r}."
+                )
+        # Validate the direct one-hop xCRG query shape.
+        case "lookup":
+            pinned_ids = [qid for qid, qnode in qnodes.items() if qnode.ids]
+            if len(pinned_ids) != 1:
+                raise ValueError("xCRG direct lookup supports exactly one pinned query node.")
+            pinned_node = qnodes[pinned_ids[0]]
+            if "biolink:Gene" not in pinned_node.categories_list:
+                raise ValueError("xCRG direct lookup requires the pinned node to be a 'Gene'.")
+
+            unbound_ids = [qid for qid, qnode in qnodes.items() if not qnode.ids]
+            if len(unbound_ids) != 1:
+                raise ValueError("xCRG direct lookup supports exactly one unbound query node.")
+            unbound_node = qnodes[unbound_ids[0]]
+            if "biolink:ChemicalEntity" not in unbound_node.categories_list:
+                raise ValueError("xCRG direct lookup requires the unbound node to be a 'ChemicalEntity'.")
+        case _:
+            raise ValueError("Invalid knowledge type; valid values are 'inferred' or 'lookup'.")
+
+    return cast(KnowledgeType, qedge.knowledge_type) # Guaranteed not to be null here
+
+
+def is_xcrg_mvp2_query(query: dict | Query) -> bool: # TODO: is_valid_query
     try:
-        validate_inferred_query(Query.from_dict(query))
+        if isinstance(query, dict):
+            query = Query.from_dict(query)
+        validate_query(query)
+        return True
     except Exception:
         return False
-    return True
 
 
 async def async_run_xcrg(
@@ -1566,8 +1538,6 @@ async def async_run_xcrg(
     # query.timeout = query.timeout or config.timeout
     query.submitter = query.submitter or config.resource_id
 
-    _, edge = trapi.get_single_query_edge(query)
-
     ctx = RunContext.new(
         query_id = query_id or uuid.uuid4().hex[:8],
         query = query,
@@ -1576,10 +1546,11 @@ async def async_run_xcrg(
     )
 
     response: Response
-    if edge.knowledge_type == "inferred":
+    if validate_query(query) == "inferred":
         response = await run_inferred_lookup(ctx)
     else:
-        response = await run_direct_lookup(ctx)
+        # Run the original one-hop direct xCRG lookup
+        response = await run_sync_retriever_lookup(ctx, ctx.original_query)
 
     # TODO: ensure_response_versions? This very likely already happened upstream...
 

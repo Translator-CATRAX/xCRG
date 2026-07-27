@@ -140,7 +140,7 @@ def test_deserialize_example03_query():
         }
     }
     query = Query.from_dict(query_dict)
-    assert runner.validate_inferred_query(query)
+    assert runner.validate_query(query)
 
 
 def test_deserialize_example03_query_with_extra_fields():
@@ -202,7 +202,7 @@ def test_deserialize_example03_query_with_extra_fields():
             }
     }
     query = Query.from_dict(query_dict)
-    assert runner.validate_inferred_query(query)
+    assert runner.validate_query(query)
 
 
 def test_debug_logging01():
@@ -287,7 +287,7 @@ def test_validate_inferred_query():
         )
     )
 
-    assert runner.validate_inferred_query(query)
+    assert runner.validate_query(query)
 
 
 def test_load_tf_list_uses_bundled_default_resource():
