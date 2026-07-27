@@ -480,23 +480,6 @@ def get_result_answer_metrics(
     return specificity, information_content, answer_id
 
 
-def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
-    """Return copied edge bindings for a qedge across all analyses."""
-    bindings = list[EdgeBinding]()
-    seen = set()
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis):
-            continue
-        for binding in analysis.edge_bindings.get(qedge_id) or []:
-            edge_id = binding.id
-            if edge_id in seen:
-                continue
-            seen.add(edge_id)
-            copied_binding = deepcopy(binding)
-            bindings.append(copied_binding)
-    return bindings
-
-
 def stamp_rank_scores(results: list[Result], scoring_method: str) -> None:
     """Assign rank-derived TRAPI Analysis.score values after sorting."""
     total = len(results)
@@ -1126,7 +1109,7 @@ def build_trapi_clean_response(
             path_edge_ids: list[str] = [
                 binding.id
                 for qedge_id in ("e0", "e1")
-                for binding in get_edge_bindings(result, qedge_id)
+                for binding in trapi.get_edge_bindings(result, qedge_id)
             ]
             if path_edge_ids:
                 add_support_path_edges(
@@ -1136,7 +1119,7 @@ def build_trapi_clean_response(
         else:
             add_direct_evidence(
                 final_result,
-                get_edge_bindings(result, DIRECT_QEDGE_ID),
+                trapi.get_edge_bindings(result, DIRECT_QEDGE_ID),
             )
 
     for final_result in new_results:

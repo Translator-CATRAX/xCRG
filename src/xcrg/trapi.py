@@ -2,8 +2,10 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 from translator_tom import (
+    Analysis,
     Biolink,
     CURIE,
+    EdgeBinding,
     KnowledgeGraph,
     Node,
     QEdge,
@@ -11,6 +13,7 @@ from translator_tom import (
     Query,
     QueryGraph,
     Response,
+    Result,
 )
 
 from .utilities import require
@@ -67,3 +70,20 @@ def copy_node(
     """Copy a Retriever-provided KG node verbatim into the final KG."""
     if node_id and node_id in nodes and node_id not in final_nodes:
         final_nodes[node_id] = deepcopy(nodes[node_id])
+
+
+def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
+    """Return copied edge bindings for a qedge across all analyses."""
+    bindings = list[EdgeBinding]()
+    seen = set()
+    for analysis in result.analyses:
+        if not isinstance(analysis, Analysis):
+            continue
+        for binding in analysis.edge_bindings.get(qedge_id) or []:
+            edge_id = binding.id
+            if edge_id in seen:
+                continue
+            seen.add(edge_id)
+            copied_binding = deepcopy(binding)
+            bindings.append(copied_binding)
+    return bindings
