@@ -39,7 +39,6 @@ from translator_tom import (
     Response,
     Result,
     RetrievalSource,
-    TOMBase
 )
 
 from . import biolink, ngd, trapi
@@ -50,6 +49,7 @@ from .utilities import (
     asc_optional,
     chunk_values,
     desc_optional,
+    format_json_for_log,
     make_stable_id,
     partition,
     require,
@@ -1217,51 +1217,6 @@ def filter_inferred_response(
     return ensure_response_versions(ctx, Response(message = filtered_message), response)
 
 
-def format_json_for_log(value: object | TOMBase) -> str:
-    """Return compact JSON for diagnostic logs."""
-    if isinstance(value, TOMBase):
-        data = value.to_dict()
-    else:
-        data = value
-    return json.dumps(data, sort_keys=True, separators=(",", ":"))
-
-
-def log_retriever_response(
-    ctx: RunContext,
-    response: Response,
-    http_status_code: int,
-) -> None:
-    """Emit useful Retriever status/counts without requiring debug files."""
-    counts = trapi.summarize_response_counts(response)
-    retriever_status = response.status
-    description = response.description
-    ctx.reporter.info(
-        "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
-        http_status_code,
-        retriever_status,
-        counts.result_count,
-        counts.node_count,
-        counts.edge_count,
-        description,
-    )
-    if retriever_status and retriever_status != "Complete":
-        ctx.reporter.warning(
-            "xCRG Retriever returned non-complete status %s: %s",
-            retriever_status,
-            description,
-        )
-    if counts.result_count == 0 or retriever_status != "Complete":
-        for entry in response.logs[:5]:
-            if isinstance(entry, dict):
-                ctx.reporter.info(
-                    "xCRG Retriever log [%s] %s",
-                    entry.get("level", "INFO"),
-                    entry.get("message"),
-                )
-            else:
-                ctx.reporter.info("xCRG Retriever log %s", entry)
-
-
 async def run_sync_retriever_lookup(ctx: RunContext, query: Query) -> Response:
     """Run a sync Retriever lookup and return its TRAPI response."""
     ctx.reporter.info("Sending xCRG lookup query to %s", ctx.config.retriever_url)
@@ -1304,7 +1259,33 @@ async def run_sync_retriever_lookup(ctx: RunContext, query: Query) -> Response:
     if not message.auxiliary_graphs:
         message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    log_retriever_response(ctx, response, http_response.status_code)
+    counts = trapi.summarize_response_counts(response)
+
+    ctx.reporter.info(
+        "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
+        http_response.status_code,
+        response.status,
+        counts.result_count,
+        counts.node_count,
+        counts.edge_count,
+        response.description,
+    )
+    if response and response.status != "Complete":
+        ctx.reporter.warning(
+            "xCRG Retriever returned non-complete status %s: %s",
+            response.status,
+            response.description,
+        )
+    if counts.result_count == 0 or response.status != "Complete":
+        for entry in response.logs[:5]:
+            if isinstance(entry, dict):
+                ctx.reporter.info(
+                    "xCRG Retriever log [%s] %s",
+                    entry.get("level", "INFO"),
+                    entry.get("message"),
+                )
+            else:
+                ctx.reporter.info("xCRG Retriever log %s", entry)
 
     return response
 

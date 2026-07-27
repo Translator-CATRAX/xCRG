@@ -13,7 +13,8 @@ from translator_tom import (
     NodeBinding,
     PathfinderAnalysis,
     QNodeID,
-    Result
+    Result,
+    TOMBase
 )
 
 
@@ -85,3 +86,12 @@ def desc_optional(value: float | int | None) -> float:
 def asc_optional(value: float | int | None) -> float:
     """Convert optional ascending values into sort components."""
     return float(value) if value is not None else MISSING_SORT_VALUE
+
+
+def format_json_for_log(value: object | TOMBase) -> str:
+    """Return compact JSON for diagnostic logs."""
+    if isinstance(value, TOMBase):
+        data = value.to_dict()
+    else:
+        data = value
+    return json.dumps(data, sort_keys=True, separators=(",", ":"))
