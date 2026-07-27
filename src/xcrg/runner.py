@@ -62,24 +62,6 @@ TP53_CURIE = "NCBIGene:7157"
 DIRECT_QEDGE_ID = "direct"
 
 
-def get_node_information_content(node: Node | None) -> float | None:
-    """Return a node's Biolink information content attribute, when present."""
-    if node is None:
-        return None
-    values = []
-    for attribute in node.attributes:
-        if attribute.attribute_type_id != "biolink:information_content":
-            continue
-        raw_value = attribute.value
-        raw_values = raw_value if isinstance(raw_value, list) else [raw_value]
-        for value in raw_values:
-            try:
-                values.append(float(cast(int | float | str, value))) # TODO
-            except (TypeError, ValueError):
-                continue
-    return max(values) if values else None
-
-
 def get_sign_templates(final_direction: str) -> list[tuple[str, str]]:
     """Return sign-compatible two-hop templates for the desired final direction."""
     if final_direction == "increased":
@@ -471,12 +453,32 @@ def get_result_answer_metrics(
     """Return sort metrics for the answer node bound by a result."""
     answer_id = get_bound_node_curie(result, answer_qid) or ""
     answer_node = nodes.get(answer_id)
+
     specificity = (
         biolink.get_node_category_specificity(ctx, answer_node)
         if use_category_specificity
         else 0
     )
-    information_content = get_node_information_content(answer_node)
+
+    attributes: list[Attribute]
+    if answer_node:
+        attributes = answer_node.attributes
+    else:
+        attributes = []
+
+    values = []
+    for attribute in attributes:
+        if attribute.attribute_type_id != "biolink:information_content":
+            continue
+        raw_value = attribute.value
+        raw_values = raw_value if isinstance(raw_value, list) else [raw_value]
+        for value in raw_values:
+            try:
+                values.append(float(cast(int | float | str, value))) # TODO
+            except (TypeError, ValueError):
+                continue
+    information_content = max(values) if values else None
+
     return specificity, information_content, answer_id
 
 
