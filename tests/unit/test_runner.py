@@ -29,6 +29,7 @@ import xcrg.runner as runner
 from xcrg.config import XCRGConfig as Config # TODO
 from xcrg.context import RunContext
 from xcrg.reporting import StubReporter
+from xcrg.utilities import format_json_for_log
 
 
 def make_context(
@@ -207,7 +208,7 @@ def test_deserialize_example03_query_with_extra_fields():
 
 def test_debug_logging01():
     query = make_inferred_query()
-    runner.format_json_for_log(query)
+    format_json_for_log(query)
 
 
 def test_is_xcrg_mvp2_query_detects_supported_shape():
