@@ -472,7 +472,11 @@ def get_result_answer_metrics(
     return specificity, information_content, answer_id
 
 
-def stamp_rank_scores(results: list[Result], scoring_method: str) -> None:
+def stamp_rank_scores(
+    results: list[Result],
+    scoring_method: str,
+    resource_id: str | None = None
+) -> None:
     """Assign rank-derived TRAPI Analysis.score values after sorting."""
     total = len(results)
     if total == 0:
@@ -480,19 +484,7 @@ def stamp_rank_scores(results: list[Result], scoring_method: str) -> None:
     for index, result in enumerate(results):
         score = float(total - index) / total
         for analysis in result.analyses:
-            analysis.score = score
-            analysis.scoring_method = scoring_method
-
-
-def stamp_xcrg_rank_scores(results: list[Result], resource_id: str, scoring_method: str) -> None:
-    """Assign rank-derived scores only to xCRG analyses in final output."""
-    total = len(results)
-    if total == 0:
-        return
-    for index, result in enumerate(results):
-        score = float(total - index) / total
-        for analysis in result.analyses:
-            if analysis.resource_id != resource_id:
+            if resource_id and resource_id != analysis.resource_id:
                 continue
             analysis.score = score
             analysis.scoring_method = scoring_method
@@ -1139,10 +1131,10 @@ def build_trapi_clean_response(
         )
     )
 
-    stamp_xcrg_rank_scores(
+    stamp_rank_scores(
         new_response.message.results_list,
-        ctx.config.resource_id,
-        ctx.config.scoring_method
+        ctx.config.scoring_method,
+        ctx.config.resource_id
     )
 
     return new_response
