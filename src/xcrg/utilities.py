@@ -1,6 +1,7 @@
 import json
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import (
     Callable,
     TypeVar
@@ -41,6 +42,15 @@ class XCRGResult:
 
     def to_trapi_result(self):
         return Result(node_bindings = self.node_bindings, analyses = self.analyses)
+
+
+def path_or_none(path: str | Path | None) -> Path | None:
+    if isinstance(path, Path):
+        return path
+    elif isinstance(path, str):
+        return Path(path)
+    else:
+        return None
 
 
 def partition(items: list[T], predicate: Callable[[T], bool]) -> tuple[list[T], list[T]]:

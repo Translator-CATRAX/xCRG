@@ -8,6 +8,7 @@ from translator_tom import CURIE, Query, TOMBase
 from .config import XCRGConfig as Config # TODO
 from .debugging import DebugContext, debug_dump_json
 from .reporting import Reporter
+from .utilities import path_or_none
 
 @dataclass
 class RunContext:
@@ -76,12 +77,3 @@ class RunContext:
             raise ValueError("No transcription factors were found in transcription_factors.json.")
 
         return tf_list
-
-
-def path_or_none(path: str | Path | None) -> Path | None:
-    if isinstance(path, Path):
-        return path
-    elif isinstance(path, str):
-        return Path(path)
-    else:
-        return None
