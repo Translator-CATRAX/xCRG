@@ -12,7 +12,7 @@ from .utilities import path_or_none
 
 @dataclass
 class RunContext:
-    """A RunnerContext maintains state for a run through the xCRG module."""
+    """A RunnerContext maintains state for a request through the xCRG runner."""
     query_id: str
     original_query: Query
     config: Config
