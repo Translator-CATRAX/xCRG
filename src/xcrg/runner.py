@@ -10,7 +10,6 @@ from collections import Counter
 from copy import deepcopy
 from typing import cast
 
-import httpx
 from translator_tom import (
     CURIE,
     Analysis,
@@ -41,7 +40,7 @@ from translator_tom import (
     RetrievalSource,
 )
 
-from . import biolink, ngd, trapi
+from . import biolink, ngd, retriever, trapi
 from .config import XCRGConfig
 from .context import RunContext
 from .reporting import LogReporter, Reporter
@@ -49,7 +48,6 @@ from .utilities import (
     asc_optional,
     chunk_values,
     desc_optional,
-    format_json_for_log,
     make_stable_id,
     partition,
     XCRGResult
@@ -1203,79 +1201,6 @@ def filter_inferred_response(
     return ensure_response_versions(ctx, Response(message = filtered_message), response)
 
 
-async def run_sync_retriever_lookup(ctx: RunContext, query: Query) -> Response:
-    """Run a sync Retriever lookup and return its TRAPI response."""
-    ctx.reporter.info("Sending xCRG lookup query to %s", ctx.config.retriever_url)
-    ctx.reporter.debug(
-        "xCRG Retriever query graph: %s",
-        format_json_for_log(query.message.query_graph),
-    )
-
-    # TODO: xCRG Retriever parameters: {"tiers": [0], "timeout": 210}
-    #  I do not think these parameters are being used like this (at least anymore)
-    # reporter.debug(
-    #     "xCRG Retriever parameters: %s",
-    #     format_json_for_log(query.parameters),
-    # )
-
-    # TODO: figure out how the timeout ought to work
-    timeout = httpx.Timeout(timeout = 5.0) # TODO: query.timeout or 5.0)
-    async with httpx.AsyncClient(timeout = timeout) as client:
-        try:
-            http_response = await client.post(ctx.config.retriever_url, json = query.to_dict())
-            http_response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            ctx.reporter.error(
-                "xCRG Retriever HTTP error %s from %s: %s",
-                exc.response.status_code,
-                ctx.config.retriever_url,
-                exc.response.text[:2000],
-            )
-            raise
-        response = Response.from_dict(http_response.json())
-
-    message = response.message
-    if not message:
-        raise ValueError("Retriever response did not contain a TRAPI message.")
-
-    if not message.knowledge_graph:
-        message.knowledge_graph = KnowledgeGraph.new()
-    if not message.results:
-        message.results = list[Result]()
-    if not message.auxiliary_graphs:
-        message.auxiliary_graphs = AuxiliaryGraphsDict()
-
-    counts = trapi.get_message_statistics(response)
-
-    ctx.reporter.info(
-        "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
-        http_response.status_code,
-        response.status,
-        counts.result_count,
-        counts.node_count,
-        counts.edge_count,
-        response.description,
-    )
-    if response and response.status != "Complete":
-        ctx.reporter.warning(
-            "xCRG Retriever returned non-complete status %s: %s",
-            response.status,
-            response.description,
-        )
-    if counts.result_count == 0 or response.status != "Complete":
-        for entry in response.logs[:5]:
-            if isinstance(entry, dict):
-                ctx.reporter.info(
-                    "xCRG Retriever log [%s] %s",
-                    entry.get("level", "INFO"),
-                    entry.get("message"),
-                )
-            else:
-                ctx.reporter.info("xCRG Retriever log %s", entry)
-
-    return response
-
-
 async def run_inferred_lookup(ctx: RunContext) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
     ctx.debug_dump_json("original_inferred_query", ctx.original_query)
@@ -1300,7 +1225,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     direct_message = build_direct_query_for_inferred(ctx.original_query, subject_qid, object_qid)
     ctx.debug_dump_json("direct_lookup_query", direct_message)
 
-    direct_response = await run_sync_retriever_lookup(ctx, direct_message)
+    direct_response = await retriever.run_sync_lookup(ctx, direct_message)
     ctx.debug_dump_json("direct_raw_response", direct_response)
 
     filtered_direct_response = filter_direct_response(
@@ -1355,7 +1280,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
                 two_hop_query.submitter = ctx.config.resource_id
             ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_query", two_hop_query)
 
-            response = await run_sync_retriever_lookup(ctx, two_hop_query)
+            response = await retriever.run_sync_lookup(ctx, two_hop_query)
             ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_raw_response", response)
 
             filtered_response = filter_inferred_response(ctx, response, subject_qid, object_qid)
@@ -1517,7 +1442,7 @@ async def async_run_xcrg(
         response = await run_inferred_lookup(ctx)
     else:
         # Run the original one-hop direct xCRG lookup
-        response = await run_sync_retriever_lookup(ctx, ctx.original_query)
+        response = await retriever.run_sync_lookup(ctx, ctx.original_query)
 
     # TODO: ensure_response_versions? This very likely already happened upstream...
 
