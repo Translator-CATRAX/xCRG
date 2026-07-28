@@ -432,18 +432,6 @@ def is_two_hop_result(result: Result) -> bool:
     return "e0" in keys and "e1" in keys
 
 
-def answer_qnode_uses_category_specificity(
-    ctx: RunContext,
-    query_graph: BaseQueryGraph,
-    answer_qid: QNodeID
-) -> bool:
-    """Chemical answers use Biolink specificity before information content."""
-    qnode = query_graph.nodes.get(answer_qid)
-    if not qnode:
-        return False
-    return any(biolink.is_chemical_category(ctx, category) for category in qnode.categories_list)
-
-
 # TODO: should answer_id really be an empty string?
 def get_result_answer_metrics(
     ctx: RunContext,
@@ -526,7 +514,10 @@ def sort_xcrg_combined_results(
             kg_nodes = nodes
 
     answer_qnode_id = get_answer_qnode_id(query_graph, subject_qid, object_qid)
-    use_category_specificity = answer_qnode_uses_category_specificity(ctx, query_graph, answer_qnode_id)
+
+    use_category_specificity = False
+    if qnode := query_graph.nodes.get(answer_qnode_id):
+        use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
 
     results: list[Result] = message.results or []
     # Table so we can look up the original index later in sorting functions
