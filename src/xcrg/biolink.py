@@ -3,7 +3,7 @@ from xcrg.context import RunContext
 try:
     from bmt import Toolkit
 except ImportError:  # pragma: no cover - local unit env may not install worker deps.
-    Toolkit = None
+    Toolkit = None # ty: ignore[invalid-assignment]
 from translator_tom import Node
 
 
