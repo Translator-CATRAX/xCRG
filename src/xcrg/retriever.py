@@ -83,4 +83,9 @@ async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
             else:
                 ctx.reporter.info("xCRG Retriever log %s", entry)
 
+    # TODO: Is this really necessary?
+    # Stamp response with version information if upstream omitted it
+    response.schema_version = response.schema_version or ctx.trapi_schema_version
+    response.biolink_version = response.biolink_version or ctx.config.biolink_version
+
     return response

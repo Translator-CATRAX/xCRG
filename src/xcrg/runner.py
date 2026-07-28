@@ -288,7 +288,6 @@ def result_preserves_direct_direction(
 
 
 def filter_direct_response(
-    ctx: RunContext,
     response: Response,
     subject_qid: QNodeID,
     object_qid: QNodeID
@@ -315,7 +314,11 @@ def filter_direct_response(
     if not filtered_message.auxiliary_graphs:
         filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    return ensure_response_versions(ctx, Response(message = filtered_message), response)
+    return Response(
+        schema_version = response.schema_version,
+        biolink_version = response.biolink_version,
+        message = filtered_message,
+    )
 
 
 def merge_filtered_responses(
@@ -354,16 +357,16 @@ def merge_filtered_responses(
                 seen_results.add(key)
                 results.append(result)
 
-    new_response = Response(message = Message(
-        query_graph = query_graph,
-        knowledge_graph = KnowledgeGraph(nodes = nodes, edges = edges),
-        results = results,
-        auxiliary_graphs = aux_graph
-    ))
-
-    ensure_response_versions(ctx, new_response, *responses)
-
-    return new_response
+    return Response(
+        schema_version = responses[0].schema_version if responses else ctx.trapi_schema_version,
+        biolink_version = responses[0].biolink_version if responses else ctx.biolink_version,
+        message = Message(
+            query_graph = query_graph,
+            knowledge_graph = KnowledgeGraph(nodes = nodes, edges = edges),
+            results = results,
+            auxiliary_graphs = aux_graph
+        )
+    )
 
 
 def merge_retriever_nodes(merged_nodes: dict[CURIE, Node], incoming_nodes: dict[CURIE, Node]) -> None:
@@ -609,21 +612,6 @@ def query_qualifiers_to_edge_qualifiers(qedge: QEdge) -> list[Qualifier]:
         for qualifier in qualifiers
         # if qualifier.qualifier_type_id and qualifier.qualifier_value
     ]
-
-
-def ensure_response_versions(
-    ctx: RunContext,
-    response: Response,
-    *responses: Response,
-) -> Response:
-    """Add response-level TRAPI/Biolink versions when upstream omitted them."""
-    schema_versions = (r.schema_version for r in responses if r.schema_version)
-    response.schema_version = next(schema_versions, ctx.config.trapi_schema_version)
-
-    biolink_versions = (r.biolink_version for r in responses if r.biolink_version)
-    response.biolink_version = next(biolink_versions, ctx.config.biolink_version)
-
-    return response
 
 
 def make_xcrg_inferred_edge(
@@ -1146,6 +1134,8 @@ def build_trapi_clean_response(
     )
 
     new_response = Response(
+        schema_version = old_response.schema_version,
+        biolink_version = old_response.biolink_version,
         message = Message(
             query_graph = new_qgraph,
             knowledge_graph = new_kgraph,
@@ -1164,11 +1154,10 @@ def build_trapi_clean_response(
         ctx.config.scoring_method
     )
 
-    return ensure_response_versions(ctx, new_response, old_response)
+    return new_response
 
 
 def filter_inferred_response(
-    ctx: RunContext,
     response: Response,
     subject_qid: QNodeID,
     object_qid: QNodeID,
@@ -1198,7 +1187,11 @@ def filter_inferred_response(
     if not filtered_message.auxiliary_graphs:
         filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    return ensure_response_versions(ctx, Response(message = filtered_message), response)
+    return Response(
+        schema_version = response.schema_version,
+        biolink_version = response.biolink_version,
+        message = filtered_message
+    )
 
 
 async def run_inferred_lookup(ctx: RunContext) -> Response:
@@ -1228,12 +1221,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     direct_response = await retriever.run_sync_lookup(ctx, direct_message)
     ctx.debug_dump_json("direct_raw_response", direct_response)
 
-    filtered_direct_response = filter_direct_response(
-        ctx,
-        direct_response,
-        subject_qid,
-        object_qid
-    )
+    filtered_direct_response = filter_direct_response(direct_response, subject_qid, object_qid)
     ctx.debug_dump_json("direct_filtered_response", filtered_direct_response)
 
     final_direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
@@ -1283,7 +1271,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
             response = await retriever.run_sync_lookup(ctx, two_hop_query)
             ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_raw_response", response)
 
-            filtered_response = filter_inferred_response(ctx, response, subject_qid, object_qid)
+            filtered_response = filter_inferred_response(response, subject_qid, object_qid)
             ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_filtered_response", filtered_response)
 
             filtered_responses.append(filtered_response)
@@ -1443,8 +1431,6 @@ async def async_run_xcrg(
     else:
         # Run the original one-hop direct xCRG lookup
         response = await retriever.run_sync_lookup(ctx, ctx.original_query)
-
-    # TODO: ensure_response_versions? This very likely already happened upstream...
 
     return response.to_dict()
 
