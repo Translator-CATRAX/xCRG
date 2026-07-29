@@ -73,7 +73,7 @@ def get_sign_templates(final_direction: str) -> list[tuple[str, str]]:
 
 
 def build_two_hop_query(
-    original_query: Query,
+    ctx: RunContext,
     subject_qid: QNodeID,
     object_qid: QNodeID,
     tf_list: list[CURIE],
@@ -81,7 +81,7 @@ def build_two_hop_query(
     second_direction: str,
 ) -> Query:
     """Build a TF-mediated two-hop TRAPI query from the original inferred query."""
-    query_graph = cast(QueryGraph, original_query.message.query_graph)
+    query_graph = cast(QueryGraph, ctx.original_query.message.query_graph)
     return Query(
         message = Message(
             query_graph = QueryGraph(
@@ -135,8 +135,11 @@ def build_two_hop_query(
             results = [],
             auxiliary_graphs = AuxiliaryGraphsDict(),
         ),
-        bypass_cache = original_query.bypass_cache,
-        submitter = original_query.submitter
+        bypass_cache = ctx.original_query.bypass_cache,
+        submitter = ctx.original_query.submitter or ctx.config.resource_id
+        # TODO: Query.timeout will become available in TRAPI 2.0
+        # two_hop_query.timeout = two_hop_query.timeout or config.timeout
+        # TODO: q.tiers = q.tiers or config.normalized_tiers()
     )
 
 
@@ -1236,19 +1239,14 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
         }
         for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
             two_hop_query = build_two_hop_query(
-                ctx.original_query,
+                ctx,
                 subject_qid,
                 object_qid,
                 tf_batch,
                 first_dir,
                 second_dir,
             )
-            # TODO: Query.timeout will become available in TRAPI 2.0
-            # two_hop_query.timeout = two_hop_query.timeout or config.timeout
-            # TODO: q.tiers = q.tiers or config.normalized_tiers()
 
-            if not two_hop_query.submitter:
-                two_hop_query.submitter = ctx.config.resource_id
             ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_query", two_hop_query)
 
             response = await retriever.run_sync_lookup(ctx, two_hop_query)
@@ -1277,23 +1275,26 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     )
 
     qgraph = build_two_hop_query(
-        ctx.original_query,
+        ctx,
         subject_qid,
         object_qid,
         tf_list,
         sign_templates[0][0],
         sign_templates[0][1],
     ).message.query_graph
+
     merged_inferred = merge_filtered_responses(
         ctx,
         filtered_responses,
         cast(QueryGraph, qgraph)
     )
+
     merged = merge_filtered_responses(
         ctx,
         [filtered_direct_response, merged_inferred],
         merged_query_graph
     )
+
     sort_xcrg_combined_results(ctx, merged, subject_qid, object_qid)
     ctx.debug_dump_json("merged_debug_response", merged)
 
