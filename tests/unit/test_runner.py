@@ -377,8 +377,7 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
 
 
 def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
-    original_message = make_inferred_query()
-    ctx = make_context(original_message)
+    ctx = make_context(make_inferred_query())
 
     combined_message = Response(
         message = Message(
@@ -447,13 +446,7 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     # missing_node_attrs = [
     #     binding
@@ -511,8 +504,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
             },
         ),
     )
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message, config = config)
+    ctx = make_context(query = make_inferred_query(), config = config)
     combined_message = Response(
         message = Message(
             knowledge_graph = KnowledgeGraph(
@@ -549,13 +541,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
 
@@ -584,8 +570,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
 
 
 def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message)
+    ctx = make_context(query = make_inferred_query())
     chem_node = Node(
         name = "Chem One",
         categories = ["biolink:SmallMolecule"],
@@ -668,13 +653,7 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
@@ -685,10 +664,9 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
 
 
 def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message)
-    assert original_message.message.query_graph
-    original_message.message.query_graph.nodes["gene"] = QNode(
+    ctx = make_context(query = make_inferred_query())
+    assert ctx.query_graph
+    ctx.query_graph.nodes["gene"] = QNode(
         ids = ["NCBIGene:1"],
         categories = ["biolink:gene"]
     )
@@ -731,13 +709,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
@@ -750,8 +722,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
 
 
 def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message)
+    ctx = make_context(make_inferred_query())
     empty_tf_node = Node(
         name = None,
         categories = ["biolink:unused"],
@@ -811,13 +782,7 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
 
@@ -841,8 +806,7 @@ def test_clean_response_limits_to_configured_top_result_count():
         ngd_db_path=None,
         max_results=2,
     )
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message, config = config)
+    ctx = make_context(query = make_inferred_query(), config = config)
     nodes = {"CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = [])}
     edges = {}
     results = list[Result]()
@@ -881,13 +845,7 @@ def test_clean_response_limits_to_configured_top_result_count():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     final_results = response.message.results_list
     assert response.message.knowledge_graph
@@ -903,8 +861,7 @@ def test_clean_response_limits_to_configured_top_result_count():
 
 
 def test_clean_response_copies_retriever_edge_auxiliary_graphs():
-    ctx = make_context()
-    original_message = make_inferred_query()
+    ctx = make_context(make_inferred_query())
     combined_message = Response(
         message = Message(
             knowledge_graph = KnowledgeGraph(
@@ -961,13 +918,7 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     message = response.message
     assert message.knowledge_graph

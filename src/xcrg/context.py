@@ -34,7 +34,8 @@ class RunContext:
         reporter  : the reporter for this run
         debug_ctx : the debugging context for this run
 
-        query_edge : a reference to the single edge in the original query
+        query_edge_id : a reference to the ID for the single edge in the original query
+        query_edge    : a reference to the single edge in the original query
     """
 
     query_id  : str
@@ -43,10 +44,11 @@ class RunContext:
     reporter  : Reporter
     debug_ctx : DebugContext | None = None
 
-    query_edge : tuple[QEdgeID, QEdge] = field(init = False)
+    query_edge_id : QEdgeID = field(init = False)
+    query_edge    : QEdge   = field(init = False)
 
     def __post_init__(self):
-        self._query_edge = trapi.get_single_query_edge(self.query)
+        self.query_edge_id, self.query_edge = trapi.get_single_query_edge(self.query)
 
     @property
     def query_graph(self) -> QueryGraph:
@@ -55,7 +57,7 @@ class RunContext:
     @property
     def subject_qid(self) -> QNodeID:
         """The subject reference in the original query."""
-        return self.query_edge[1].subject
+        return self.query_edge.subject
 
     @property
     def subject_qnode(self) -> QNode:
@@ -65,7 +67,7 @@ class RunContext:
     @property
     def object_qid(self) -> QNodeID:
         """The object reference in the original query."""
-        return self.query_edge[1].object
+        return self.query_edge.object
 
     @property
     def object_qnode(self) -> QNode:
