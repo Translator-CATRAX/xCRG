@@ -12,12 +12,21 @@ from .utilities import path_or_none
 
 @dataclass
 class RunContext:
-    """A RunnerContext maintains state for a request through the xCRG runner."""
-    query_id: str
-    original_query: Query
-    config: Config
-    reporter: Reporter
-    debug_ctx: DebugContext | None = None
+    """A RunContext maintains state for a particular query request through the xCRG runner.
+
+    Attributes:
+        query_id  : the unique identifier for this run
+        query     : the original query submitted to the runner
+        config    : the configuration for this run
+        reporter  : the reporter for this run
+        debug_ctx : the debugging context for this run
+    """
+
+    query_id  : str
+    query     : Query
+    config    : Config
+    reporter  : Reporter
+    debug_ctx : DebugContext | None = None
 
     @property
     def biolink_version(self):
@@ -49,11 +58,11 @@ class RunContext:
         if debug_dir and debug_dir.exists():
             debug_ctx = DebugContext.new(debug_dir = debug_dir, query = query, query_id = query_id)
         else:
-            reporter.info("debug_dir does not exist; debugger will not be used.")
+            reporter.info("debug_dir does not exist; debugger will not be used for this run.")
 
         return RunContext(
             query_id = query_id,
-            original_query = query,
+            query = query,
             config = config,
             reporter = reporter,
             debug_ctx = debug_ctx

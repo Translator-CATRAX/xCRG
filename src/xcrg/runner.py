@@ -81,7 +81,7 @@ def build_two_hop_query(
     second_direction: str,
 ) -> Query:
     """Build a TF-mediated two-hop TRAPI query from the original inferred query."""
-    query_graph = cast(QueryGraph, ctx.original_query.message.query_graph)
+    query_graph = cast(QueryGraph, ctx.query.message.query_graph)
     return Query(
         message = Message(
             query_graph = QueryGraph(
@@ -135,8 +135,8 @@ def build_two_hop_query(
             results = [],
             auxiliary_graphs = AuxiliaryGraphsDict(),
         ),
-        bypass_cache = ctx.original_query.bypass_cache,
-        submitter = ctx.original_query.submitter or ctx.config.resource_id
+        bypass_cache = ctx.query.bypass_cache,
+        submitter = ctx.query.submitter or ctx.config.resource_id
         # TODO: Query.timeout will become available in TRAPI 2.0
         # two_hop_query.timeout = two_hop_query.timeout or config.timeout
         # TODO: q.tiers = q.tiers or config.normalized_tiers()
@@ -1180,15 +1180,20 @@ def filter_inferred_response(
     )
 
 
+async def run_direct_lookup(ctx: RunContext) -> Response:
+    """Run a direct (one-hop) xCRG lookup."""
+    return await retriever.run_sync_lookup(ctx, ctx.query)
+
+
 async def run_inferred_lookup(ctx: RunContext) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
-    ctx.debug_dump_json("original_inferred_query", ctx.original_query)
+    ctx.debug_dump_json("original_inferred_query", ctx.query)
 
-    _, edge = trapi.get_single_query_edge(ctx.original_query)
+    _, edge = trapi.get_single_query_edge(ctx.query)
     subject_qid = edge.subject
     object_qid = edge.object
 
-    qgraph = cast(QueryGraph, ctx.original_query.message.query_graph)
+    qgraph = cast(QueryGraph, ctx.query.message.query_graph)
     subject_ids: list[str] = qgraph.nodes[subject_qid].ids or []
     object_ids: list[str] = qgraph.nodes[object_qid].ids or []
     endpoint_ids = set(subject_ids) | set(object_ids)
@@ -1201,7 +1206,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     if not tf_list:
         raise ValueError("No transcription factors remain after TP53/target filtering.")
 
-    one_hop_query = build_one_hop_query(ctx.original_query, subject_qid, object_qid)
+    one_hop_query = build_one_hop_query(ctx.query, subject_qid, object_qid)
     ctx.debug_dump_json("direct_lookup_query", one_hop_query)
 
     one_hop_response = await retriever.run_sync_lookup(ctx, one_hop_query)
@@ -1268,7 +1273,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
         debug_summary["templates"].append(template_summary)
 
     merged_query_graph = build_combined_query_graph(
-        ctx.original_query,
+        ctx.query,
         subject_qid,
         object_qid,
         tf_list,
@@ -1298,7 +1303,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     sort_xcrg_combined_results(ctx, merged, subject_qid, object_qid)
     ctx.debug_dump_json("merged_debug_response", merged)
 
-    final_response = build_trapi_clean_response(ctx, ctx.original_query, merged, subject_qid, object_qid)
+    final_response = build_trapi_clean_response(ctx, ctx.query, merged, subject_qid, object_qid)
     debug_summary["merged_response"] = trapi.get_message_statistics(final_response)
     debug_summary["debug_run_dir"] = str(ctx.debug_ctx and ctx.debug_ctx.run_dir) # TODO
 
@@ -1413,8 +1418,7 @@ async def async_run_xcrg(
     if validate_query(query) == "inferred":
         response = await run_inferred_lookup(ctx)
     else:
-        # Run the original one-hop direct xCRG lookup
-        response = await retriever.run_sync_lookup(ctx, ctx.original_query)
+        response = await run_direct_lookup(ctx)
 
     return response.to_dict()
 
