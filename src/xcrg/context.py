@@ -43,15 +43,13 @@ class RunContext:
         reporter: Reporter,
     ) -> "RunContext":
 
-        debug_dir: Path | None = None
-        if isinstance(config.debug_dir, Path):
-            debug_dir = config.debug_dir
-        elif isinstance(config.debug_dir, str):
-            debug_dir = Path(config.debug_dir)
+        debug_dir = path_or_none(config.debug_dir)
 
         debug_ctx: DebugContext | None = None
         if debug_dir and debug_dir.exists():
             debug_ctx = DebugContext.new(debug_dir = debug_dir, query = query, query_id = query_id)
+        else:
+            reporter.info("debug_dir does not exist; debugger will not be used.")
 
         return RunContext(
             query_id = query_id,
