@@ -1,10 +1,21 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
+from typing import cast
 
-from translator_tom import CURIE, Query, TOMBase
+from translator_tom import (
+    CURIE,
+    QEdge,
+    QEdgeID,
+    QNode,
+    QNodeID,
+    Query,
+    QueryGraph,
+    TOMBase
+)
 
+from . import trapi
 from .config import XCRGConfig as Config # TODO
 from .debugging import DebugContext, debug_dump_json
 from .reporting import Reporter
@@ -12,7 +23,9 @@ from .utilities import path_or_none
 
 @dataclass
 class RunContext:
-    """A RunContext maintains state for a particular query request through the xCRG runner.
+    """
+    A RunContext maintains and provides convenient access to state
+    for a particular query request through the xCRG runner.
 
     Attributes:
         query_id  : the unique identifier for this run
@@ -20,6 +33,8 @@ class RunContext:
         config    : the configuration for this run
         reporter  : the reporter for this run
         debug_ctx : the debugging context for this run
+
+        query_edge : a reference to the single edge in the original query
     """
 
     query_id  : str
@@ -27,6 +42,35 @@ class RunContext:
     config    : Config
     reporter  : Reporter
     debug_ctx : DebugContext | None = None
+
+    query_edge : tuple[QEdgeID, QEdge] = field(init = False)
+
+    def __post_init__(self):
+        self._query_edge = trapi.get_single_query_edge(self.query)
+
+    @property
+    def query_graph(self) -> QueryGraph:
+        return cast(QueryGraph, self.query.message.query_graph)
+
+    @property
+    def subject_qid(self) -> QNodeID:
+        """The subject reference in the original query."""
+        return self.query_edge[1].subject
+
+    @property
+    def subject_qnode(self) -> QNode:
+        """The subject node in the original query."""
+        return self.query_graph.nodes[self.subject_qid]
+
+    @property
+    def object_qid(self) -> QNodeID:
+        """The object reference in the original query."""
+        return self.query_edge[1].object
+
+    @property
+    def object_qnode(self) -> QNode:
+        """The object node in the original query."""
+        return self.query_graph.nodes[self.object_qid]
 
     @property
     def biolink_version(self):
