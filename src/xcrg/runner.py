@@ -143,7 +143,7 @@ def build_two_hop_query(
     )
 
 
-def build_direct_query_for_inferred(
+def build_one_hop_query(
     original_query: Query,
     subject_qid: QNodeID,
     object_qid: QNodeID,
@@ -181,7 +181,7 @@ def build_combined_query_graph(
     tf_list: list[str],
 ) -> QueryGraph:
     """Build a response query graph that can bind direct and TF-mediated results."""
-    direct_query = build_direct_query_for_inferred(original_query, subject_qid, object_qid)
+    direct_query = build_one_hop_query(original_query, subject_qid, object_qid)
     qgraph = cast(QueryGraph, direct_query.message.query_graph)
     qgraph.nodes[TF_QNODE_ID] = QNode(
         ids = tf_list,
@@ -1201,13 +1201,13 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     if not tf_list:
         raise ValueError("No transcription factors remain after TP53/target filtering.")
 
-    direct_message = build_direct_query_for_inferred(ctx.original_query, subject_qid, object_qid)
-    ctx.debug_dump_json("direct_lookup_query", direct_message)
+    one_hop_query = build_one_hop_query(ctx.original_query, subject_qid, object_qid)
+    ctx.debug_dump_json("direct_lookup_query", one_hop_query)
 
-    direct_response = await retriever.run_sync_lookup(ctx, direct_message)
-    ctx.debug_dump_json("direct_raw_response", direct_response)
+    one_hop_response = await retriever.run_sync_lookup(ctx, one_hop_query)
+    ctx.debug_dump_json("direct_raw_response", one_hop_response)
 
-    filtered_direct_response = filter_direct_response(direct_response, subject_qid, object_qid)
+    filtered_direct_response = filter_direct_response(one_hop_response, subject_qid, object_qid)
     ctx.debug_dump_json("direct_filtered_response", filtered_direct_response)
 
     final_direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
