@@ -1,6 +1,7 @@
 """Smoke tests for the reusable xCRG package."""
 import json
 import sqlite3
+from pathlib import Path
 from typing import cast
 
 from translator_tom import (
@@ -70,6 +71,10 @@ def make_inferred_query() -> Query:
                     "chem": QNode(
                         ids = ["CHEBI:1"],
                         categories = ["biolink:ChemicalEntity"]
+                    ),
+                    "gene": QNode(
+                        ids = ["NCBIGene:1"],
+                        categories = ["biolink:gene"]
                     )
                 },
                 edges = {
@@ -293,10 +298,25 @@ def test_validate_inferred_query():
 
 def test_load_tf_list_uses_bundled_default_resource():
     ctx = make_context(query = make_inferred_query())
-    tf_list = ctx.load_tf_list()
+    assert "NCBIGene:8932" in ctx.tf_list
+    assert len(ctx.tf_list) > 100
 
-    assert "NCBIGene:7157" in tf_list
-    assert len(tf_list) > 100
+
+def test_load_tf_list_uses_config_file(tmp_path: Path):
+    tf_file = tmp_path / "tf_file.json"
+    with open(tf_file, "w", encoding = "utf-8") as f:
+        f.write("""
+        {
+            "tf": [
+                "FOO",
+                "BAR"
+            ]
+        }
+        """)
+    config = Config(retriever_url = "", tf_path = tf_file)
+    ctx = make_context(query = make_inferred_query(), config = config)
+    assert "FOO" in ctx.tf_list
+    assert len(ctx.tf_list) == 2
 
 
 def test_merge_filtered_responses_keeps_rich_retriever_metadata():

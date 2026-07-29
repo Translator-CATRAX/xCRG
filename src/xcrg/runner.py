@@ -42,6 +42,7 @@ from translator_tom import (
 
 from . import biolink, ngd, retriever, trapi
 from .config import XCRGConfig
+from .constants import TF_QNODE_ID, TP53_CURIE, DIRECT_QEDGE_ID
 from .context import RunContext
 from .reporting import LogReporter, Reporter
 from .utilities import (
@@ -52,15 +53,6 @@ from .utilities import (
     partition,
     XCRGResult
 )
-
-
-TF_QNODE_ID = "tf"
-# TP53 is a "master regulator" and regulates hundreds of genes.
-# We were finding it showed up everywhere (in paths of all lengths).
-# It's manually removed so we don't drown in X<-TP53->Y paths.
-# Maybe with better ranking, we could leave it in there, but for now, it's manually removed
-TP53_CURIE = "NCBIGene:7157"
-DIRECT_QEDGE_ID = "direct"
 
 
 def get_sign_templates(final_direction: str) -> list[tuple[str, str]]:
@@ -165,12 +157,12 @@ def build_one_hop_query(ctx: RunContext) -> Query:
     )
 
 
-def build_combined_query_graph(ctx: RunContext, tf_list: list[str]) -> QueryGraph:
+def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
     """Build a response query graph that can bind direct and TF-mediated results."""
     query = build_one_hop_query(ctx)
     qgraph = cast(QueryGraph, query.message.query_graph)
     qgraph.nodes[TF_QNODE_ID] = QNode(
-        ids = tf_list,
+        ids = ctx.tf_list,
         categories = ["biolink:Gene"]
     )
     qgraph.edges["e0"] = QEdge(
@@ -1162,16 +1154,6 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
     ctx.debug_dump_json("original_inferred_query", ctx.query)
 
-    endpoint_ids = set(ctx.subject_qnode.ids_list) | set(ctx.object_qnode.ids_list)
-
-    tf_list = [
-        tf_id
-        for tf_id in ctx.load_tf_list()
-        if tf_id != TP53_CURIE and tf_id not in endpoint_ids
-    ]
-    if not tf_list:
-        raise ValueError("No transcription factors remain after TP53/target filtering.")
-
     one_hop_query = build_one_hop_query(ctx)
     ctx.debug_dump_json("direct_lookup_query", one_hop_query)
 
@@ -1183,10 +1165,10 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
 
     final_direction = trapi.get_qualifier_value(ctx.query_edge, "biolink:object_direction_qualifier")
     sign_templates = get_sign_templates(final_direction or "")
-    tf_batches = chunk_values(tf_list, ctx.config.tf_batch_size)
+    tf_batches = chunk_values(ctx.tf_list, ctx.config.tf_batch_size)
     ctx.reporter.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
-        len(tf_list),
+        len(ctx.tf_list),
         len(tf_batches),
         ctx.config.tf_batch_size,
     )
@@ -1195,7 +1177,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     debug_summary = {
         "query_id": ctx.query_id,
         "final_direction": final_direction,
-        "tf_count": len(tf_list),
+        "tf_count": len(ctx.tf_list),
         "batch_size": ctx.config.tf_batch_size,
         "batch_count": len(tf_batches),
         "direct_response": trapi.get_message_statistics(filtered_direct_response),
@@ -1209,13 +1191,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
             "batches": [],
         }
         for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
-            two_hop_query = build_two_hop_query(
-                ctx,
-                tf_batch,
-                first_dir,
-                second_dir,
-            )
-
+            two_hop_query = build_two_hop_query(ctx, tf_batch, first_dir, second_dir)
             ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_query", two_hop_query)
 
             response = await retriever.run_sync_lookup(ctx, two_hop_query)
@@ -1236,11 +1212,11 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
             )
         debug_summary["templates"].append(template_summary)
 
-    merged_query_graph = build_combined_query_graph(ctx, tf_list)
+    merged_query_graph = build_combined_query_graph(ctx)
 
     qgraph = build_two_hop_query(
         ctx,
-        tf_list,
+        ctx.tf_list,
         sign_templates[0][0],
         sign_templates[0][1],
     ).message.query_graph

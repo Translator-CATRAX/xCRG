@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from functools import cached_property
 from importlib import resources
 from pathlib import Path
 from typing import cast
@@ -17,6 +18,7 @@ from translator_tom import (
 
 from . import trapi
 from .config import XCRGConfig as Config # TODO
+from .constants import DEFAULT_TF_FILE, TP53_CURIE
 from .debugging import DebugContext, debug_dump_json
 from .reporting import Reporter
 from .utilities import path_or_none
@@ -121,20 +123,50 @@ class RunContext:
             except Exception as e:
                 self.reporter.warning(str(e))
 
+    @cached_property
+    def tf_list(self) -> list[CURIE]:
+        """Get transcription factors from config or bundled package resources."""
 
-    def load_tf_list(self) -> list[CURIE]:
-        """Load transcription factors from config or bundled package resources."""
-        tf_file = path_or_none(self.config.tf_path)
+        def try_loading_config_tf_file() -> list[CURIE] | None:
+            if not (tf_file := path_or_none(self.config.tf_path)):
+                return None
+            if not tf_file.exists():
+                self.reporter.warning(f"Transcription factors file does not exist: {tf_file}")
+                return None
+            try:
+                self.reporter.debug(f"Loading transcription factors from file: {tf_file}")
+                with tf_file.open(encoding = "utf-8") as f:
+                    return json.load(f).get("tf")
+            except Exception:
+                pass
+            self.reporter.warning(f"Transcription factors could not be loaded from file: {tf_file}")
+            return None
 
-        # Fallback if the configured file is not valid
-        if not tf_file or not tf_file.exists():
-            tf_file = resources.files("xcrg.resources").joinpath("transcription_factors.json")
+        def try_loading_default_tf_file() -> list[CURIE] | None:
+            try:
+                tf_file = resources.files("xcrg.resources").joinpath(DEFAULT_TF_FILE)
+                self.reporter.debug(f"Loading transcription factors from default file: {DEFAULT_TF_FILE}")
+                with tf_file.open(encoding = "utf-8") as f:
+                    return json.load(f).get("tf")
+            except Exception:
+                pass
+            self.reporter.warning(f"Transcription factors could not be loaded from file: {DEFAULT_TF_FILE}")
+            return None
 
-        with tf_file.open(encoding = "utf-8") as f:
-            tf_data = json.load(f)
-
-        tf_list = tf_data.get("tf") or []
+        tf_list = try_loading_config_tf_file()
         if not tf_list:
-            raise ValueError("No transcription factors were found in transcription_factors.json.")
+            tf_list = try_loading_default_tf_file()
+        if not tf_list:
+            raise ValueError("Transcription factors failed to load.")
+
+        endpoint_ids = set(self.subject_qnode.ids_list) | set(self.object_qnode.ids_list)
+
+        tf_list = [
+            tf_id
+            for tf_id in tf_list
+            if tf_id != TP53_CURIE and tf_id not in endpoint_ids
+        ]
+        if not tf_list:
+            raise ValueError("No transcription factors remain after TP53/target filtering.")
 
         return tf_list
