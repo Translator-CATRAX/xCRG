@@ -48,12 +48,14 @@ class XCRGResult:
 class XcrgJsonEncoder(json.JSONEncoder):
     """Custom JSON encoder to handle special cases with serializing classes."""
     def default(self, o):
-        if isinstance(o, TOMBase):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        elif isinstance(o, Path):
+            return str(o)
+        elif isinstance(o, TOMBase):
             return o.to_dict()
         elif is_dataclass(o) and not isinstance(o, type):
             return asdict(o)
-        elif isinstance(o, datetime):
-            return o.isoformat()
         else:
             return super().default(o)
 

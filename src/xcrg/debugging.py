@@ -96,7 +96,7 @@ def write_debug_manifest(ctx: DebugContext) -> None:
     """Write or refresh the human-readable debug manifest for one query."""
     try:
         manifest = { k: v for k, v in vars(ctx).items() if k != "run_dir" }
-        manifest_file = ctx.run_dir / "manifest.json"
+        manifest_file = ctx.run_dir / "000.manifest.json"
         with open(manifest_file, "w", encoding = "utf-8") as f:
             serialize_json_to_file(manifest, f)
     except Exception as exc:
@@ -107,22 +107,28 @@ def debug_dump_json(ctx: DebugContext, label: str, payload: object | TOMBase) ->
     """Best-effort debug JSON dump for inferred xCRG runs."""
     try:
         ctx.run_dir.mkdir(parents=True, exist_ok=True)
-        readable_path = ctx.run_dir / f"{label}.json"
+
+        # step keeps debug files sorted by emission time
+        # +1 because manifest ought to always be the first file
+        step = len(ctx.artifacts) + 1
+        readable_path = ctx.run_dir / f"{step:03d}.{label}.json"
+
         with open(readable_path, "w", encoding="utf-8") as f:
             serialize_json_to_file(payload, f)
+
         match payload:
             case Query() | Response() as entity:
                 summary = trapi.get_message_statistics(entity)
             case _:
                 summary = ""
-        ctx.artifacts.append(
-            {
-                "label": label,
-                "path": str(readable_path),
-                "written_at": datetime.now(timezone.utc).isoformat(),
-                "summary": summary,
-            }
-        )
+
+        ctx.artifacts.append({
+            "label": label,
+            "path": readable_path.relative_to(ctx.run_dir),
+            "written_at": datetime.now(timezone.utc),
+            "summary": summary,
+        })
+
         write_debug_manifest(ctx)
     except Exception as exc:
         raise Exception(f"Failed to write debug JSON {label}: {exc}")

@@ -1241,7 +1241,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     debug_summary["debug_run_dir"] = str(ctx.debug_ctx and ctx.debug_ctx.run_dir) # TODO
 
     ctx.debug_dump_json("inferred_debug_summary", debug_summary)
-    ctx.debug_dump_json("merged_inferred_response", final_response)
+    ctx.debug_dump_json("final_response", final_response)
 
     return final_response
 
