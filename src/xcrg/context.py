@@ -99,8 +99,7 @@ class RunContext:
         config: Config,
         reporter: Reporter,
     ) -> "RunContext":
-
-
+        """Instantiate a new RunContext."""
         debug_ctx: DebugContext | None = None
         if (debug_dir := path_or_none(config.debug_dir)) and debug_dir.exists():
             debug_ctx = DebugContext.new(debug_dir = debug_dir, query = query, query_id = query_id)
