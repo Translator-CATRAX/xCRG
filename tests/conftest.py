@@ -19,9 +19,9 @@ def pytest_addoption(parser):
         help = "The path to the Curie-to-PMIDs database file"
     )
     parser.addoption(
-        "--save_response",
+        "--save_debug_data",
         action = "store_true",
-        help = "Save the TRAPI response as a JSON file",
+        help = "Save debug data for each xCRG run.",
         default = False
     )
 
@@ -53,8 +53,8 @@ def curie_to_pmids_db_file(request) -> Path | None:
 
 
 @pytest.fixture()
-def save_response(request) -> bool:
-    return bool(request.config.getoption("--save_response"))
+def save_debug_data(request) -> bool:
+    return bool(request.config.getoption("--save_debug_data"))
 
 
 def pytest_configure(config):

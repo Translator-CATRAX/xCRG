@@ -1,6 +1,7 @@
 import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import (
     Callable,
@@ -42,6 +43,19 @@ class XCRGResult:
 
     def to_trapi_result(self):
         return Result(node_bindings = self.node_bindings, analyses = self.analyses)
+
+
+class XcrgJsonEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle special cases with serializing classes."""
+    def default(self, o):
+        if isinstance(o, TOMBase):
+            return o.to_dict()
+        elif is_dataclass(o) and not isinstance(o, type):
+            return asdict(o)
+        elif isinstance(o, datetime):
+            return o.isoformat()
+        else:
+            return super().default(o)
 
 
 def path_or_none(path: str | Path | None) -> Path | None:

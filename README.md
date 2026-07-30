@@ -197,7 +197,8 @@ pytest
 # These may be ran locally, but are slow and depend heavily on external
 # resources like servers, database files, etc.
 #
-# There are several CLI args that may be provided (documented in tests/conftest.py).
+# There are several CLI args that may be provided. These are documented in tests/conftest.py.
+# You can also view them by running `pytest --help` and examining "Custom options"
 pytest -m integration
 
 # Run all tests
@@ -208,6 +209,8 @@ Recommended validation before updating an integration pin:
 
 ```bash
 pytest
+ruff check
+ty check
 git diff --check
 ```
 

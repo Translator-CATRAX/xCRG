@@ -1,6 +1,7 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from io import TextIOWrapper
 from pathlib import Path
 from typing import cast
 
@@ -14,9 +15,10 @@ from translator_tom import (
 )
 
 from . import trapi
+from .utilities import XcrgJsonEncoder
 
 
-@dataclass
+@dataclass(frozen = True)
 class DebugContext:
     """Assorted data for debugging xCRG runner."""
     query_id: str
@@ -64,6 +66,10 @@ class DebugContext:
         )
 
 
+def serialize_json_to_file(obj: object, file: TextIOWrapper):
+    json.dump(obj, file, cls = XcrgJsonEncoder, indent = 2, sort_keys = True)
+
+
 def safe_debug_token(value: str | None) -> str:
     """Return a filesystem-friendly token for debug run names."""
     if not value:
@@ -89,16 +95,10 @@ def describe_qnode_for_debug(qnode: QNode | None) -> str:
 def write_debug_manifest(ctx: DebugContext) -> None:
     """Write or refresh the human-readable debug manifest for one query."""
     try:
-        # manifest = {
-        #     key: value
-        #     for key, value in debug_context.items()
-        #     if key not in {"run_dir"}
-        # }
-        manifest = vars(ctx)
-        manifest["run_dir"] = str(ctx.run_dir)
-        manifest_path = ctx.run_dir / "manifest.json"
-        with open(manifest_path, "w", encoding="utf-8") as manifest_file:
-            json.dump(manifest, manifest_file, indent=2, sort_keys=True)
+        manifest = { k: v for k, v in vars(ctx).items() if k != "run_dir" }
+        manifest_file = ctx.run_dir / "manifest.json"
+        with open(manifest_file, "w", encoding = "utf-8") as f:
+            serialize_json_to_file(manifest, f)
     except Exception as exc:
         raise Exception(f"Failed to write xCRG debug manifest: {exc}")
 
@@ -108,12 +108,8 @@ def debug_dump_json(ctx: DebugContext, label: str, payload: object | TOMBase) ->
     try:
         ctx.run_dir.mkdir(parents=True, exist_ok=True)
         readable_path = ctx.run_dir / f"{label}.json"
-        with open(readable_path, "w", encoding="utf-8") as debug_file:
-            if isinstance(payload, TOMBase):
-                data = payload.to_dict()
-            else:
-                data = payload
-            json.dump(data, debug_file, indent=2, sort_keys=True)
+        with open(readable_path, "w", encoding="utf-8") as f:
+            serialize_json_to_file(payload, f)
         match payload:
             case Query() | Response() as entity:
                 summary = trapi.get_message_statistics(entity)
