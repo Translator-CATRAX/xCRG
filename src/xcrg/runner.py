@@ -1266,7 +1266,9 @@ def validate_query(query: Query) -> KnowledgeType:
     if not object_qnode:
         raise ValueError("xCRG query edge requires an 'object' node reference.")
 
-    match qedge.knowledge_type or "lookup": # default per TRAPI spec; subject to change
+    knowledge_type = qedge.knowledge_type or "lookup"
+
+    match knowledge_type: # default per TRAPI spec; subject to change
         # Validate a phase-one inferred xCRG query while preserving user direction.
         case "inferred":
             pinned_count = sum(1 for node in [subject_qnode, object_qnode] if node.ids)
@@ -1308,7 +1310,7 @@ def validate_query(query: Query) -> KnowledgeType:
         case _:
             raise ValueError("Invalid knowledge type; valid values are 'inferred' or 'lookup'.")
 
-    return cast(KnowledgeType, qedge.knowledge_type) # Guaranteed not to be null here
+    return knowledge_type
 
 
 def is_xcrg_mvp2_query(query: dict | Query) -> bool: # TODO: is_valid_query
