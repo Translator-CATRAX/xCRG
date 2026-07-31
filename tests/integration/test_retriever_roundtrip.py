@@ -66,7 +66,7 @@ def test_retriever_roundtrip(
 
     # TODO: At some point, we may want to have test utilities
     debug_dir: Path | None = None
-    if save_debug_data and (debug_dir := project_dir / "test_output" / "debug"):
+    if save_debug_data and (debug_dir := project_dir / "output" / "debug"):
         debug_dir.mkdir(parents = True, exist_ok = True)
 
     config = xcrg.XCRGConfig(
