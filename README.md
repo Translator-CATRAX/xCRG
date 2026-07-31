@@ -211,7 +211,6 @@ Recommended validation before updating an integration pin:
 pytest
 ruff check
 ty check
-git diff --check
 ```
 
 ## Notes
