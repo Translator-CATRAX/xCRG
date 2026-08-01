@@ -49,3 +49,8 @@ testpaths = ["tests"]
 # Only run unit tests by default.
 # Comment this line if you want better support in IDE's like PyCharm, etc.
 addopts = ["-m unit"]
+
+[tool.ruff.lint]
+ignore = [
+    "E701" # multiple-statements-on-one-line-colon
+]

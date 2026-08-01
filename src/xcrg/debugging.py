@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from io import TextIOWrapper
 from pathlib import Path
-from typing import cast
+from typing import ClassVar, cast
 
 from translator_tom import (
     QEdgeID,
@@ -15,7 +17,35 @@ from translator_tom import (
 )
 
 from . import trapi
-from .utilities import XcrgJsonEncoder
+from .utilities import Ordinal, XcrgJsonEncoder
+
+
+@dataclass(frozen = True)
+class DebugLevel(Ordinal):
+    """The debug level represents how much data will be saved during xCRG runs."""
+    value: str
+
+    NONE: ClassVar[DebugLevel]
+    """Do not save any debug data."""
+
+    BASIC: ClassVar[DebugLevel]
+    """Save some debugging data, including final response."""
+
+    ALL: ClassVar[DebugLevel]
+    """Save all debug data."""
+
+    @classmethod
+    def parse(cls, s: str) -> DebugLevel | None:
+        match s:
+            case "none":  return DebugLevel.NONE
+            case "basic": return DebugLevel.BASIC
+            case "all":   return DebugLevel.ALL
+            case _:       return None
+
+
+DebugLevel.NONE  = DebugLevel(1, "none")
+DebugLevel.BASIC = DebugLevel(2, "basic")
+DebugLevel.ALL   = DebugLevel(3, "all")
 
 
 @dataclass(frozen = True)

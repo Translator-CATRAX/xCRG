@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import uuid
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -23,6 +25,36 @@ from translator_tom import (
 MISSING_SORT_VALUE = float("inf")
 
 T = TypeVar("T")
+
+
+@dataclass(frozen = True)
+class Ordinal:
+    ordinal: int
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Ordinal):
+            return NotImplemented
+        return self.ordinal == other.ordinal
+
+    def __lt__(self, other: Ordinal) -> bool:
+        if not isinstance(other, Ordinal):
+            return NotImplemented
+        return self.ordinal < other.ordinal
+
+    def __le__(self, other: Ordinal) -> bool:
+        if not isinstance(other, Ordinal):
+            return NotImplemented
+        return self.ordinal <= other.ordinal
+
+    def __gt__(self, other: Ordinal) -> bool:
+        if not isinstance(other, Ordinal):
+            return NotImplemented
+        return self.ordinal > other.ordinal
+
+    def __ge__(self, other: Ordinal) -> bool:
+        if not isinstance(other, Ordinal):
+            return NotImplemented
+        return self.ordinal >= other.ordinal
 
 
 # TODO: Temporary until types are untangled

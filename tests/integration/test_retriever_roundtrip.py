@@ -22,7 +22,7 @@ import xcrg
 def test_retriever_roundtrip(
     project_dir: Path,
     retriever_url: str,
-    save_debug_data: bool,
+    debug_level: xcrg.DebugLevel,
     ngd_db_file: Path | None,
     curie_to_pmids_db_file : Path | None
 ):
@@ -66,14 +66,16 @@ def test_retriever_roundtrip(
 
     # TODO: At some point, we may want to have test utilities
     debug_dir: Path | None = None
-    if save_debug_data and (debug_dir := project_dir / "output" / "debug"):
+    if debug_level != xcrg.DebugLevel.NONE:
+        assert (debug_dir := project_dir / "output" / "debug")
         debug_dir.mkdir(parents = True, exist_ok = True)
 
     config = xcrg.XCRGConfig(
         retriever_url = retriever_url,
         ngd_db_path = ngd_db_file,
         curie_to_pmids_db_path = curie_to_pmids_db_file,
-        debug_dir = debug_dir
+        debug_dir = debug_dir,
+        debug_level = debug_level
     )
 
     response = xcrg.run_xcrg(query.to_dict(), config)

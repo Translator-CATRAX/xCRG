@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+import xcrg
 
 # Configure optional test parameters; these currently only affect integration tests
 def pytest_addoption(parser):
@@ -19,10 +20,11 @@ def pytest_addoption(parser):
         help = "The path to the Curie-to-PMIDs database file"
     )
     parser.addoption(
-        "--save_debug_data",
-        action = "store_true",
-        help = "Save debug data for each xCRG run.",
-        default = False
+        "--debug_level",
+        help = "Choose how much debug data to save for each xCRG run.",
+        # These choices ought to correspond to xcrg.DebugLevel
+        choices = ["none", "basic", "all"],
+        default = "none"
     )
 
 
@@ -53,8 +55,8 @@ def curie_to_pmids_db_file(request) -> Path | None:
 
 
 @pytest.fixture()
-def save_debug_data(request) -> bool:
-    return bool(request.config.getoption("--save_debug_data"))
+def debug_level(request) -> xcrg.DebugLevel:
+    return xcrg.DebugLevel.parse(request.config.getoption("--debug_level")) or xcrg.DebugLevel.NONE
 
 
 def pytest_configure(config):

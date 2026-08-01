@@ -17,7 +17,7 @@ from translator_tom import (
 )
 
 from . import trapi
-from .config import XCRGConfig as Config # TODO
+from .config import DebugLevel, XCRGConfig as Config # TODO
 from .constants import DEFAULT_TF_FILE, TP53_CURIE
 from .debugging import DebugContext, debug_dump_json
 from .reporting import Reporter
@@ -114,8 +114,13 @@ class RunContext:
             debug_ctx = debug_ctx
         )
 
-    def debug_dump_json(self, label: str, payload: object | TOMBase) -> None:
-        if self.debug_ctx:
+    def debug_dump_json(
+        self,
+        label: str,
+        payload: object | TOMBase,
+        level: DebugLevel = DebugLevel.ALL
+    ) -> None:
+        if self.debug_ctx and level <= self.config.debug_level:
             try:
                 debug_dump_json(self.debug_ctx, label, payload)
             except Exception as e:

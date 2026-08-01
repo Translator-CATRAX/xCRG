@@ -40,7 +40,7 @@ from translator_tom import (
     RetrievalSource,
 )
 
-from . import biolink, ngd, retriever, trapi
+from . import DebugLevel, biolink, ngd, retriever, trapi
 from .config import XCRGConfig
 from .constants import TF_QNODE_ID, TP53_CURIE, DIRECT_QEDGE_ID
 from .context import RunContext
@@ -1241,7 +1241,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     debug_summary["debug_run_dir"] = str(ctx.debug_ctx and ctx.debug_ctx.run_dir) # TODO
 
     ctx.debug_dump_json("inferred_debug_summary", debug_summary)
-    ctx.debug_dump_json("final_response", final_response)
+    ctx.debug_dump_json("final_response", final_response, level = DebugLevel.BASIC)
 
     return final_response
 
