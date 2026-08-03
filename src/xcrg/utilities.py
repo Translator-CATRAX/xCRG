@@ -4,6 +4,7 @@ import json
 import uuid
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import (
     Callable,
@@ -27,32 +28,35 @@ MISSING_SORT_VALUE = float("inf")
 T = TypeVar("T")
 
 
-@dataclass(frozen = True)
-class Ordinal:
+class OrderedEnum(Enum):
+    """Base class for Enums with an ordinal field that represents declaration order."""
     ordinal: int
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Ordinal):
-            return NotImplemented
-        return self.ordinal == other.ordinal
+    def __new__(cls, value):
+        obj = object.__new__(cls)
+        obj._value_ = value
+        obj.ordinal = len(cls.__members__)
+        return obj
 
-    def __lt__(self, other: Ordinal) -> bool:
-        if not isinstance(other, Ordinal):
+    # __eq__ already taken care of by Enum class
+
+    def __lt__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
             return NotImplemented
         return self.ordinal < other.ordinal
 
-    def __le__(self, other: Ordinal) -> bool:
-        if not isinstance(other, Ordinal):
+    def __le__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
             return NotImplemented
         return self.ordinal <= other.ordinal
 
-    def __gt__(self, other: Ordinal) -> bool:
-        if not isinstance(other, Ordinal):
+    def __gt__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
             return NotImplemented
         return self.ordinal > other.ordinal
 
-    def __ge__(self, other: Ordinal) -> bool:
-        if not isinstance(other, Ordinal):
+    def __ge__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
             return NotImplemented
         return self.ordinal >= other.ordinal
 

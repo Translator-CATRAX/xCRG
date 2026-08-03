@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -19,7 +21,7 @@ from translator_tom import (
 from . import trapi
 from .config import DebugLevel, XCRGConfig as Config # TODO
 from .constants import DEFAULT_TF_FILE, TP53_CURIE
-from .debugging import DebugContext, debug_dump_json
+from .debugging import DebugContext
 from .reporting import Reporter
 from .utilities import path_or_none
 
@@ -98,11 +100,21 @@ class RunContext:
         query: Query,
         config: Config,
         reporter: Reporter,
-    ) -> "RunContext":
+    ) -> RunContext:
         """Instantiate a new RunContext."""
         debug_ctx: DebugContext | None = None
         if (debug_dir := path_or_none(config.debug_dir)) and debug_dir.exists():
-            debug_ctx = DebugContext.new(debug_dir = debug_dir, query = query, query_id = query_id)
+            debug_level: DebugLevel
+            match config.debug_level:
+                case DebugLevel(): debug_level = config.debug_level
+                case str():        debug_level = DebugLevel(config.debug_level)
+                case None:         debug_level = DebugLevel.NONE
+            debug_ctx = DebugContext.new(
+                debug_dir = debug_dir,
+                level = debug_level,
+                query = query,
+                query_id = query_id
+            )
         else:
             reporter.info("debug_dir does not exist; debugger will not be used for this run.")
 
@@ -120,11 +132,11 @@ class RunContext:
         payload: object | TOMBase,
         level: DebugLevel = DebugLevel.ALL
     ) -> None:
-        if self.debug_ctx and level <= self.config.debug_level:
-            try:
-                debug_dump_json(self.debug_ctx, label, payload)
-            except Exception as e:
-                self.reporter.warning(str(e))
+        if not (debug := self.debug_ctx): return
+        try:
+            debug.dump_json(label, payload, level)
+        except Exception as e:
+            self.reporter.warning(str(e))
 
     @cached_property
     def tf_list(self) -> list[CURIE]:

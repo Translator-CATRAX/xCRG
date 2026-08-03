@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-import xcrg
+from xcrg import DebugLevel
+
 
 # Configure optional test parameters; these currently only affect integration tests
 def pytest_addoption(parser):
@@ -22,9 +23,8 @@ def pytest_addoption(parser):
     parser.addoption(
         "--debug_level",
         help = "Choose how much debug data to save for each xCRG run.",
-        # These choices ought to correspond to xcrg.DebugLevel
-        choices = ["none", "basic", "all"],
-        default = "none"
+        choices = [x.value for x in DebugLevel],
+        default = DebugLevel.NONE.value
     )
 
 
@@ -55,8 +55,8 @@ def curie_to_pmids_db_file(request) -> Path | None:
 
 
 @pytest.fixture()
-def debug_level(request) -> xcrg.DebugLevel:
-    return xcrg.DebugLevel.parse(request.config.getoption("--debug_level")) or xcrg.DebugLevel.NONE
+def debug_level(request) -> DebugLevel:
+    return DebugLevel(request.config.getoption("--debug_level"))
 
 
 def pytest_configure(config):
