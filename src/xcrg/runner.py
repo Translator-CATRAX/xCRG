@@ -46,7 +46,6 @@ from .context import RunContext
 from .reporting import LogReporter, Reporter
 from .utilities import (
     chunk_values,
-    desc_optional,
     make_stable_id,
     XCRGResult
 )
@@ -666,32 +665,6 @@ def node_is_present_for_evidence(
     return node_id in retriever_nodes
 
 
-# TODO: This method uses the tmp types: ResultPair, XCRGResult
-def get_or_create_final_result(
-    final_results_by_pair: dict[tuple[CURIE, CURIE], XCRGResult],
-    final_results: list[XCRGResult],
-    subject_qid: QNodeID,
-    object_qid: QNodeID,
-    subject_id: CURIE,
-    object_id: CURIE,
-) -> XCRGResult:
-    """Return the final one-hop result for a source/target answer pair."""
-    pair_key = (subject_id, object_id)
-
-    if pair_key not in final_results_by_pair:
-        result = XCRGResult(
-            node_bindings = {
-                subject_qid: [NodeBinding(id = subject_id, attributes = [])],
-                object_qid: [NodeBinding(id = object_id, attributes = [])]
-            },
-            xcrg_first_index = len(final_results)
-        )
-        final_results_by_pair[pair_key] = result
-        final_results.append(result)
-
-    return final_results_by_pair[pair_key]
-
-
 def add_direct_evidence(final_result: XCRGResult, bindings: list[EdgeBinding]) -> None:
     """Attach direct one-hop KG edge bindings to a final result."""
     for binding in bindings:
@@ -836,55 +809,41 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
     new_kgraph = KnowledgeGraph.new()
     new_aux_graphs = AuxiliaryGraphsDict()
 
-    new_results_by_pair = {}
-    new_results = list[XCRGResult]()
+    new_results = dict[tuple[CURIE, CURIE], XCRGResult]()
 
-    for result_index, result in enumerate(old_response.message.results_list):
-        source_id = trapi.get_bound_node_curie(result, ctx.subject_qid)
-        target_id = trapi.get_bound_node_curie(result, ctx.object_qid)
-        if not source_id or not target_id:
+    for old_result in old_response.message.results_list:
+        subject_id = trapi.get_bound_node_curie(old_result, ctx.subject_qid)
+        object_id = trapi.get_bound_node_curie(old_result, ctx.object_qid)
+        if not subject_id or not object_id:
             continue
 
-        pair_key = (source_id, target_id)
-        if pair_key not in new_results_by_pair and len(new_results) >= ctx.config.max_results:
-            continue
+        key = (subject_id, object_id)
 
-        final_result = get_or_create_final_result(
-            new_results_by_pair,
-            new_results,
-            ctx.subject_qid,
-            ctx.object_qid,
-            source_id,
-            target_id,
-        )
+        new_result: XCRGResult
+        if key in new_results:
+            new_result = new_results[key]
+        else:
+            new_result = XCRGResult(node_bindings = {
+                ctx.subject_qid: [NodeBinding(id = subject_id, attributes = [])],
+                ctx.object_qid:  [NodeBinding(id = object_id,  attributes = [])]
+            })
+            new_results[key] = new_result
 
-        if final_result.xcrg_first_score is None:
-            for analysis in result.analyses:
-                if score := analysis.score:
-                    final_result.xcrg_first_score = score
-            final_result.xcrg_first_index = result_index
-
-        if trapi.is_two_hop_result(result):
+        if trapi.is_two_hop_result(old_result):
             path_edge_ids: list[str] = [
                 binding.id
                 for qedge_id in ("e0", "e1")
-                for binding in trapi.get_edge_bindings(result, qedge_id)
+                for binding in trapi.get_edge_bindings(old_result, qedge_id)
             ]
             if path_edge_ids:
-                add_support_path_edges(
-                    final_result,
-                    path_edge_ids,
-                )
+                add_support_path_edges(new_result, path_edge_ids)
         else:
-            add_direct_evidence(
-                final_result,
-                trapi.get_edge_bindings(result, DIRECT_QEDGE_ID),
-            )
+            add_direct_evidence(new_result, trapi.get_edge_bindings(old_result, DIRECT_QEDGE_ID))
 
-    for final_result in new_results:
+    for new_result in new_results.values():
         finalize_clean_result_analyses(
             ctx,
-            final_result,
+            new_result,
             new_qgraph,
             old_kgraph.nodes,
             old_kgraph.edges,
@@ -896,13 +855,6 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
             ctx.query_edge
         )
 
-    new_results.sort(
-        key = lambda it: (
-            desc_optional(it.xcrg_first_score),
-            it.xcrg_first_index or 0
-        )
-    )
-
     new_response = Response(
         schema_version = old_response.schema_version,
         biolink_version = old_response.biolink_version,
@@ -911,18 +863,14 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
             knowledge_graph = new_kgraph,
             results = [
                 result.to_trapi_result()
-                for result in new_results
+                for result in new_results.values()
                 if result.analyses
             ],
             auxiliary_graphs = new_aux_graphs
         )
     )
 
-    trapi.stamp_rank_scores(
-        new_response.message.results_list,
-        ctx.config.scoring_method,
-        ctx.config.resource_id
-    )
+    ranking.rank_results(ctx, new_response)
 
     return new_response
 
@@ -1051,9 +999,6 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
         [filtered_direct_response, merged_inferred],
         merged_query_graph
     )
-
-    # old_ranking.sort_xcrg_combined_results(ctx, merged)
-    ranking.sort_xcrg_combined_results(ctx, merged)
     ctx.debug_dump_json("merged_debug_response", merged)
 
     final_response = build_trapi_clean_response(ctx, merged)

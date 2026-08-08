@@ -94,6 +94,18 @@ class RunContext:
     def curie_to_pmids_db_file(self) -> Path | None:
         return path_or_none(self.config.curie_to_pmids_db_path)
 
+    @property
+    def scoring_method(self) -> str:
+        return self.config.scoring_method
+
+    @property
+    def resource_id(self) -> str:
+        return self.config.resource_id
+
+    @property
+    def num_max_results(self) -> int:
+        return self.config.max_results
+
     @staticmethod
     def new(
         query_id: str,

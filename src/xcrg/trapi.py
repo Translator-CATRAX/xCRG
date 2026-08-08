@@ -112,24 +112,6 @@ def is_two_hop_result(result: Result) -> bool:
     return "e0" in keys and "e1" in keys
 
 
-def stamp_rank_scores(
-    results: list[Result],
-    scoring_method: str,
-    resource_id: str | None = None
-) -> None:
-    """Assign rank-derived TRAPI Analysis.score values after sorting."""
-    total = len(results)
-    if total == 0:
-        return
-    for index, result in enumerate(results):
-        score = float(total - index) / total
-        for analysis in result.analyses:
-            if resource_id and resource_id != analysis.resource_id:
-                continue
-            analysis.score = score
-            analysis.scoring_method = scoring_method
-
-
 def get_answer_qid(
     query_graph: QueryGraph,
     subject_qid: QNodeID,
