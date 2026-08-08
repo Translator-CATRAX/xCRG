@@ -119,6 +119,19 @@ def partition(items: list[T], predicate: Callable[[T], bool]) -> tuple[list[T], 
     return passed, failed
 
 
+# TODO: Reintroduce when we move to Python 3.11 in October
+# def throw(exception: Exception) -> Never:
+#     raise exception
+#
+
+def as_type(value: object, cls: type[T]) -> T | None:
+    """Return value if it matches type T. Return None otherwise."""
+    if isinstance(value, cls):
+        return value
+    else:
+        return None
+
+
 def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
     """Split values into non-empty batches."""
     if chunk_size <= 0:

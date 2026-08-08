@@ -185,3 +185,6 @@ class RunContext:
             raise ValueError("No transcription factors remain after TP53/target filtering.")
 
         return tf_list
+
+    def get_answer_qid(self) -> QNodeID:
+        return trapi.get_answer_qid(self.query_graph, self.subject_qid, self.object_qid)

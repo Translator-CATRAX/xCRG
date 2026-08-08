@@ -8,22 +8,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from translator_tom import Analysis, CURIE, QueryGraph, Response
+from translator_tom import (
+    CURIE,
+    Query,
+    QueryGraph,
+    Response,
+    Result,
+)
+
+# TODO: importing xcrg really breaks type-checking + linting
+#  How can we improve this?
+from xcrg import trapi
 
 
 OUTPUT_DIR = Path("output")
 DEBUG_DIR = OUTPUT_DIR / "debug"
 
 
-@dataclass
-class ResultMetrics:
-    rank           : int
-    id             : CURIE
-    name           : str
-    trapi_score    : float
-    ngd_score      : float
-    num_edges      : int
-    num_xcrg_edges : int
+@dataclass(frozen = True, slots = False)
+class RankedResult:
+    rank: int
+    curie: CURIE
+    name: str
+    result: Result
 
 
 def log(*values: object) -> None:
@@ -45,76 +52,95 @@ def find_and_deserialize_response(debug_dir: Path) -> Response:
         sys.exit(1)
 
 
-def get_metrics_for_response(response: Response) -> dict[CURIE, ResultMetrics]:
-    msg = response.message
+def get_ranked_results(response: Response) -> dict[CURIE, RankedResult]:
+    assert(kgraph := response.message.knowledge_graph)
+    _, qedge = trapi.get_single_query_edge(Query(message = response.message))
+    answer_qid = trapi.get_answer_qid(
+        cast(QueryGraph, response.message.query_graph),
+        qedge.subject,
+        qedge.object
+    )
+    results = dict[CURIE, RankedResult]()
+    for rank, result in enumerate(response.message.results_list, start = 1):
+        qnode = result.node_bindings[answer_qid][0]
+        curie = qnode.id
+        name = kgraph.nodes[curie].name or "???"
+        results[curie] = RankedResult(rank, curie, name, result)
+    return results
 
-    qgraph = cast(QueryGraph, msg.query_graph)
-    qedge_id = next(iter(qgraph.edges))
 
-    assert (kg := msg.knowledge_graph)
-
-    metrics = dict[CURIE, ResultMetrics]()
-    for i, result in enumerate(response.message.results_list):
-        rank = i + 1
-
-        subject_id = result.node_bindings["sn"][0].id
-        subject_name = kg.nodes[subject_id].name
-
-        # object_id  = result.node_bindings["on"][0].id
-
-        analysis: Analysis
-        for it in result.analyses:
-            assert isinstance(it, Analysis)
-            if it.scoring_method == "xcrg-result-filtering-v2": # TODO: hardcoded scoring_method
-                analysis = it
-                break
-        else:
-            print("No xCRG analysis found in the response")
-            sys.exit(1)
-
-        num_edges = len(analysis.edge_bindings[qedge_id])
-
-        trapi_score = analysis.score or float("inf") # TODO
-
-        num_xcrg_edges = 0
-        for eb in analysis.edge_bindings[qedge_id]:
-            if eb.id.startswith("xcrg"):
-                xcrg_graph_id: str = ""
-                for attribute in kg.edges[eb.id].attributes_list:
-                    if xcrg_graph_id:
-                        break
-                    if attribute.attribute_type_id == "biolink:support_graphs":
-                        attr_val = attribute.value
-                        assert isinstance(attr_val, list)
-                        for graph_id in attr_val:
-                            if graph_id.startswith("xcrg"):
-                                xcrg_graph_id = graph_id
-                                break
-                        else:
-                            print("No xCRG support graph found in edge")
-                            sys.exit(1)
-                xcrg_graph = msg.auxiliary_graphs_dict[xcrg_graph_id]
-                num_xcrg_edges = len(xcrg_graph.edges)
-
-        ngd_score = float("inf") # No NGD data if database was not used
-        for sgraph_id in analysis.support_graphs_list:
-            sgraph = msg.auxiliary_graphs_dict[sgraph_id]
-            for attribute in sgraph.attributes:
-                if attribute.original_attribute_name == "normalized_google_distance":
-                    if isinstance(attribute.value, float):
-                        ngd_score = float(attribute.value)
-
-        metrics[subject_id] = ResultMetrics(
-            rank = rank,
-            id = subject_id,
-            name = subject_name or "", # TODO
-            trapi_score = trapi_score,
-            ngd_score = ngd_score,
-            num_edges = num_edges,
-            num_xcrg_edges = num_xcrg_edges
-        )
-
-    return metrics
+# def get_data_for_result(response: Response, result: Result) -> ResultData:
+#     message = response.message
+#     qgraph = cast(QueryGraph, message.query_graph)
+#     assert (kgraph := message.knowledge_graph)
+#
+#     analysis: Analysis
+#     for analysis in result.analyses:
+#         assert isinstance(analysis, Analysis)
+#         if analysis.scoring_method == "xcrg-result-filtering-v2": # TODO: hardcoded scoring_method
+#             analysis = analysis
+#             break
+#         else:
+#             print("No xCRG analysis found in the response")
+#             sys.exit(1)
+#
+#     _, qedge = xcrg.trapi.get_single_query_edge(Query(message = message))
+#     answer_qnode_id = xcrg.ranking.get_answer_qnode_id(qgraph, qedge.subject, qedge.object)
+#
+#     curie = result.node_bindings[answer_qnode_id][0].id
+#     name = kgraph.nodes[curie].name
+#
+#     ngd_score = float("inf") # No NGD data if database was not used
+#     for sgraph_id in analysis.support_graphs_list:
+#         sgraph = message.auxiliary_graphs_dict[sgraph_id]
+#         for attribute in sgraph.attributes:
+#             if attribute.original_attribute_name == "normalized_google_distance":
+#                 if isinstance(attribute.value, float):
+#                     ngd_score = float(attribute.value)
+#
+#     ctx = xcrg.context.RunContext(
+#         query_id = "",
+#         query = Query(message = message),
+#         config = xcrg.config.XCRGConfig(
+#             retriever_url = ""
+#         ),
+#         reporter = xcrg.reporting.StubReporter()
+#     )
+#
+#     answer_qnode_id = xcrg.ranking.get_answer_qnode_id(qgraph, ctx.subject_qid, ctx.object_qid)
+#
+#     use_category_specificity = False
+#     if qnode := qgraph.nodes.get(answer_qnode_id):
+#         use_category_specificity = any(xcrg.biolink.is_chemical_category(ctx.reporter, c) for c in qnode.categories_list)
+#
+#     metrics = xcrg.ranking.get_result_statistics(
+#         ctx,
+#         message,
+#         result,
+#         answer_qnode_id,
+#         use_category_specificity
+#     )
+#
+#     num_publications   = sum(x.num_publications for x in metrics.qualified_statements)
+#     num_studies        = sum(x.num_studies      for x in metrics.qualified_statements)
+#     sum_evidence_count = sum(x.evidence_count   for x in metrics.qualified_statements)
+#
+#     xcrg_score = xcrg.ranking.calculate_score_for_result(metrics, None) # ngd_score)
+#
+#     return ResultData(
+#         curie = curie,
+#         name = name,
+#         specificity = metrics.specificity,
+#         information_content = metrics.information_content,
+#         ngd_score = ngd_score,
+#         num_edges = metrics.num_edges,
+#         num_xcrg_edges = metrics.num_xcrg_edges,
+#         num_publications = num_publications,
+#         num_studies = num_studies,
+#         sum_evidence_count = sum_evidence_count,
+#         xcrg_score = xcrg_score,
+#         rank = 0 # This needs to be updated later
+#     )
 
 
 def main():
@@ -145,11 +171,30 @@ def main():
         log("old_debug_dir and new_debug_dir cannot be the same")
         sys.exit(1)
 
-    response01 = find_and_deserialize_response(old_debug_dir)
-    metrics01  = get_metrics_for_response(response01)
+    # # We need to rank by the new xcrg score
+    # new_response = find_and_deserialize_response(new_debug_dir)
+    # new_results_list= list[ResultData]()
+    # for new_result in new_response.message.results_list:
+    #     new_results_list.append(get_data_for_result(new_response, new_result))
+    # new_results_list.sort(key = lambda x: x.xcrg_score, reverse = True)
+    # # We need to update the rank after sorting
+    # for rank, new_result in enumerate(new_results_list, start = 1):
+    #     new_result.rank = rank
+    # new_results = {x.curie: x for x in new_results_list}
+    #
+    # # Maintain the original ranking
+    # old_response = find_and_deserialize_response(old_debug_dir)
+    # old_results = dict[CURIE, ResultData]()
+    # for rank, new_result in enumerate(old_response.message.results_list, start = 1):
+    #     data = get_data_for_result(old_response, new_result)
+    #     data.rank = rank
+    #     old_results[data.curie] = data
 
-    response02 = find_and_deserialize_response(new_debug_dir)
-    metrics02  = get_metrics_for_response(response02)
+    new_response = find_and_deserialize_response(new_debug_dir)
+    new_results = get_ranked_results(new_response)
+
+    old_response = find_and_deserialize_response(old_debug_dir)
+    old_results = get_ranked_results(old_response)
 
     output_dir = script_file.parent.parent / "output"
     output_dir.mkdir(exist_ok = True)
@@ -162,39 +207,30 @@ def main():
         "rank_change",
         "id",
         "name",
-        "num_edges",
-        "num_xcrg_edges",
     ]
 
     with open(csv_file, "w") as f:
         writer = csv.DictWriter(f, fields, delimiter = '\t')
         writer.writeheader()
 
-        for subject_id in metrics01:
-            old_result = metrics01[subject_id]
-            new_result = metrics02[subject_id]
+        for curie, new_result in new_results.items():
+            old_rank = "---"
+            dt_rank = "---"
 
-            dt_rank: str
-            match new_result.rank - old_result.rank:
-                case x if x > 0:
-                    dt_rank = f"+{x}"
-                case x if x < 0:
-                    dt_rank = f"-{x}"
-                case _:
-                    dt_rank = "---" # TODO
-
-            # TODO: sanity check, but is this necessary?
-            assert old_result.num_edges == new_result.num_edges, "Number of edges is the same"
-            assert old_result.num_xcrg_edges == new_result.num_xcrg_edges, "Number of xCRG edges is the same"
+            if old_result := old_results.get(curie):
+                old_rank = str(old_result.rank)
+                match old_result.rank - new_result.rank:
+                    case x if x > 0:
+                        dt_rank = f"+{x}"
+                    case x if x < 0:
+                        dt_rank = f"{x}"
 
             writer.writerow({
                 "new_rank": new_result.rank,
-                "old_rank": old_result.rank,
+                "old_rank": old_rank,
                 "rank_change": dt_rank,
-                "id": old_result.id,
-                "name": old_result.name,
-                "num_edges": old_result.num_edges,
-                "num_xcrg_edges": old_result.num_xcrg_edges,
+                "id": new_result.curie,
+                "name": new_result.name,
             })
 
 
