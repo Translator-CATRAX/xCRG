@@ -1017,7 +1017,7 @@ def validate_query(query: Query) -> KnowledgeType:
     if not isinstance(qgraph, QueryGraph):
         raise ValueError("xCRG query requires a non-pathfinder query graph.")
 
-    _, qedge = trapi.get_single_query_edge(query)
+    _, qedge = trapi.get_single_query_edge(qgraph)
 
     if "biolink:affects" not in qedge.predicates_list:
         raise ValueError("xCRG query requires a biolink:affects predicate.")

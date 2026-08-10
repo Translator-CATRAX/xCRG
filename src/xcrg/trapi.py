@@ -1,6 +1,5 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import cast
 
 from translator_tom import (
     Analysis,
@@ -9,6 +8,7 @@ from translator_tom import (
     EdgeBinding,
     KnowledgeGraph,
     Node,
+    PathfinderQueryGraph,
     QEdge,
     QEdgeID,
     QNodeID,
@@ -30,9 +30,13 @@ class MessageStatistics:
         return MessageStatistics(0, 0, 0)
 
 
-def get_single_query_edge(query: Query) -> tuple[QEdgeID, QEdge]:
+def get_single_query_edge(qgraph: QueryGraph | PathfinderQueryGraph | None) -> tuple[QEdgeID, QEdge]:
     """Return the single query edge for xCRG queries."""
-    qedges = cast(QueryGraph, query.message.query_graph).edges
+    if qgraph is None:
+        raise ValueError("Query graph is required.")
+    if isinstance(qgraph, PathfinderQueryGraph):
+        raise ValueError("PathfinderQueryGraph is not supported.")
+    qedges = qgraph.edges
     if len(qedges) != 1:
         raise ValueError("xCRG queries are currently required to have only one query edge.")
     qedge_id = next(iter(qedges))

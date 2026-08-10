@@ -53,7 +53,7 @@ def find_and_deserialize_response(debug_dir: Path) -> Response:
 
 def get_ranked_results(response: Response) -> dict[CURIE, RankedResult]:
     assert(kgraph := response.message.knowledge_graph)
-    _, qedge = trapi.get_single_query_edge(Query(message = response.message))
+    _, qedge = trapi.get_single_query_edge(response.message.query_graph)
     answer_qid = trapi.get_answer_qid(
         cast(QueryGraph, response.message.query_graph),
         qedge.subject,

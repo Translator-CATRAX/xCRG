@@ -55,7 +55,7 @@ class DebugContext:
 
         created_at = datetime.now(timezone.utc)
         qnodes = cast(QueryGraph, query.message.query_graph).nodes
-        edge_id, edge = trapi.get_single_query_edge(query)
+        edge_id, edge = trapi.get_single_query_edge(query.message.query_graph)
         direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
         source_label = describe_qnode_for_debug(qnodes.get(edge.subject))
         target_label = describe_qnode_for_debug(qnodes.get(edge.object))
@@ -125,7 +125,7 @@ class DebugContext:
 
 
 def serialize_json_to_file(obj: object, file: TextIOWrapper):
-    json.dump(obj, file, cls = XcrgJsonEncoder, indent = 2, sort_keys = True)
+    json.dump(obj, file, cls = XcrgJsonEncoder, indent = 4)
 
 
 def safe_debug_token(value: str | None) -> str:

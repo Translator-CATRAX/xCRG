@@ -38,8 +38,8 @@ class ResultStatistics:
     information_content  : int
     num_edges            : int
     num_xcrg_edges       : int
-    qualified_statements : list[QualifiedStatement]
     ngd_score            : float | None
+    qualified_statements : list[QualifiedStatement]
 
 
 @dataclass(frozen = True, slots = False)
@@ -289,10 +289,11 @@ def rank_results(ctx: RunContext, response: Response) -> None:
         label = "xcrg_scored_results",
         payload = [
             {
-                "score": x.score,
-                "stats": x.stats,
+                "rank": i,
+                "score": r.score,
+                "stats": r.stats,
             }
-            for x in sorted_results
+            for i, r in enumerate(sorted_results, start = 1)
         ],
         level = DebugLevel.BASIC
     )

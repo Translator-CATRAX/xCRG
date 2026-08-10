@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from xcrg import DebugLevel
+from xcrg import XCRGConfig, DebugLevel
 
 
 # Configure optional test parameters; these currently only affect integration tests
@@ -29,34 +29,31 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture()
-def project_dir() -> Path:
-    return Path(__file__).parent.parent
+def config(request) -> XCRGConfig:
+    project_dir = Path(__file__).parent.parent # TODO: Fragile...
 
-
-@pytest.fixture()
-def retriever_url(request) -> str:
-    return request.config.getoption("--retriever_url")
-
-
-@pytest.fixture
-def ngd_db_file(request) -> Path | None:
+    ngd_db_file: Path | None = None
     if file := request.config.getoption("--ngd_db_file"):
-        return Path(file)
-    else:
-        return None
+        ngd_db_file = Path(file)
 
-
-@pytest.fixture
-def curie_to_pmids_db_file(request) -> Path | None:
+    curie_to_pmids_db_file: Path | None = None
     if file := request.config.getoption("--curie_to_pmids_db_file"):
-        return Path(file)
-    else:
-        return None
+        curie_to_pmids_db_file = Path(file)
 
+    debug_level = DebugLevel(request.config.getoption("--debug_level"))
 
-@pytest.fixture()
-def debug_level(request) -> DebugLevel:
-    return DebugLevel(request.config.getoption("--debug_level"))
+    debug_dir: Path | None = None
+    if debug_level != DebugLevel.NONE:
+        assert (debug_dir := project_dir / "output" / "debug")
+        debug_dir.mkdir(parents = True, exist_ok = True)
+
+    return XCRGConfig(
+        retriever_url = request.config.getoption("--retriever_url"),
+        ngd_db_path = ngd_db_file,
+        curie_to_pmids_db_path = curie_to_pmids_db_file,
+        debug_dir = debug_dir,
+        debug_level = debug_level
+    )
 
 
 def pytest_configure(config):

@@ -52,7 +52,7 @@ class RunContext:
     query_edge    : QEdge   = field(init = False)
 
     def __post_init__(self):
-        self.query_edge_id, self.query_edge = trapi.get_single_query_edge(self.query)
+        self.query_edge_id, self.query_edge = trapi.get_single_query_edge(self.query.message.query_graph)
 
     @property
     def query_graph(self) -> QueryGraph:
