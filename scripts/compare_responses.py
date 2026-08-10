@@ -16,8 +16,7 @@ from translator_tom import (
     Result,
 )
 
-# TODO: importing xcrg really breaks type-checking + linting
-#  How can we improve this?
+# TODO: importing xcrg thiw way breaks type-checking + linting; how can we improve?
 from xcrg import trapi
 
 
@@ -69,80 +68,6 @@ def get_ranked_results(response: Response) -> dict[CURIE, RankedResult]:
     return results
 
 
-# def get_data_for_result(response: Response, result: Result) -> ResultData:
-#     message = response.message
-#     qgraph = cast(QueryGraph, message.query_graph)
-#     assert (kgraph := message.knowledge_graph)
-#
-#     analysis: Analysis
-#     for analysis in result.analyses:
-#         assert isinstance(analysis, Analysis)
-#         if analysis.scoring_method == "xcrg-result-filtering-v2": # TODO: hardcoded scoring_method
-#             analysis = analysis
-#             break
-#         else:
-#             print("No xCRG analysis found in the response")
-#             sys.exit(1)
-#
-#     _, qedge = xcrg.trapi.get_single_query_edge(Query(message = message))
-#     answer_qnode_id = xcrg.ranking.get_answer_qnode_id(qgraph, qedge.subject, qedge.object)
-#
-#     curie = result.node_bindings[answer_qnode_id][0].id
-#     name = kgraph.nodes[curie].name
-#
-#     ngd_score = float("inf") # No NGD data if database was not used
-#     for sgraph_id in analysis.support_graphs_list:
-#         sgraph = message.auxiliary_graphs_dict[sgraph_id]
-#         for attribute in sgraph.attributes:
-#             if attribute.original_attribute_name == "normalized_google_distance":
-#                 if isinstance(attribute.value, float):
-#                     ngd_score = float(attribute.value)
-#
-#     ctx = xcrg.context.RunContext(
-#         query_id = "",
-#         query = Query(message = message),
-#         config = xcrg.config.XCRGConfig(
-#             retriever_url = ""
-#         ),
-#         reporter = xcrg.reporting.StubReporter()
-#     )
-#
-#     answer_qnode_id = xcrg.ranking.get_answer_qnode_id(qgraph, ctx.subject_qid, ctx.object_qid)
-#
-#     use_category_specificity = False
-#     if qnode := qgraph.nodes.get(answer_qnode_id):
-#         use_category_specificity = any(xcrg.biolink.is_chemical_category(ctx.reporter, c) for c in qnode.categories_list)
-#
-#     metrics = xcrg.ranking.get_result_statistics(
-#         ctx,
-#         message,
-#         result,
-#         answer_qnode_id,
-#         use_category_specificity
-#     )
-#
-#     num_publications   = sum(x.num_publications for x in metrics.qualified_statements)
-#     num_studies        = sum(x.num_studies      for x in metrics.qualified_statements)
-#     sum_evidence_count = sum(x.evidence_count   for x in metrics.qualified_statements)
-#
-#     xcrg_score = xcrg.ranking.calculate_score_for_result(metrics, None) # ngd_score)
-#
-#     return ResultData(
-#         curie = curie,
-#         name = name,
-#         specificity = metrics.specificity,
-#         information_content = metrics.information_content,
-#         ngd_score = ngd_score,
-#         num_edges = metrics.num_edges,
-#         num_xcrg_edges = metrics.num_xcrg_edges,
-#         num_publications = num_publications,
-#         num_studies = num_studies,
-#         sum_evidence_count = sum_evidence_count,
-#         xcrg_score = xcrg_score,
-#         rank = 0 # This needs to be updated later
-#     )
-
-
 def main():
     script_file = Path(sys.argv[0])
 
@@ -170,25 +95,6 @@ def main():
     if old_debug_dir == new_debug_dir:
         log("old_debug_dir and new_debug_dir cannot be the same")
         sys.exit(1)
-
-    # # We need to rank by the new xcrg score
-    # new_response = find_and_deserialize_response(new_debug_dir)
-    # new_results_list= list[ResultData]()
-    # for new_result in new_response.message.results_list:
-    #     new_results_list.append(get_data_for_result(new_response, new_result))
-    # new_results_list.sort(key = lambda x: x.xcrg_score, reverse = True)
-    # # We need to update the rank after sorting
-    # for rank, new_result in enumerate(new_results_list, start = 1):
-    #     new_result.rank = rank
-    # new_results = {x.curie: x for x in new_results_list}
-    #
-    # # Maintain the original ranking
-    # old_response = find_and_deserialize_response(old_debug_dir)
-    # old_results = dict[CURIE, ResultData]()
-    # for rank, new_result in enumerate(old_response.message.results_list, start = 1):
-    #     data = get_data_for_result(old_response, new_result)
-    #     data.rank = rank
-    #     old_results[data.curie] = data
 
     new_response = find_and_deserialize_response(new_debug_dir)
     new_results = get_ranked_results(new_response)
