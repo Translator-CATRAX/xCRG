@@ -27,6 +27,7 @@ from translator_tom import (
 
 import xcrg.ngd as ngd
 import xcrg.runner as runner
+from xcrg import ranking
 from xcrg.config import XCRGConfig as Config # TODO
 from xcrg.context import RunContext
 from xcrg.reporting import StubReporter
@@ -261,7 +262,7 @@ def test_validate_inferred_query():
         message = Message(
             query_graph = QueryGraph(
                 nodes = {
-                    "chem": QNode(categories = ["biolink:ChemicalEntity"]),
+                    "chem": QNode(categories = ["biolink:ChemicalEntity"], ids = None),
                     "gene": QNode(
                         ids = ["NCBIGene:6323"],
                         categories = ["biolink:Gene"]
@@ -820,6 +821,7 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
     assert inferred_bindings
 
 
+# TODO: This test fails currently; will be fixed in future commit
 def test_clean_response_limits_to_configured_top_result_count():
     config = Config(
         retriever_url="https://example.org/query",
@@ -866,6 +868,7 @@ def test_clean_response_limits_to_configured_top_result_count():
     )
 
     response = runner.build_trapi_clean_response(ctx, combined_message)
+    ranking.rank_results(ctx, response)
 
     final_results = response.message.results_list
     assert response.message.knowledge_graph

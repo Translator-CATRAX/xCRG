@@ -10,7 +10,6 @@ from typing import cast
 
 from translator_tom import (
     CURIE,
-    Query,
     QueryGraph,
     Response,
     Result,

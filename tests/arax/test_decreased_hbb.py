@@ -1,0 +1,34 @@
+import pytest
+from translator_tom import Response
+
+import xcrg
+from tests.utilities import (
+    XCRG_Answer,
+    assert_answer,
+    find_chemicals_affecting_gene,
+)
+
+
+@pytest.fixture(scope = "session")
+def response(config: xcrg.XCRGConfig) -> Response:
+    return find_chemicals_affecting_gene(config, "decreased", "NCBIGene:3043") # HBB
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        XCRG_Answer("CHEBI:50131", "top_answer", fails_on_arax = True), # decitabine
+        XCRG_Answer("PUBCHEM.COMPOUND:26945", "top_answer", fails_on_arax = True), # Hemin
+        XCRG_Answer("CHEBI:2038", "top_answer", fails_on_arax = True), # azacitidine
+        XCRG_Answer("UMLS:C0581820", "top_answer", fails_on_arax = True), # ButyrateDerivatives
+        XCRG_Answer("CHEBI:64103", "top_answer", fails_on_arax = True), # sodiumbutyrate
+        XCRG_Answer("UNII:IK8S1P79MU", "top_answer", fails_on_arax = True), # arginine butyrate
+        # BUG: https://github.com/NCATSTranslator/Tests/issues/80
+        XCRG_Answer("CHEMBL:4034633", "top_answer", fails_on_arax = True), # DNMT inhibitor
+
+        XCRG_Answer("CHEBI:18050", "acceptable", fails_on_arax = True),  # L-Glutamine
+        XCRG_Answer("CHEBI:44423", "acceptable"),  # Hydroxyurea
+    ]
+)
+def test_decreased_activity_or_abundance_of_hbb(response: Response, test: XCRG_Answer):
+    assert_answer(response, test)

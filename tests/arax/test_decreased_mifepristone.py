@@ -1,0 +1,26 @@
+import pytest
+from translator_tom import Response
+
+import xcrg
+from tests.utilities import (
+    XCRG_Answer,
+    assert_answer,
+    find_genes_affected_by_chemical
+)
+
+
+@pytest.fixture(scope = "session")
+def response(config: xcrg.XCRGConfig) -> Response:
+    return find_genes_affected_by_chemical(config, "decreased", "CHEBI:50692") # Mifepristone
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        XCRG_Answer("NCBIGene:355", "acceptable", fails_on_arax = True), # FAS
+        XCRG_Answer("NCBIGene:356", "acceptable", fails_on_arax = True), # FASL
+        XCRG_Answer("NCBIGene:93659", "acceptable", fails_on_arax = True), # HCG
+    ]
+)
+def test_decreased_activity_or_abundance_of_mifepristone(response: Response, test: XCRG_Answer):
+    assert_answer(response, test)

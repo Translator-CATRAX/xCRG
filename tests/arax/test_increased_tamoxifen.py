@@ -1,0 +1,30 @@
+import pytest
+from translator_tom import Response
+
+import xcrg
+from tests.utilities import (
+    XCRG_Answer,
+    assert_answer,
+    find_genes_affected_by_chemical
+)
+
+
+@pytest.fixture(scope = "session")
+def response(config: xcrg.XCRGConfig) -> Response:
+    return find_genes_affected_by_chemical(config, "increased", "CHEBI:41774") # Tamoxifen
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        XCRG_Answer("NCBIGene:35292", "acceptable", fails_on_arax = True), # PR
+        XCRG_Answer("NCBIGene:817540", "acceptable", fails_on_arax = True), # pS2
+        XCRG_Answer("NCBIGene:1509", "acceptable"), # CTSD
+        XCRG_Answer("NCBIGene:817173", "acceptable", fails_on_arax = True), # ER
+        XCRG_Answer("NCBIGene:41957", "acceptable", fails_on_arax = True), # AKT
+        XCRG_Answer("UMLS:C2605860", "acceptable"), # GPER-1
+        XCRG_Answer("NCBIGene:1956", "acceptable"), # EGFR
+    ]
+)
+def test_decreased_activity_or_abundance_of_bivalirudin(response: Response, test: XCRG_Answer):
+    assert_answer(response, test)

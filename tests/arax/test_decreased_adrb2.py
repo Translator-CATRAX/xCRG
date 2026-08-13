@@ -1,0 +1,30 @@
+import pytest
+from translator_tom import Response
+
+import xcrg
+from tests.utilities import (
+    XCRG_Answer,
+    assert_answer,
+    find_chemicals_affecting_gene,
+)
+
+
+@pytest.fixture(scope = "session")
+def response(config: xcrg.XCRGConfig) -> Response:
+    return find_chemicals_affecting_gene(config, "decreased", "NCBIGene:154") # ADRB2
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        XCRG_Answer("CHEBI:3441", "top_answer"), # carvedilol
+        XCRG_Answer("CHEBI:17579", "top_answer", fails_on_arax = True), # Beta-Blockers (Inhibitors)
+        XCRG_Answer("CHEBI:6904", "top_answer"), # metoprolol
+        XCRG_Answer("CHEBI:8499", "top_answer", fails_on_arax = True), # propranolol
+        XCRG_Answer("CHEBI:2904", "top_answer"), # atenolol
+        XCRG_Answer("CHEBI:91879", "top_answer", fails_on_arax = True), # ICI-118,551 (ZENIDOLOL?)
+        XCRG_Answer("UNII:0NM31M53PW", "acceptable", fails_on_arax = True), # Butaxamine
+    ]
+)
+def test_decreased_activity_or_abundance_of_adrb2(response: Response, test: XCRG_Answer):
+    assert_answer(response, test)

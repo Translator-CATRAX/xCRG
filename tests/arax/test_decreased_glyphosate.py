@@ -1,0 +1,25 @@
+import pytest
+from translator_tom import Response
+
+import xcrg
+from tests.utilities import (
+    XCRG_Answer,
+    assert_answer,
+    find_genes_affected_by_chemical
+)
+
+
+@pytest.fixture(scope = "session")
+def response(config: xcrg.XCRGConfig) -> Response:
+    return find_genes_affected_by_chemical(config, "decreased", "CHEBI:27744") # Glyphosate
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        XCRG_Answer("NCBIGene:10381", "acceptable"),                       # TUBB3
+        XCRG_Answer("NCBIGene:2596",  "acceptable", fails_on_arax = True), # GAP43
+    ]
+)
+def test_decreased_activity_or_abundance_of_glyphosate(response: Response, answer: XCRG_Answer):
+    assert_answer(response, answer)

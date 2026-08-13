@@ -1,0 +1,39 @@
+import pytest
+from translator_tom import Response
+
+import xcrg
+from tests.utilities import (
+    XCRG_Answer,
+    assert_answer,
+    find_chemicals_affecting_gene,
+)
+
+
+@pytest.fixture(scope = "session")
+def response(config: xcrg.XCRGConfig) -> Response:
+    return find_chemicals_affecting_gene(config, "decreased", "NCBIGene:1565") # CYP2D6
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        XCRG_Answer("CHEBI:4636", "top_answer", fails_on_arax = True), # Diphenhydramine
+        XCRG_Answer("CHEBI:2663", "top_answer", fails_on_arax = True), # Amiodarone
+        XCRG_Answer("CHEBI:48390", "top_answer", fails_on_arax = True), # Cinacalcet
+        XCRG_Answer("CHEBI:7936", "top_answer"), # Paroxetine
+        XCRG_Answer("CHEBI:28593", "top_answer"), # Quinidine
+        XCRG_Answer("CHEBI:5118", "top_answer"), # Fluoxetine
+        XCRG_Answer("CHEBI:36795", "top_answer"), # Duloxetine
+        XCRG_Answer("CHEBI:3219", "top_answer"), # Bupropion
+
+        XCRG_Answer("CHEBI:9566", "acceptable"), # Thioridazine
+
+        XCRG_Answer("CHEBI:8069", "never_show", fails_on_arax = True), # Phenobarbital
+        XCRG_Answer("CHEBI:3387", "never_show", fails_on_arax = True),  # Carbamazepine
+        XCRG_Answer("CHEBI:8107", "never_show"), # Phenytoin
+        XCRG_Answer("PUBCHEM.COMPOUND:3663", "never_show"), # St. John's Wort (Hypericum perforatum)
+        XCRG_Answer("CHEBI:28077", "never_show"), # Rifampicin
+    ]
+)
+def test_decreased_activity_or_abundance_of_cyp2d6(response: Response, test: XCRG_Answer):
+    assert_answer(response, test)
