@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import json
@@ -5,6 +6,7 @@ import uuid
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
 from enum import Enum
+from io import TextIOWrapper
 from pathlib import Path
 from typing import (
     Callable,
@@ -74,8 +76,6 @@ class XCRGResult:
     xcrg_direct_binding_ids : set[EdgeID]       = field(default_factory = set)
   # xcrg_support_edges      : list[EdgeBinding] = field(default_factory = list)
     xcrg_support_edge_ids   : set[EdgeID]       = field(default_factory = set)
-    xcrg_first_score        : float | None      = None
-    xcrg_first_index        : int | None        = None # = len(final_results),
 
     def to_trapi_result(self):
         return Result(node_bindings = self.node_bindings, analyses = self.analyses)
@@ -141,7 +141,7 @@ def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
 
 def make_stable_id(prefix: str, payload: object) -> str:
     """Return a deterministic compact id for generated KG/support entries."""
-    key = json.dumps(payload, sort_keys=True)
+    key = json.dumps(payload, cls=XcrgJsonEncoder, sort_keys=True)
     suffix = uuid.uuid5(uuid.NAMESPACE_URL, key).hex[:16]
     return f"{prefix}_{suffix}"
 
@@ -163,3 +163,7 @@ def format_json_for_log(value: object | TOMBase) -> str:
     else:
         data = value
     return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+
+def serialize_json_to_file(obj: object, file: TextIOWrapper):
+    json.dump(obj, file, cls = XcrgJsonEncoder, indent = 4)

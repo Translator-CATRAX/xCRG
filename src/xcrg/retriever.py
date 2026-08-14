@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import httpx
 
 from translator_tom import (
@@ -7,7 +9,6 @@ from translator_tom import (
     Response,
     Result,
 )
-
 from . import trapi
 from .context import RunContext
 from .utilities import format_json_for_log
@@ -28,8 +29,17 @@ async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
     #     format_json_for_log(query.parameters),
     # )
 
-    # TODO: figure out how the timeout ought to work
-    timeout = httpx.Timeout(timeout = 5.0) # TODO: query.timeout or 5.0)
+    # Try and return a cached Response if appropriate debugging options are set
+    cache_filename: Path | None = None
+    if ctx.use_http_cache:
+        cache_filename: Path = Path(trapi.make_stable_id_for_query("http_response", query) + ".json")
+        if text := ctx.read_cache_file(cache_filename):
+            ctx.reporter.debug(f"Returning cached HTTP response: {cache_filename}")
+            return Response.from_json(text)
+
+    # TODO: We need to clarify the correct behavior for timeout
+    # TODO: timeout = httpx.Timeout(ctx.timeout - ctx.elapsed_time().seconds)
+    timeout = httpx.Timeout(timeout = ctx.timeout)
     async with httpx.AsyncClient(timeout = timeout) as client:
         try:
             http_response = await client.post(ctx.config.retriever_url, json = query.to_dict())
@@ -74,18 +84,16 @@ async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
         )
     if counts.result_count == 0 or response.status != "Complete":
         for entry in response.logs[:5]:
-            if isinstance(entry, dict):
-                ctx.reporter.info(
-                    "xCRG Retriever log [%s] %s",
-                    entry.get("level", "INFO"),
-                    entry.get("message"),
-                )
-            else:
-                ctx.reporter.info("xCRG Retriever log %s", entry)
+            ctx.reporter.info("xCRG Retriever log [%s] %s", entry.level or "INFO", entry.message)
 
     # TODO: Is this really necessary?
     # Stamp response with version information if upstream omitted it
     response.schema_version = response.schema_version or ctx.trapi_schema_version
     response.biolink_version = response.biolink_version or ctx.config.biolink_version
+
+    # Write Response to cache if appropriate debugging options are set
+    if cache_filename:
+        ctx.reporter.debug(f"Writing HTTP response to cache file: {cache_filename}")
+        ctx.write_cache_file(cache_filename, response.to_json(as_str = True))
 
     return response

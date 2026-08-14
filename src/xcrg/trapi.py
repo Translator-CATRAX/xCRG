@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import cast
 
 from translator_tom import (
     Analysis,
@@ -17,6 +18,8 @@ from translator_tom import (
     Response,
     Result,
 )
+
+from xcrg.utilities import make_stable_id
 
 
 @dataclass
@@ -127,3 +130,34 @@ def get_answer_qid(
             if not qnode.ids:
                 return qid
     return object_qid
+
+
+def make_stable_id_for_query(prefix: str, query: Query) -> str:
+    qgraph = cast(QueryGraph, query.message.query_graph)
+
+    # TODO: hardcoded
+    is_two_hop_query = "e0" in qgraph.edges and "e1" in qgraph.edges
+
+    if is_two_hop_query:
+        edge0 = qgraph.edges["e0"]
+        edge1 = qgraph.edges["e1"]
+
+        sn = qgraph.nodes[edge0.subject]
+        tf = qgraph.nodes[edge1.subject]
+        on = qgraph.nodes[edge1.object]
+
+        return make_stable_id(prefix, {
+            "sn_ids": sn.ids,
+            "tf_ids": tf.ids,
+            "on_ids": on.ids
+        })
+    else:
+        _, edge = get_single_query_edge(qgraph)
+
+        sn = qgraph.nodes[edge.subject]
+        on = qgraph.nodes[edge.object]
+
+        return make_stable_id(prefix, {
+            "sn_ids": sn.ids,
+            "on_ids": on.ids
+        })

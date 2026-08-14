@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from io import TextIOWrapper
 from pathlib import Path
 from typing import cast
 
@@ -17,7 +15,7 @@ from translator_tom import (
 )
 
 from . import trapi
-from .utilities import OrderedEnum, XcrgJsonEncoder
+from .utilities import OrderedEnum, serialize_json_to_file
 
 
 class DebugLevel(OrderedEnum):
@@ -122,10 +120,6 @@ class DebugContext:
             self.write_debug_manifest()
         except Exception as exc:
             raise Exception(f"Failed to write debug JSON {label}: {exc}")
-
-
-def serialize_json_to_file(obj: object, file: TextIOWrapper):
-    json.dump(obj, file, cls = XcrgJsonEncoder, indent = 4)
 
 
 def safe_debug_token(value: str | None) -> str:

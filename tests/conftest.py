@@ -42,17 +42,22 @@ def config(request) -> XCRGConfig:
 
     debug_level = DebugLevel(request.config.getoption("--debug_level"))
 
+    use_http_cache = False
     debug_dir: Path | None = None
-    if debug_level != DebugLevel.NONE:
+
+    if debug_level > DebugLevel.NONE:
         assert (debug_dir := project_dir / "output" / "debug")
         debug_dir.mkdir(parents = True, exist_ok = True)
+        use_http_cache = True
+
 
     return XCRGConfig(
         retriever_url = request.config.getoption("--retriever_url"),
         ngd_db_path = ngd_db_file,
         curie_to_pmids_db_path = curie_to_pmids_db_file,
         debug_dir = debug_dir,
-        debug_level = debug_level
+        debug_level = debug_level,
+        debug_use_http_cache = use_http_cache
     )
 
 

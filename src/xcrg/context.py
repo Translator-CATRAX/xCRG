@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import json
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -40,6 +41,8 @@ class RunContext:
 
         query_edge_id : a reference to the ID for the single edge in the original query
         query_edge    : a reference to the single edge in the original query
+
+        start_time : the time when the xCRG run began
     """
 
     query_id  : str
@@ -50,6 +53,8 @@ class RunContext:
 
     query_edge_id : QEdgeID = field(init = False)
     query_edge    : QEdge   = field(init = False)
+
+    start_time = datetime.now(timezone.utc)
 
     def __post_init__(self):
         self.query_edge_id, self.query_edge = trapi.get_single_query_edge(self.query.message.query_graph)
@@ -106,6 +111,14 @@ class RunContext:
     def num_max_results(self) -> int:
         return self.config.max_results
 
+    @property
+    def timeout(self) -> int:
+        return self.config.timeout
+
+    @property
+    def use_http_cache(self) -> bool:
+        return self.config.debug_use_http_cache
+
     @staticmethod
     def new(
         query_id: str,
@@ -137,6 +150,10 @@ class RunContext:
             reporter = reporter,
             debug_ctx = debug_ctx
         )
+
+    def elapsed_time(self) -> timedelta:
+        """The amount of time that has progressed in the run."""
+        return datetime.now(timezone.utc) - self.start_time
 
     def debug_dump_json(
         self,
@@ -200,3 +217,29 @@ class RunContext:
 
     def get_answer_qid(self) -> QNodeID:
         return trapi.get_answer_qid(self.query_graph, self.subject_qid, self.object_qid)
+
+    def get_cache_dir(self) -> Path | None:
+        if not (debug_dir := path_or_none(self.config.debug_dir)): return None
+        cache_dir = debug_dir / "cache"
+        cache_dir.mkdir(exist_ok = True)
+        return cache_dir
+
+    def write_cache_file(self, filename: str | Path, payload: str):
+        try:
+            if not (cache_dir := self.get_cache_dir()): return
+            cache_file = cache_dir / filename
+            with open(cache_file, "w", encoding = "utf-8") as f:
+                f.write(payload)
+        except Exception as e:
+            self.reporter.warning(f"Failed to write cache file {filename}: {e}")
+
+    def read_cache_file(self, filename: str | Path) -> str | None:
+        try:
+            if not (cache_dir := self.get_cache_dir()): return None
+            cache_file = cache_dir / filename
+            if not cache_file.exists(): return None
+            with open(cache_file, "r", encoding = "utf-8") as f:
+                return f.read()
+        except Exception as e:
+            self.reporter.warning(f"Failed to read cache file {filename}: {e}")
+            return None

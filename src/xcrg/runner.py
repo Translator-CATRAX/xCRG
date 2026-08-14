@@ -43,7 +43,7 @@ from . import DebugLevel, biolink, ngd, ranking, retriever, trapi
 from .config import XCRGConfig
 from .constants import TF_QNODE_ID, TP53_CURIE, DIRECT_QEDGE_ID
 from .context import RunContext
-from .reporting import LogReporter, Reporter
+from .reporting import LogReporter, Reporter, StubReporter
 from .utilities import (
     chunk_values,
     make_stable_id,
@@ -1091,16 +1091,18 @@ def is_xcrg_mvp2_query(query: dict | Query) -> bool: # TODO: is_valid_query
 async def async_run_xcrg(
     message: dict,
     config: XCRGConfig,
-    logger: logging.Logger | None = None,
+    logger: logging.Logger | Reporter | None = LogReporter(),
     query_id: str | None = None,
 ) -> dict:
     """Run xCRG and return a complete TRAPI response."""
 
     reporter: Reporter
-    if logger is None:
-        reporter = LogReporter()
-    else:
+    if isinstance(logger, Reporter):
+        reporter = logger
+    elif isinstance(logger, logging.Logger):
         reporter = LogReporter(logger)
+    else:
+        reporter = StubReporter()
 
     query = Query.from_dict(message)
     # TODO: Query.timeout will become available in TRAPI 2.0
@@ -1126,7 +1128,7 @@ async def async_run_xcrg(
 def run_xcrg(
     message: dict,
     config: XCRGConfig,
-    logger: logging.Logger | None = None,
+    logger: logging.Logger | Reporter | None = LogReporter(),
     query_id: str | None = None,
 ) -> dict:
     """Synchronous wrapper for callers that are not already running an event loop."""
