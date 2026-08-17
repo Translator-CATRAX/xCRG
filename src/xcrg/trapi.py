@@ -116,7 +116,11 @@ def result_edge_binding_keys(result: Result) -> set[str]:
 def is_two_hop_result(result: Result) -> bool:
     """Return True for TF-mediated inferred results."""
     keys = result_edge_binding_keys(result)
-    return "e0" in keys and "e1" in keys
+    return "e0" in keys and "e1" in keys # TODO: hardcoded
+
+
+def is_two_hop_query(qgraph: QueryGraph) -> bool:
+    return "e0" in qgraph.edges and "e1" in qgraph.edges # TODO: hardcoded
 
 
 def get_answer_qid(
@@ -135,10 +139,7 @@ def get_answer_qid(
 def make_stable_id_for_query(prefix: str, query: Query) -> str:
     qgraph = cast(QueryGraph, query.message.query_graph)
 
-    # TODO: hardcoded
-    is_two_hop_query = "e0" in qgraph.edges and "e1" in qgraph.edges
-
-    if is_two_hop_query:
+    if is_two_hop_query(qgraph):
         edge0 = qgraph.edges["e0"]
         edge1 = qgraph.edges["e1"]
 

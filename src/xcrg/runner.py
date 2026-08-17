@@ -31,7 +31,6 @@ from translator_tom import (
     QNode,
     QNodeID,
     Qualifier,
-    QualifierConstraint,
     Query,
     QueryGraph,
     Response,
@@ -40,117 +39,21 @@ from translator_tom import (
 )
 
 from . import DebugLevel, biolink, ngd, ranking, retriever, trapi
+from .constants import TF_QNODE_ID, DIRECT_QEDGE_ID
 from .config import XCRGConfig
-from .constants import TF_QNODE_ID, TP53_CURIE, DIRECT_QEDGE_ID
 from .context import RunContext
+from .queries import (
+    DIRECTION_TEMPLATES,
+    Direction,
+    build_one_hop_query,
+    build_two_hop_query
+)
 from .reporting import LogReporter, Reporter, StubReporter
 from .utilities import (
     chunk_values,
     make_stable_id,
     XCRGResult
 )
-
-
-def get_sign_templates(final_direction: str) -> list[tuple[str, str]]:
-    """Return sign-compatible two-hop templates for the desired final direction."""
-    if final_direction == "increased":
-        return [("increased", "increased"), ("decreased", "decreased")]
-    if final_direction == "decreased":
-        return [("increased", "decreased"), ("decreased", "increased")]
-    raise ValueError(f"Unsupported final direction: {final_direction}")
-
-
-def build_two_hop_query(
-    ctx: RunContext,
-    tf_list: list[CURIE],
-    first_direction: str,
-    second_direction: str,
-) -> Query:
-    """Build a TF-mediated two-hop TRAPI query from the original inferred query."""
-    return Query(
-        message = Message(
-            query_graph = QueryGraph(
-                nodes = {
-                    ctx.subject_qid: deepcopy(ctx.subject_qnode),
-                    TF_QNODE_ID: QNode(ids = tf_list, categories = ["biolink:Gene"]),
-                    ctx.object_qid: deepcopy(ctx.object_qnode),
-                },
-                edges = {
-                    "e0": QEdge(
-                        subject = ctx.subject_qid,
-                        object = TF_QNODE_ID,
-                        predicates = ["biolink:affects"],
-                        qualifier_constraints = [
-                                QualifierConstraint(
-                                    qualifier_set = [
-                                        Qualifier(
-                                            qualifier_type_id = "biolink:object_aspect_qualifier",
-                                            qualifier_value = "activity_or_abundance",
-                                        ),
-                                        Qualifier(
-                                            qualifier_type_id = "biolink:object_direction_qualifier",
-                                            qualifier_value = first_direction,
-                                        ),
-                                    ]
-                                )
-                            ],
-                        ),
-                    "e1": QEdge (
-                        subject = TF_QNODE_ID,
-                        object = ctx.object_qid,
-                        predicates = ["biolink:affects"],
-                        qualifier_constraints = [
-                            QualifierConstraint(
-                                qualifier_set = [
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_aspect_qualifier",
-                                        qualifier_value = "activity_or_abundance",
-                                    ),
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_direction_qualifier",
-                                        qualifier_value = second_direction,
-                                    ),
-                                ]
-                            )
-                        ],
-                    ),
-                },
-            ),
-            knowledge_graph = KnowledgeGraph.new(),
-            results = [],
-            auxiliary_graphs = AuxiliaryGraphsDict(),
-        ),
-        bypass_cache = ctx.query.bypass_cache,
-        submitter = ctx.query.submitter or ctx.config.resource_id
-        # TODO: Query.timeout will become available in TRAPI 2.0
-        # two_hop_query.timeout = two_hop_query.timeout or config.timeout
-        # TODO: q.tiers = q.tiers or config.normalized_tiers()
-    )
-
-
-def build_one_hop_query(ctx: RunContext) -> Query:
-    """Build the direct one-hop query that accompanies inferred xCRG mode."""
-    direct_edge = deepcopy(ctx.query_edge)
-    direct_edge.knowledge_type = None
-
-    return Query(
-        message = Message(
-            query_graph = QueryGraph(
-                nodes = {
-                    ctx.subject_qid: deepcopy(ctx.subject_qnode),
-                    ctx.object_qid: deepcopy(ctx.object_qnode),
-                },
-                edges = {
-                    DIRECT_QEDGE_ID: direct_edge
-                }
-            ),
-            knowledge_graph = KnowledgeGraph.new(),
-            results = [],
-            auxiliary_graphs = AuxiliaryGraphsDict(),
-        ),
-        bypass_cache = ctx.query.bypass_cache,
-        submitter = ctx.query.submitter
-    )
 
 
 def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
@@ -172,122 +75,6 @@ def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
         object = ctx.object_qid
     )
     return qgraph
-
-
-def result_has_edge_predicate(
-    result: Result,
-    edges: dict[EdgeID, Edge],
-    predicate: str
-) -> bool:
-    """Return True when any bound knowledge graph edge has the given predicate."""
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis):
-            continue
-        for bindings in analysis.edge_bindings.values():
-            for binding in bindings or []:
-                edge = edges.get(binding.id)
-                if not edge:
-                    continue
-                if edge.predicate == predicate:
-                    return True
-    return False
-
-
-def result_preserves_direction(
-    result: Result,
-    edges: dict[EdgeID, Edge],
-    subject_qid: QNodeID,
-    object_qid: QNodeID,
-) -> bool:
-    """Check that the result preserves source->tf and tf->target edge directions."""
-    source_curie = trapi.get_bound_node_curie(result, subject_qid)
-    tf_curie = trapi.get_bound_node_curie(result, TF_QNODE_ID)
-    target_curie = trapi.get_bound_node_curie(result, object_qid)
-    if not source_curie or not tf_curie or not target_curie:
-        return False
-
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis): # TODO
-            continue
-
-        e0_bindings = analysis.edge_bindings.get("e0") or []
-        e1_bindings = analysis.edge_bindings.get("e1") or []
-        if not e0_bindings or not e1_bindings:
-            return False
-
-        for binding in e0_bindings:
-            edge = edges.get(binding.id)
-            if not edge or edge.subject != source_curie or edge.object != tf_curie:
-                return False
-
-        for binding in e1_bindings:
-            edge = edges.get(binding.id)
-            if not edge or edge.subject != tf_curie or edge.object != target_curie:
-                return False
-
-    return True
-
-
-def result_preserves_direct_direction(
-    result: Result,
-    edges: dict[EdgeID, Edge],
-    subject_qid: QNodeID,
-    object_qid: QNodeID,
-) -> bool:
-    """Check that a direct result preserves the original source->target direction."""
-    source_id = trapi.get_bound_node_curie(result, subject_qid)
-    target_id = trapi.get_bound_node_curie(result, object_qid)
-    if not source_id or not target_id:
-        return False
-
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis):
-            continue
-        edge_bindings = analysis.edge_bindings or {}
-        direct_bindings = edge_bindings.get(DIRECT_QEDGE_ID) or []
-        if not direct_bindings:
-            return False
-
-        for binding in direct_bindings:
-            edge = edges.get(binding.id)
-            if not edge or edge.subject != source_id or edge.object != target_id:
-                return False
-
-    return True
-
-
-def filter_direct_response(
-    response: Response,
-    subject_qid: QNodeID,
-    object_qid: QNodeID
-) -> Response:
-    """Filter subclass and wrong-direction results from a direct Retriever response."""
-    message = response.message
-
-    edges: dict[EdgeID, Edge] = {}
-    if message.knowledge_graph:
-        edges = message.knowledge_graph.edges
-
-    filtered_results: list[Result] = []
-    for result in message.results_list:
-        if result_has_edge_predicate(result, edges, "biolink:subclass_of"):
-            continue
-        if not result_preserves_direct_direction(result, edges, subject_qid, object_qid):
-            continue
-        filtered_results.append(result)
-
-    filtered_message = deepcopy(message)
-    filtered_message.results = filtered_results
-    if not filtered_message.knowledge_graph:
-        filtered_message.knowledge_graph = KnowledgeGraph.new()
-    if not filtered_message.auxiliary_graphs:
-        filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
-
-    return Response(
-        schema_version = response.schema_version,
-        biolink_version = response.biolink_version,
-        message = filtered_message,
-    )
 
 
 def merge_filtered_responses(
@@ -875,43 +662,6 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
     return new_response
 
 
-def filter_inferred_response(
-    response: Response,
-    subject_qid: QNodeID,
-    object_qid: QNodeID,
-) -> Response:
-    """Filter subclass and wrong-direction results from a two-hop Retriever response."""
-    message = response.message
-
-    edges = dict[EdgeID, Edge]()
-    if message.knowledge_graph:
-        edges = message.knowledge_graph.edges
-
-    filtered_results = []
-    for result in message.results_list:
-        tf_id = trapi.get_bound_node_curie(result, TF_QNODE_ID)
-        if tf_id == TP53_CURIE:
-            continue
-        if result_has_edge_predicate(result, edges, "biolink:subclass_of"):
-            continue
-        if not result_preserves_direction(result, edges, subject_qid, object_qid):
-            continue
-        filtered_results.append(result)
-
-    filtered_message = deepcopy(message)
-    filtered_message.results = filtered_results
-    if not filtered_message.knowledge_graph:
-        filtered_message.knowledge_graph = KnowledgeGraph.new()
-    if not filtered_message.auxiliary_graphs:
-        filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
-
-    return Response(
-        schema_version = response.schema_version,
-        biolink_version = response.biolink_version,
-        message = filtered_message
-    )
-
-
 async def run_direct_lookup(ctx: RunContext) -> Response:
     """Run a direct (one-hop) xCRG lookup."""
     return await retriever.run_sync_lookup(ctx, ctx.query)
@@ -924,14 +674,12 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     one_hop_query = build_one_hop_query(ctx)
     ctx.debug_dump_json("direct_lookup_query", one_hop_query)
 
-    one_hop_response = await retriever.run_sync_lookup(ctx, one_hop_query)
-    ctx.debug_dump_json("direct_raw_response", one_hop_response)
+    direct_response = await retriever.run_sync_lookup(ctx, one_hop_query)
+    ctx.debug_dump_json("direct_filtered_response", direct_response)
 
-    filtered_direct_response = filter_direct_response(one_hop_response, ctx.subject_qid, ctx.object_qid)
-    ctx.debug_dump_json("direct_filtered_response", filtered_direct_response)
+    final_direction = trapi.get_qualifier_value(ctx.query_edge, "biolink:object_direction_qualifier") or ""
+    templates = DIRECTION_TEMPLATES[Direction(final_direction.lower())] # TODO: raise better error message
 
-    final_direction = trapi.get_qualifier_value(ctx.query_edge, "biolink:object_direction_qualifier")
-    sign_templates = get_sign_templates(final_direction or "")
     tf_batches = chunk_values(ctx.tf_list, ctx.config.tf_batch_size)
     ctx.reporter.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
@@ -947,25 +695,23 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
         "tf_count": len(ctx.tf_list),
         "batch_size": ctx.config.tf_batch_size,
         "batch_count": len(tf_batches),
-        "direct_response": trapi.get_message_statistics(filtered_direct_response),
+        "direct_response": trapi.get_message_statistics(direct_response),
         "templates": [],
     }
-    for template_idx, (first_dir, second_dir) in enumerate(sign_templates, start = 1):
+    for i, template in enumerate(templates, start = 1):
         template_summary = {
-            "template_index": template_idx,
-            "first_direction": first_dir,
-            "second_direction": second_dir,
+            "template_index": i,
+            "first_direction": template[0],
+            "second_direction": template[1],
             "batches": [],
         }
+
         for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
-            two_hop_query = build_two_hop_query(ctx, tf_batch, first_dir, second_dir)
-            ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_query", two_hop_query)
+            two_hop_query = build_two_hop_query(ctx, tf_batch, template[0], template[1])
+            ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_query", two_hop_query)
 
-            response = await retriever.run_sync_lookup(ctx, two_hop_query)
-            ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_raw_response", response)
-
-            filtered_response = filter_inferred_response(response, ctx.subject_qid, ctx.object_qid)
-            ctx.debug_dump_json(f"template_{template_idx}_batch_{batch_idx}_filtered_response", filtered_response)
+            filtered_response = await retriever.run_sync_lookup(ctx, two_hop_query)
+            ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_response", filtered_response)
 
             filtered_responses.append(filtered_response)
             template_summary["batches"].append(
@@ -973,8 +719,8 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
                     "batch_index": batch_idx,
                     "tf_ids": tf_batch,
                     "tf_count": len(tf_batch),
-                    "raw_response": trapi.get_message_statistics(response),
-                    "filtered_response": trapi.get_message_statistics(filtered_response),
+                    # "raw_response": trapi.get_message_statistics(response),
+                    "response": trapi.get_message_statistics(filtered_response),
                 }
             )
         debug_summary["templates"].append(template_summary)
@@ -984,8 +730,8 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     qgraph = build_two_hop_query(
         ctx,
         ctx.tf_list,
-        sign_templates[0][0],
-        sign_templates[0][1],
+        templates[0][0],
+        templates[0][1],
     ).message.query_graph
 
     merged_inferred = merge_filtered_responses(
@@ -996,7 +742,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
 
     merged = merge_filtered_responses(
         ctx,
-        [filtered_direct_response, merged_inferred],
+        [direct_response, merged_inferred],
         merged_query_graph
     )
     ctx.debug_dump_json("merged_debug_response", merged)
