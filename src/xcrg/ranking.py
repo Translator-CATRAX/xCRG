@@ -10,6 +10,7 @@ from translator_tom import (
     Message,
     QNodeID,
     QueryGraph,
+    Response,
 )
 
 from . import DebugLevel, biolink, trapi
@@ -214,9 +215,9 @@ def calculate_score_for_result(statistics: ResultStatistics) -> float:
     return total_score
 
 
-def rank_results(ctx: RunContext, message: Message, results: list[XCRGResult]) -> list[XCRGResult]:
+def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult]) -> list[XCRGResult]:
     """Score, sort, rank, and limit results in the response."""
-    qgraph = cast(QueryGraph, message.query_graph)
+    qgraph = cast(QueryGraph, response.message.query_graph)
 
     answer_qid = ctx.get_answer_qid()
 
@@ -228,7 +229,7 @@ def rank_results(ctx: RunContext, message: Message, results: list[XCRGResult]) -
     for result in results:
         stats = get_result_statistics(
             ctx,
-            message,
+            response.message,
             result,
             answer_qid,
             use_category_specificity

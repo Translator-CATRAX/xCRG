@@ -629,7 +629,7 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
             add_direct_evidence(new_result, trapi.get_edge_bindings(old_result, DIRECT_QEDGE_ID))
 
 
-    ranked_results = ranking.rank_results(ctx, old_response.message, list(new_results.values()))
+    ranked_results = ranking.rank_results(ctx, old_response, list(new_results.values()))
     total = len(ranked_results)
 
     final_results = list[Result]()
