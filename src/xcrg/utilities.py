@@ -76,6 +76,8 @@ class XCRGResult:
     xcrg_direct_binding_ids : set[EdgeID]       = field(default_factory = set)
   # xcrg_support_edges      : list[EdgeBinding] = field(default_factory = list)
     xcrg_support_edge_ids   : set[EdgeID]       = field(default_factory = set)
+    xcrg_score              : float             = field(default = float("inf"))
+    ngd_score               : float | None      = field(default = None)
 
     def to_trapi_result(self):
         return Result(node_bindings = self.node_bindings, analyses = self.analyses)

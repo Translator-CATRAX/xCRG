@@ -19,7 +19,7 @@ from translator_tom import (
     Result,
 )
 
-from xcrg.utilities import make_stable_id
+from xcrg.utilities import XCRGResult, make_stable_id
 
 
 @dataclass
@@ -96,7 +96,7 @@ def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
     return bindings
 
 
-def get_bound_node_curie(result: Result, qid: QNodeID) -> CURIE | None:
+def get_bound_node_curie(result: Result | XCRGResult, qid: QNodeID) -> CURIE | None:
     """Return the first node binding id for the given qnode."""
     bindings = result.node_bindings.get(qid) or []
     if not bindings:

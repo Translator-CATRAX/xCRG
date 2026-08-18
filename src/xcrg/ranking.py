@@ -5,19 +5,17 @@ from dataclasses import dataclass
 from typing import cast
 
 from translator_tom import (
-    Analysis,
     Attribute,
     CURIE,
     Message,
     QNodeID,
     QueryGraph,
-    Response,
-    Result
 )
 
 from . import DebugLevel, biolink, trapi
 from .context import RunContext
-from .utilities import as_type
+from .ngd import get_ngd_score
+from .utilities import XCRGResult, as_type
 
 
 @dataclass(frozen = True, slots = False)
@@ -36,7 +34,7 @@ class ResultStatistics:
     answer_name          : str
     specificity          : int
     information_content  : int
-    num_edges            : int
+    num_direct_edges     : int
     num_xcrg_edges       : int
     ngd_score            : float | None
     qualified_statements : list[QualifiedStatement]
@@ -44,7 +42,7 @@ class ResultStatistics:
 
 @dataclass(frozen = True, slots = False)
 class ScoredResult:
-    result: Result
+    result: XCRGResult
     stats: ResultStatistics
     score: float
 
@@ -89,7 +87,7 @@ def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
 def get_result_statistics(
     ctx: RunContext,
     message: Message,
-    result: Result,
+    result: XCRGResult,
     answer_qid: QNodeID,
     use_category_specificity: bool,
 ) -> ResultStatistics:
@@ -124,58 +122,33 @@ def get_result_statistics(
                 continue
     information_content: int = max(values)
 
-    bindings = [
-        binding
-        for analysis in result.analyses
-        if isinstance(analysis, Analysis)
-        for bindings in analysis.edge_bindings.values()
-        for binding in bindings
-    ]
-
-    num_edges = len(bindings)
-    num_xcrg_edges = 0
+    num_direct_edges = len(result.xcrg_direct_binding_ids)
+    num_xcrg_edges = len(result.xcrg_support_edge_ids)
 
     qualified_statements = list[QualifiedStatement]()
-    for binding in bindings:
-        attributes = kgraph.edges[binding.id].attributes_list
-        if binding.id.startswith("xcrg_inferred"): # TODO: hardcoded
-            xcrg_edge = kgraph.edges[binding.id]
-            xcrg_graph_id: str
-            for attribute in xcrg_edge.attributes_list:
-                if attribute.attribute_type_id == "biolink:support_graphs":
-                    if graph_ids := as_type(attribute.value, list):
-                        # TODO: Is there ever going to be more than one graph?
-                        xcrg_graph_id = graph_ids[0]
-                        break
-            else:
-                raise Exception("The xCRG support graph could not be found.")
-            xcrg_graph = message.auxiliary_graphs_dict[xcrg_graph_id]
-            num_xcrg_edges = len(xcrg_graph.edges)
-            for edge_id in xcrg_graph.edges:
-                attributes = kgraph.edges[edge_id].attributes_list
-                statement = get_qualified_stmt(attributes)
-                qualified_statements.append(statement)
-        else:
-            statement = get_qualified_stmt(attributes)
-            qualified_statements.append(statement)
 
-    ngd_score: float | None = None
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis): continue
-        for graph_id in analysis.support_graphs_list:
-            if not graph_id.startswith("xcrg_ngd"): continue # TODO: hardcoded
-            ngd_graph = message.auxiliary_graphs_dict[graph_id]
-            for attribute in ngd_graph.attributes:
-                if attribute.original_attribute_name != "normalized_google_distance": continue # TODO: hardcoded
-                if not isinstance(attribute.value, float): continue
-                ngd_score = float(attribute.value)
+    for edge_id in result.xcrg_support_edge_ids:
+        attributes = kgraph.edges[edge_id].attributes_list
+        statement = get_qualified_stmt(attributes)
+        qualified_statements.append(statement)
+
+    for edge_id in result.xcrg_direct_binding_ids:
+        attributes = kgraph.edges[edge_id].attributes_list
+        statement = get_qualified_stmt(attributes)
+        qualified_statements.append(statement)
+
+    ngd_score = get_ngd_score(
+        ctx,
+        result.node_bindings[ctx.subject_qid][0].id,
+        result.node_bindings[ctx.object_qid][0].id
+    )
 
     return ResultStatistics(
         answer_id = answer_id,
         answer_name = answer_name,
         specificity = specificity,
         information_content = information_content,
-        num_edges = num_edges,
+        num_direct_edges = num_direct_edges,
         num_xcrg_edges = num_xcrg_edges,
         qualified_statements = qualified_statements,
         ngd_score = ngd_score
@@ -241,27 +214,8 @@ def calculate_score_for_result(statistics: ResultStatistics) -> float:
     return total_score
 
 
-def stamp_rank_scores(
-    results: list[Result],
-    scoring_method: str,
-    resource_id: str | None = None
-) -> None:
-    """Assign rank-derived TRAPI Analysis.score values after sorting."""
-    total = len(results)
-    if total == 0:
-        return
-    for index, result in enumerate(results):
-        score = float(total - index) / total
-        for analysis in result.analyses:
-            if resource_id and resource_id != analysis.resource_id:
-                continue
-            analysis.score = score
-            analysis.scoring_method = scoring_method
-
-
-def rank_results(ctx: RunContext, response: Response) -> None:
+def rank_results(ctx: RunContext, message: Message, results: list[XCRGResult]) -> list[XCRGResult]:
     """Score, sort, rank, and limit results in the response."""
-    message = response.message
     qgraph = cast(QueryGraph, message.query_graph)
 
     answer_qid = ctx.get_answer_qid()
@@ -271,7 +225,7 @@ def rank_results(ctx: RunContext, response: Response) -> None:
         use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
 
     scored_results = list[ScoredResult]()
-    for result in message.results_list:
+    for result in results:
         stats = get_result_statistics(
             ctx,
             message,
@@ -282,6 +236,7 @@ def rank_results(ctx: RunContext, response: Response) -> None:
         score = calculate_score_for_result(stats)
         scored_result = ScoredResult(result, stats, score)
         scored_results.append(scored_result)
+        result.ngd_score = stats.ngd_score
 
     sorted_results = sorted(scored_results, key = lambda x: x.score, reverse = True)
 
@@ -301,6 +256,4 @@ def rank_results(ctx: RunContext, response: Response) -> None:
     final_results = [x.result for x in sorted_results]
     final_results = final_results[0:ctx.num_max_results]
 
-    stamp_rank_scores(final_results, ctx.scoring_method, ctx.resource_id)
-
-    message.results = final_results
+    return final_results

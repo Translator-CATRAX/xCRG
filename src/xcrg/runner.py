@@ -575,6 +575,7 @@ def finalize_clean_result_analyses(
         ngd.add_ngd_analysis_support_graph(
             ctx,
             analysis,
+            final_result.ngd_score,
             kg_edges,
             kg_nodes,
             auxiliary_graphs,
@@ -627,10 +628,15 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
         else:
             add_direct_evidence(new_result, trapi.get_edge_bindings(old_result, DIRECT_QEDGE_ID))
 
-    for new_result in new_results.values():
+
+    ranked_results = ranking.rank_results(ctx, old_response.message, list(new_results.values()))
+    total = len(ranked_results)
+
+    final_results = list[Result]()
+    for i, result in enumerate(ranked_results):
         finalize_clean_result_analyses(
             ctx,
-            new_result,
+            result,
             new_qgraph,
             old_kgraph.nodes,
             old_kgraph.edges,
@@ -642,24 +648,26 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
             ctx.query_edge
         )
 
-    new_response = Response(
+        # Assign rank-derived TRAPI Analysis.score values
+        score = float(total - i) / total
+        for analysis in result.analyses:
+            if ctx.resource_id != analysis.resource_id:
+                continue
+            analysis.score = score
+            analysis.scoring_method = ctx.scoring_method
+
+        final_results.append(result.to_trapi_result())
+
+    return Response(
         schema_version = old_response.schema_version,
         biolink_version = old_response.biolink_version,
         message = Message(
             query_graph = new_qgraph,
             knowledge_graph = new_kgraph,
-            results = [
-                result.to_trapi_result()
-                for result in new_results.values()
-                if result.analyses
-            ],
+            results = final_results,
             auxiliary_graphs = new_aux_graphs
         )
     )
-
-    ranking.rank_results(ctx, new_response)
-
-    return new_response
 
 
 async def run_direct_lookup(ctx: RunContext) -> Response:
