@@ -24,7 +24,7 @@ from .constants import (
     TP53_CURIE
 )
 from .context import RunContext
-from .utilities import format_json_for_log
+from .utilities import format_json_for_log, make_stable_id
 
 
 def _result_has_edge_predicate(
@@ -180,7 +180,7 @@ async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> t
     # Try and return a cached TRAPI Response if appropriate debugging options are set
     cache_filename: Path | None = None
     if ctx.use_http_cache:
-        cache_filename: Path = Path(trapi.make_stable_id_for_query("http_response", query) + ".json")
+        cache_filename: Path = Path(make_stable_id("http_response", query) + ".json")
         if text := ctx.read_cache_file(cache_filename):
             ctx.reporter.debug(f"Returning cached HTTP response: {cache_filename}")
             return 200, Response.from_json(text)
