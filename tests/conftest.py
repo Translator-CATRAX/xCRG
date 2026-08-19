@@ -26,6 +26,12 @@ def pytest_addoption(parser):
         choices = [x.value for x in DebugLevel],
         default = DebugLevel.NONE.value
     )
+    parser.addoption(
+        "--use_http_cache",
+        help = "Cache all HTTP responses from Retriever.",
+        action = "store_true",
+        default = False
+    )
 
 
 @pytest.fixture(scope = "session")
@@ -42,14 +48,10 @@ def config(request) -> XCRGConfig:
 
     debug_level = DebugLevel(request.config.getoption("--debug_level"))
 
-    use_http_cache = False
-    debug_dir: Path | None = None
+    debug_dir = project_dir / "output" / "debug"
+    debug_dir.mkdir(parents = True, exist_ok = True)
 
-    if debug_level > DebugLevel.NONE:
-        assert (debug_dir := project_dir / "output" / "debug")
-        debug_dir.mkdir(parents = True, exist_ok = True)
-        use_http_cache = True
-
+    use_http_cache = request.config.getoption("--use_http_cache")
 
     return XCRGConfig(
         retriever_url = request.config.getoption("--retriever_url"),

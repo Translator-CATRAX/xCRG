@@ -182,7 +182,7 @@ async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> t
     if ctx.use_http_cache:
         cache_filename: Path = Path(make_stable_id("http_response", query) + ".json")
         if text := ctx.read_cache_file(cache_filename):
-            ctx.reporter.debug(f"Returning cached HTTP response: {cache_filename}")
+            ctx.reporter.info(f"Returning cached HTTP response: {cache_filename}")
             return 200, Response.from_json(text)
 
     # TODO: We need to clarify the correct behavior for timeout
