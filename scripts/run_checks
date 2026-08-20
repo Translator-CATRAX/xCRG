@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Run linter + type checks on the codebase
+
+ruff check
+ty check
