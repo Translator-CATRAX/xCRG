@@ -47,9 +47,21 @@ class DebugContext:
     artifacts: list[dict]
 
     @staticmethod
-    def new(debug_dir: Path, level: DebugLevel, query_id: str, query: Query) -> DebugContext:
+    def new(
+        debug_dir: Path,
+        debug_level: DebugLevel | str | None,
+        run_name: str | None,
+        query_id: str,
+        query: Query
+    ) -> DebugContext:
         """Create human-readable debug path metadata for one xCRG query."""
-        assert debug_dir and debug_dir.exists()
+        debug_dir.mkdir(exist_ok = True)
+
+        level: DebugLevel
+        match debug_level:
+            case DebugLevel(): level = debug_level
+            case str():        level = DebugLevel(debug_level)
+            case None:         level = DebugLevel.NONE
 
         created_at = datetime.now(timezone.utc)
         qnodes = cast(QueryGraph, query.message.query_graph).nodes
@@ -58,7 +70,8 @@ class DebugContext:
         source_label = describe_qnode_for_debug(qnodes.get(edge.subject))
         target_label = describe_qnode_for_debug(qnodes.get(edge.object))
         direction_label = safe_debug_token(direction)
-        run_name = (
+
+        run_name = run_name or (
             f"{created_at.strftime('%Y%m%d_%H%M%S')}_{query_id}_"
             f"{source_label}_to_{target_label}_{direction_label}"
         )

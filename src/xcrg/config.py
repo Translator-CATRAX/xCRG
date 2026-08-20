@@ -27,5 +27,6 @@ class XCRGConfig:
     trapi_schema_version   : str                     = "1.6.0"
     biolink_version        : str                     = "4.3.2"
     debug_dir              : str | Path | None       = None
+    debug_run_name         : str | None              = None
     debug_level            : str | DebugLevel | None = DebugLevel.BASIC
     debug_use_http_cache   : bool                    = False

@@ -128,17 +128,13 @@ class RunContext:
     ) -> RunContext:
         """Instantiate a new RunContext."""
         debug_ctx: DebugContext | None = None
-        if (debug_dir := path_or_none(config.debug_dir)) and debug_dir.exists():
-            debug_level: DebugLevel
-            match config.debug_level:
-                case DebugLevel(): debug_level = config.debug_level
-                case str():        debug_level = DebugLevel(config.debug_level)
-                case None:         debug_level = DebugLevel.NONE
+        if debug_dir := path_or_none(config.debug_dir):
             debug_ctx = DebugContext.new(
                 debug_dir = debug_dir,
-                level = debug_level,
+                debug_level = config.debug_level,
+                run_name = config.debug_run_name,
                 query = query,
-                query_id = query_id
+                query_id = query_id,
             )
         else:
             reporter.info("debug_dir does not exist; debugger will not be used for this run.")
