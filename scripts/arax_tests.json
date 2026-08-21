@@ -1,5 +1,6 @@
 [
     {
+        "id": "366785e9-bb81-4db8-b2bd-d79f289e150d",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:1636",
@@ -59,6 +60,7 @@
         ]
     },
     {
+        "id": "254352e6-a472-4239-be6b-7b863b95df71",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:154",
@@ -106,6 +108,7 @@
         ]
     },
     {
+        "id": "895fcfa8-2cd7-41c5-9caa-25c3f9dd31b8",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "CHEBI:59173",
@@ -139,6 +142,7 @@
         ]
     },
     {
+        "id": "b7e9e513-cde3-45ed-b366-38ea9da851b9",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:675",
@@ -222,6 +226,7 @@
         ]
     },
     {
+        "id": "f78af50c-b1ab-45b1-bd7a-c62edf94df9e",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:1565",
@@ -305,6 +310,7 @@
         ]
     },
     {
+        "id": "0012f9cd-cb88-4c41-b639-2035c91de3d8",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:8653",
@@ -335,6 +341,7 @@
         ]
     },
     {
+        "id": "3289146b-7275-4da8-959f-cff3160f46f0",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "CHEBI:27744",
@@ -354,6 +361,7 @@
         ]
     },
     {
+       "id": "20574d1b-2402-4db9-9d4f-d8e57dfe3897",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:3043",
@@ -418,6 +426,7 @@
         ]
     },
     {
+        "id": "2b2b5980-e500-481d-bee9-9ced3ece7583",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "CHEBI:142437",
@@ -890,6 +899,7 @@
         ]
     },
     {
+        "id": "ced128a1-c98f-4694-9dd6-28e584c48949",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "CHEBI:50692",
@@ -916,6 +926,7 @@
         ]
     },
     {
+        "id": "b011079c-b674-47da-8c66-ab7d47e7c7aa",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:167574",
@@ -939,6 +950,7 @@
         ]
     },
     {
+        "id": "43d68108-2dd8-463e-aa45-9875da294eec",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:6605",
@@ -1019,6 +1031,7 @@
         ]
     },
     {
+        "id": "090be321-0978-47fd-9d02-0e98670cfbb7",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "CHEBI:74947",
@@ -1044,6 +1057,7 @@
         ]
     },
     {
+        "id": "87bab1d7-8cf7-485c-b4c0-b6adda7f62b7",
         "type": "find_chemicals_affecting_gene",
         "direction": "increased",
         "candidate_id": "NCBIGene:154",
@@ -1078,6 +1092,7 @@
         ]
     },
     {
+        "id": "995402db-3253-41ae-8285-ad1ae447dac8",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:27744",
@@ -1114,6 +1129,7 @@
         ]
     },
     {
+        "id": "dc91b4f6-95d9-40b0-95d5-7f2457436c30",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:29103",
@@ -1518,6 +1534,7 @@
         ]
     },
     {
+        "id": "62dcf4e6-d7a3-42ec-b1d9-e82bba048e90",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:41774",
@@ -1565,6 +1582,7 @@
         ]
     },
     {
+        "id": "bd9cc2ef-d1e0-43cd-aa1b-a723bb15b26d",
         "type": "find_chemicals_affecting_gene",
         "direction": "increased",
         "candidate_id": "NCBIGene:1080",
@@ -1578,6 +1596,7 @@
         ]
     },
     {
+        "id": "9845b196-8e3c-42ad-b172-e984e7a3c665",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:5558",
@@ -1591,6 +1610,7 @@
         ]
     },
     {
+        "id": "ca6a81c8-9626-4e42-8e6c-3d9fe344f580",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "CHEBI:4672",
@@ -1604,6 +1624,7 @@
         ]
     },
     {
+       "id": "22812a8e-de59-471a-b13f-7cc18d0eb6fb",
         "type": "find_chemicals_affecting_gene",
         "direction": "increased",
         "candidate_id": "NCBIGene:1742",
@@ -1617,6 +1638,7 @@
         ]
     },
     {
+        "id": "076b3b1b-bc68-42e3-a5c0-38418ca222a5",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:15355",
@@ -1630,6 +1652,7 @@
         ]
     },
     {
+        "id": "352c02bd-878a-47a2-9aec-822d05545b5d",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "NCBIGene:4609",
@@ -1643,6 +1666,7 @@
         ]
     },
     {
+        "id": "10a839e0-2ed5-4e2b-a6d2-f2a385672e39",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:34648",
@@ -1656,6 +1680,7 @@
         ]
     },
     {
+        "id": "4ff73493-c994-4d41-bc00-14234e2ab0bf",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:673",
@@ -1669,6 +1694,7 @@
         ]
     },
     {
+        "id": "58c6bf8f-1713-470f-86b7-645e57b407ec",
         "comments": [
             "TODO: This fails on ARAX because the output_id \"NCBI:2629\" is incorrect?"
         ],
@@ -1686,6 +1712,7 @@
         ]
     },
     {
+        "id": "7d611ba7-9b6c-4dd2-8658-2931729016f0",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:6524",
@@ -1699,6 +1726,7 @@
         ]
     },
     {
+        "id": "21e111fb-fd81-4a97-8275-f5dc77d47fa8",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:51297",
@@ -1712,6 +1740,7 @@
         ]
     },
     {
+        "id": "ec342279-7951-4ccc-a65b-c6f1ce71062c",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:8972",
@@ -1726,6 +1755,7 @@
         ]
     },
     {
+        "id": "2f1dc291-eaf5-46fc-bd8c-35f1f63ec810",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:79001",
@@ -1739,6 +1769,7 @@
         ]
     },
     {
+        "id": "dce4ebec-dfd0-4feb-93f8-bb19603ed8e3",
         "type": "find_genes_affected_by_chemical",
         "direction": "decreased",
         "candidate_id": "CHEBI:170007",
@@ -1753,6 +1784,7 @@
         ]
     },
     {
+        "id": "69f3e42f-b86e-46ae-8a56-d7d8699975df",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
         "candidate_id": "CHEBI:34911",
@@ -1767,6 +1799,7 @@
         ]
     },
     {
+        "id": "7fd2d98f-b4df-49e4-8fce-d9e6faca73ec",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:8654",
@@ -1780,6 +1813,7 @@
         ]
     },
     {
+        "id": "b1560d85-59dd-4d62-af2c-ed350fdb34db",
         "type": "find_chemicals_affecting_gene",
         "direction": "decreased",
         "candidate_id": "NCBIGene:3845",
