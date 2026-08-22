@@ -242,32 +242,33 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
 
     params = Scoring_Params(
         agent_type_weights = {
-            Agent_Type.MANUAL_AGENT: 2,
-            Agent_Type.AUTOMATED_AGENT: 1.5,
-            Agent_Type.COMPUTATIONAL_MODEL: 1.5,
-            Agent_Type.TEXT_MINING_AGENT: 1
+            Agent_Type.MANUAL_AGENT: 2.7481831114390363,
+            Agent_Type.AUTOMATED_AGENT: 4.8577822159030335,
+            Agent_Type.COMPUTATIONAL_MODEL: 1.9647096774358528,
+            Agent_Type.TEXT_MINING_AGENT: 0.017863421090903536,
         },
         knowledge_level_weights = {
-            Knowledge_Level.KNOWLEDGE_ASSERTION: 2,
-            Knowledge_Level.LOGICAL_ENTAILMENT: 1.5,
-            Knowledge_Level.PREDICTION: 1.5,
-            Knowledge_Level.STATISTICAL_ASSOCIATION: 1,
-            Knowledge_Level.TEXT_CO_OCCURRENCE: 1,
-            Knowledge_Level.OBSERVATION: 1,
+            Knowledge_Level.KNOWLEDGE_ASSERTION: 9.973747562944625,
+            Knowledge_Level.LOGICAL_ENTAILMENT: 4.1090453145165835,
+            Knowledge_Level.PREDICTION: 4.65987253204859,
+            Knowledge_Level.STATISTICAL_ASSOCIATION: 4.25861491058457,
+            Knowledge_Level.TEXT_CO_OCCURRENCE: 1.5481832026793478,
+            Knowledge_Level.OBSERVATION: 1.9805966803548753,
+            Knowledge_Level.NOT_PROVIDED: 0.01479977839514357,
         },
-        confidence_factor = 1.5,
+        confidence_factor = 8.691003711797649,
         category_weights = {
             Evidence_Category.NUM_STUDIES: Count_Category(
-                log_function = math.log2,
-                factor = 1.5
+                log_function = math.log,
+                factor = 0.21916779253511368
             ),
             Evidence_Category.NUM_PUBLICATIONS: Count_Category(
-                log_function = math.log2,
-                factor = 1.25
+                log_function = lambda x: x,
+                factor = 7.407108483542785
             ),
             Evidence_Category.EVIDENCE_COUNT: Count_Category(
-                log_function = math.log2,
-                factor = 1
+                log_function = lambda x: x,
+                factor = 8.128071002958169
             )
         }
     )
