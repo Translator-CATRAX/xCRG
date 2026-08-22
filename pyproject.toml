@@ -26,6 +26,7 @@ classifiers = [
 
 [dependency-groups]
 dev = [
+    "optuna==4.9.0",
     "pyright==1.1.411",
     "pytest==9.1.1",
     "pytest-xdist==3.8.0",

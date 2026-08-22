@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+import json
+import math
+import sys
+from math import ceil
+from pathlib import Path
+from typing import Callable
+
+from optuna import Trial, create_study
+from translator_tom import CURIE
+
+from xcrg.biolink import Agent_Type, Knowledge_Level
+from xcrg.ranking import (
+    Count_Category,
+    Evidence_Category,
+    QualifiedStatement, ResultStatistics,
+    Scoring_Params,
+    calculate_score_for_result
+)
+
+
+LOG_FUNCTIONS: dict[str, Callable[[float], float]] = {
+    "identity": lambda x: x,
+    "log": math.log,
+    "log2": math.log2,
+    "log10": math.log10
+}
+
+
+def evaluate_test_expectation(answer_id: CURIE, answer_ids: list[CURIE], expectation: str) -> bool:
+    match expectation:
+        case "exists":             return answer_id in answer_ids
+        case "top_answer":         return answer_id in answer_ids[0:max(30, ceil(len(answer_ids) / 10))]
+        case "acceptable":         return answer_id in answer_ids[0:ceil(len(answer_ids) / 2)]
+        case "bad_but_forgivable": return answer_id not in answer_ids[0:ceil(len(answer_ids) / 2)]
+        case "never_show":         return answer_id not in answer_ids
+        case _:                    raise ValueError(f"Invalid AnswerExpectation: {expectation}")
+
+
+def make_objective(project_dir: Path):
+    json_file = project_dir / "scripts/arax_tests.json"
+    with open(json_file, "r") as f:
+        arax_tests = json.load(f)
+
+    statistics = dict[str, list[ResultStatistics]]()
+    for test in arax_tests:
+        test_id: str = test["id"]
+        test_dir = project_dir / f"output/debug/arax_test_{test_id}"
+
+        matches = list(test_dir.glob("*.xcrg_scored_results.json"))
+
+        json_file = matches[0]
+        with open(json_file, "r") as f:
+            xcrg_scored_results = json.load(f)
+
+        for result in xcrg_scored_results:
+            stats = result["stats"]
+
+            qualified_statements = list[QualifiedStatement]()
+            for stmt in stats["qualified_statements"]:
+                qualified_statements.append(QualifiedStatement(
+                     num_publications = stmt["num_publications"],
+                     num_studies = stmt["num_studies"],
+                     evidence_count = stmt["evidence_count"],
+                     knowledge_level = stmt["knowledge_level"],
+                     agent_type = stmt["agent_type"],
+                     confidence_score = stmt["confidence_score"],
+                ))
+
+            statistics.setdefault(test_id, []).append(ResultStatistics(
+                answer_id = stats["answer_id"],
+                answer_name = stats["answer_name"],
+                specificity = stats["specificity"],
+                information_content = stats["information_content"],
+                num_direct_edges = stats["num_direct_edges"],
+                num_xcrg_edges = stats["num_xcrg_edges"],
+                ngd_score = stats["ngd_score"],
+                qualified_statements = qualified_statements
+            ))
+
+    def objective(trial: Trial) -> int:
+        params = Scoring_Params(
+            agent_type_weights = {
+                x: trial.suggest_float(f"{x.value}_weight", 0.0, 10.0)
+                for x in Agent_Type
+            },
+            knowledge_level_weights = {
+                x: trial.suggest_float(f"{x.value}_weight", 0.0, 10.0)
+                for x in Knowledge_Level
+            },
+            confidence_factor = trial.suggest_float("confidence_factor", 0.0, 10.0),
+            category_weights = {
+                x: Count_Category(
+                    log_function = LOG_FUNCTIONS[
+                        trial.suggest_categorical(
+                            f"{x.value}_log_function",
+                            ["identity", "log", "log2", "log10"],
+                        )
+                    ],
+                    factor = trial.suggest_float(f"{x.value}_factor", 0.0, 10.0)
+                )
+                for x in Evidence_Category
+            }
+        )
+
+        passed_tests = 0
+        for test in arax_tests:
+            results = list[tuple[float, CURIE]]()
+            for stats in statistics[test["id"]]:
+                curie = stats.answer_id
+                score = calculate_score_for_result(stats, params)
+                results.append((score, curie))
+            answer_ids = [x[1] for x in sorted(results, key = lambda x: x[0], reverse = True)]
+            for answer in test["answers"]:
+                answer_id = answer["id"]
+                expectation = answer["expectation"]
+                if evaluate_test_expectation(answer_id, answer_ids, expectation):
+                    passed_tests += 1
+        return passed_tests
+
+    return objective
+
+
+def main():
+    script_file = Path(sys.argv[0])
+    project_dir = script_file.parent.parent # TODO: fragile
+
+    study = create_study(direction="maximize")
+    objective = make_objective(project_dir)
+    study.optimize(objective, n_trials=1000)
+
+    print(study.best_value)
+    print(study.best_params)
+
+
+if __name__ == "__main__":
+    main()

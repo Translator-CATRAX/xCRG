@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import cast
+from enum import Enum
+from typing import Callable, cast
 
 from translator_tom import (
     Attribute,
@@ -14,6 +15,7 @@ from translator_tom import (
 )
 
 from . import DebugLevel, biolink, trapi
+from .biolink import Agent_Type, Knowledge_Level
 from .context import RunContext
 from .ngd import get_ngd_score
 from .utilities import XCRGResult, as_type
@@ -156,34 +158,41 @@ def get_result_statistics(
     )
 
 
-def calculate_score_for_result(statistics: ResultStatistics) -> float:
+class Evidence_Category(Enum):
+    NUM_STUDIES      = "num_studies"
+    NUM_PUBLICATIONS = "num_publications"
+    EVIDENCE_COUNT   = "evidence_count"
+
+
+@dataclass
+class Count_Category:
+    log_function : Callable[[float], float]
+    factor       : float
+
+
+@dataclass
+class Scoring_Params:
+    agent_type_weights      : dict[biolink.Agent_Type, float]
+    knowledge_level_weights : dict[biolink.Knowledge_Level, float]
+    confidence_factor       : float
+    category_weights        : dict[Evidence_Category, Count_Category]
+
+
+def calculate_score_for_result(statistics: ResultStatistics, params: Scoring_Params) -> float:
     total_score: float = 0
 
     for stmt in statistics.qualified_statements:
         score: float = 0
 
-        agent_factor: float
-        match stmt.agent_type:
-            case "manual_agent":        agent_factor = 2
-            case "automated_agent":     agent_factor = 1.5
-            case "computational_model": agent_factor = 1.5
-            case "text_mining_agent":   agent_factor = 1
-            case _:                     agent_factor = 1
+        agent_type = biolink.Agent_Type(stmt.agent_type)
+        agent_factor = params.agent_type_weights.get(agent_type, 1)
 
-        knowledge_factor: float
-        match stmt.knowledge_level:
-            case "knowledge_assertion":     knowledge_factor = 2
-            case "logical_entailment":      knowledge_factor = 1.5
-            case "prediction":              knowledge_factor = 1.5
-            case "statistical_association": knowledge_factor = 1
-            case "text_co_occurrence":      knowledge_factor = 1
-            case "observation":             knowledge_factor = 1
-            case _:                         knowledge_factor = 1
+        knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
+        knowledge_factor = params.knowledge_level_weights.get(knowledge_level, 1)
 
         # For now, just having a confidence score is enough to boost the score
-        confidence_factor: float
         if stmt.confidence_score:
-            confidence_factor = 1.5
+            confidence_factor = params.confidence_factor
         else:
             confidence_factor = 1
 
@@ -193,9 +202,15 @@ def calculate_score_for_result(statistics: ResultStatistics) -> float:
             confidence_factor
         ]
 
-        score += math.log2(stmt.num_studies + 1)      * 1.5
-        score += math.log2(stmt.num_publications + 1) * 1.25
-        score += math.log2(stmt.evidence_count + 1)   * 1
+        category = params.category_weights[Evidence_Category.NUM_STUDIES]
+        score += category.log_function(stmt.num_studies + 1) * category.factor
+
+        category = params.category_weights[Evidence_Category.NUM_PUBLICATIONS]
+        score += category.log_function(stmt.num_publications + 1) * category.factor
+
+        category = params.category_weights[Evidence_Category.EVIDENCE_COUNT]
+        score += category.log_function(stmt.evidence_count + 1) * category.factor
+
         score *= (sum(factors) / len(factors))
 
         total_score += score
@@ -225,6 +240,38 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
     if qnode := qgraph.nodes.get(answer_qid):
         use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
 
+    params = Scoring_Params(
+        agent_type_weights = {
+            Agent_Type.MANUAL_AGENT: 2,
+            Agent_Type.AUTOMATED_AGENT: 1.5,
+            Agent_Type.COMPUTATIONAL_MODEL: 1.5,
+            Agent_Type.TEXT_MINING_AGENT: 1
+        },
+        knowledge_level_weights = {
+            Knowledge_Level.KNOWLEDGE_ASSERTION: 2,
+            Knowledge_Level.LOGICAL_ENTAILMENT: 1.5,
+            Knowledge_Level.PREDICTION: 1.5,
+            Knowledge_Level.STATISTICAL_ASSOCIATION: 1,
+            Knowledge_Level.TEXT_CO_OCCURRENCE: 1,
+            Knowledge_Level.OBSERVATION: 1,
+        },
+        confidence_factor = 1.5,
+        category_weights = {
+            Evidence_Category.NUM_STUDIES: Count_Category(
+                log_function = math.log2,
+                factor = 1.5
+            ),
+            Evidence_Category.NUM_PUBLICATIONS: Count_Category(
+                log_function = math.log2,
+                factor = 1.25
+            ),
+            Evidence_Category.EVIDENCE_COUNT: Count_Category(
+                log_function = math.log2,
+                factor = 1
+            )
+        }
+    )
+
     scored_results = list[ScoredResult]()
     for result in results:
         stats = get_result_statistics(
@@ -234,7 +281,7 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
             answer_qid,
             use_category_specificity
         )
-        score = calculate_score_for_result(stats)
+        score = calculate_score_for_result(stats, params)
         scored_result = ScoredResult(result, stats, score)
         scored_results.append(scored_result)
         result.ngd_score = stats.ngd_score
