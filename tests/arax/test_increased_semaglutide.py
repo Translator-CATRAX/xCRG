@@ -11,13 +11,14 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
+TEST_NAME = f"arax_test_b011079c-b674-47da-8c66-ab7d47e7c7aa"
 
-@pytest.fixture(scope = "session")
+@pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
-    config = replace(config, debug_run_name = f"arax_test_b011079c-b674-47da-8c66-ab7d47e7c7aa")
+    config = replace(config, debug_run_name = TEST_NAME)
     return find_genes_affected_by_chemical(config, "increased", "CHEBI:167574") # Semaglutide
 
-
+@pytest.mark.xdist_group(name = TEST_NAME)
 @pytest.mark.parametrize(
     "answer",
     [

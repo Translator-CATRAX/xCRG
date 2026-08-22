@@ -11,13 +11,14 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
+TEST_NAME = f"arax_test_dc91b4f6-95d9-40b0-95d5-7f2457436c30"
 
-@pytest.fixture(scope = "session")
+@pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
-    config = replace(config, debug_run_name = f"arax_test_dc91b4f6-95d9-40b0-95d5-7f2457436c30")
+    config = replace(config, debug_run_name = TEST_NAME)
     return find_genes_affected_by_chemical(config, "increased", "CHEBI:29103") # Potassium ion
 
-
+@pytest.mark.xdist_group(name = TEST_NAME)
 @pytest.mark.parametrize(
     "answer",
     [

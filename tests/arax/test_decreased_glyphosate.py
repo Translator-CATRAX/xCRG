@@ -11,13 +11,14 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
+TEST_NAME = f"arax_test_3289146b-7275-4da8-959f-cff3160f46f0"
 
-@pytest.fixture(scope = "session")
+@pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
-    config = replace(config, debug_run_name = f"arax_test_3289146b-7275-4da8-959f-cff3160f46f0")
+    config = replace(config, debug_run_name = TEST_NAME)
     return find_genes_affected_by_chemical(config, "decreased", "CHEBI:27744") # Glyphosate
 
-
+@pytest.mark.xdist_group(name = TEST_NAME)
 @pytest.mark.parametrize(
     "answer",
     [

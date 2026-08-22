@@ -11,13 +11,14 @@ from tests.utilities import (
     find_chemicals_affecting_gene,
 )
 
+TEST_NAME = f"arax_test_b7e9e513-cde3-45ed-b366-38ea9da851b9"
 
-@pytest.fixture(scope = "session")
+@pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
-    config = replace(config, debug_run_name = f"arax_test_b7e9e513-cde3-45ed-b366-38ea9da851b9")
+    config = replace(config, debug_run_name = TEST_NAME)
     return find_chemicals_affecting_gene(config, "decreased", "NCBIGene:675") # BRCA2
 
-
+@pytest.mark.xdist_group(name = TEST_NAME)
 @pytest.mark.parametrize(
     "answer",
     [

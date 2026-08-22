@@ -11,13 +11,14 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
+TEST_NAME = f"arax_test_2b2b5980-e500-481d-bee9-9ced3ece7583"
 
-@pytest.fixture(scope = "session")
+@pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
-    config = replace(config, debug_run_name = f"arax_test_2b2b5980-e500-481d-bee9-9ced3ece7583")
+    config = replace(config, debug_run_name = TEST_NAME)
     return find_genes_affected_by_chemical(config, "decreased", "CHEBI:142437") # Lepirudin
 
-
+@pytest.mark.xdist_group(name = TEST_NAME)
 @pytest.mark.parametrize(
     "answer",
     [

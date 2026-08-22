@@ -25,16 +25,17 @@ def generate_test_files(arax_dir: Path, tests: list[dict]):
             assert_answer,
             {test["type"]},
         )
-
+        
+        TEST_NAME = f"arax_test_{test["id"]}"
         """).lstrip()
 
         s += dedent(f"""
-        @pytest.fixture(scope = "session")
+        @pytest.fixture(scope = "module")
         def response(config: xcrg.XCRGConfig) -> Response:
-            config = replace(config, debug_run_name = f"arax_test_{test["id"]}")
+            config = replace(config, debug_run_name = TEST_NAME)
             return {test["type"]}(config, "{test["direction"]}", "{test["candidate_id"]}") # {test["candidate_name"]}
 
-
+        @pytest.mark.xdist_group(name = TEST_NAME)
         @pytest.mark.parametrize(
             "answer",
             [
@@ -101,7 +102,6 @@ def generate_one_shot_tests(arax_dir: Path, tests: list[dict]):
             config = replace(config, debug_run_name = f"arax_test_{test["id"]}")
             response = {test["type"]}(config, "{test["direction"]}", "{test["candidate_id"]}")  # {test["candidate_name"]}
             assert_answer(response, XCRG_Answer("{answer["id"]}", "{answer["expectation"]}"{fails}))  # {answer["name"]}
-        
         
         """).lstrip()
 
