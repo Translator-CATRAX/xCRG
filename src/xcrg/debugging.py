@@ -1,4 +1,5 @@
-import json
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,11 +15,25 @@ from translator_tom import (
 )
 
 from . import trapi
+from .utilities import OrderedEnum, serialize_json_to_file
 
 
-@dataclass
+class DebugLevel(OrderedEnum):
+    """The debug level represents how much data will be saved during xCRG runs."""
+    value: str
+
+    NONE = "none"
+    """Do not save any debug data."""
+    BASIC = "basic"
+    """Save some debugging data, including final response."""
+    ALL = "all"
+    """Save all debug data."""
+
+
+@dataclass(frozen = True)
 class DebugContext:
     """Assorted data for debugging xCRG runner."""
+    level: DebugLevel
     query_id: str
     created_at: datetime
     run_name: str
@@ -31,25 +46,38 @@ class DebugContext:
     direction: str | None
     artifacts: list[dict]
 
-
     @staticmethod
-    def new(debug_dir: Path, query_id: str, query: Query) -> "DebugContext":
+    def new(
+        debug_dir: Path,
+        debug_level: DebugLevel | str | None,
+        run_name: str | None,
+        query_id: str,
+        query: Query
+    ) -> DebugContext:
         """Create human-readable debug path metadata for one xCRG query."""
-        assert debug_dir and debug_dir.exists()
+        debug_dir.mkdir(exist_ok = True)
+
+        level: DebugLevel
+        match debug_level:
+            case DebugLevel(): level = debug_level
+            case str():        level = DebugLevel(debug_level)
+            case None:         level = DebugLevel.NONE
 
         created_at = datetime.now(timezone.utc)
         qnodes = cast(QueryGraph, query.message.query_graph).nodes
-        edge_id, edge = trapi.get_single_query_edge(query)
+        edge_id, edge = trapi.get_single_query_edge(query.message.query_graph)
         direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
         source_label = describe_qnode_for_debug(qnodes.get(edge.subject))
         target_label = describe_qnode_for_debug(qnodes.get(edge.object))
         direction_label = safe_debug_token(direction)
-        run_name = (
+
+        run_name = run_name or (
             f"{created_at.strftime('%Y%m%d_%H%M%S')}_{query_id}_"
             f"{source_label}_to_{target_label}_{direction_label}"
         )
 
         return DebugContext(
+            level = level,
             query_id = query_id,
             created_at = created_at,
             run_name = run_name,
@@ -62,6 +90,49 @@ class DebugContext:
             direction = direction,
             artifacts = []
         )
+
+    def write_debug_manifest(self) -> None:
+        """Write or refresh the human-readable debug manifest for one query."""
+        try:
+            # HACK: Some of this is leftovers from when the code was untyped
+            manifest = { k: v for k, v in vars(self).items() if k not in {"run_dir", "level"} }
+            manifest_file = self.run_dir / "000.manifest.json"
+            with open(manifest_file, "w", encoding = "utf-8") as f:
+                serialize_json_to_file(manifest, f)
+        except Exception as exc:
+            raise Exception(f"Failed to write xCRG debug manifest: {exc}")
+
+    def dump_json(self, label: str, payload: object | TOMBase, level: DebugLevel) -> None:
+        """Best-effort debug JSON dump for inferred xCRG runs."""
+        try:
+            if level > self.level:
+                return
+            self.run_dir.mkdir(parents=True, exist_ok=True)
+
+            # step keeps debug files sorted by emission time
+            # +1 because manifest ought to always be the first file
+            step = len(self.artifacts) + 1
+            readable_path = self.run_dir / f"{step:03d}.{label}.json"
+
+            with open(readable_path, "w", encoding="utf-8") as f:
+                serialize_json_to_file(payload, f)
+
+            match payload:
+                case Query() | Response() as entity:
+                    summary = trapi.get_message_statistics(entity)
+                case _:
+                    summary = ""
+
+            self.artifacts.append({
+                "label": label,
+                "path": readable_path.relative_to(self.run_dir),
+                "written_at": datetime.now(timezone.utc),
+                "summary": summary,
+            })
+
+            self.write_debug_manifest()
+        except Exception as exc:
+            raise Exception(f"Failed to write debug JSON {label}: {exc}")
 
 
 def safe_debug_token(value: str | None) -> str:
@@ -84,49 +155,3 @@ def describe_qnode_for_debug(qnode: QNode | None) -> str:
     if categories:
         return safe_debug_token(categories[0].removeprefix("biolink:"))
     return "unbound"
-
-
-def write_debug_manifest(ctx: DebugContext) -> None:
-    """Write or refresh the human-readable debug manifest for one query."""
-    try:
-        # manifest = {
-        #     key: value
-        #     for key, value in debug_context.items()
-        #     if key not in {"run_dir"}
-        # }
-        manifest = vars(ctx)
-        manifest["run_dir"] = str(ctx.run_dir)
-        manifest_path = ctx.run_dir / "manifest.json"
-        with open(manifest_path, "w", encoding="utf-8") as manifest_file:
-            json.dump(manifest, manifest_file, indent=2, sort_keys=True)
-    except Exception as exc:
-        raise Exception(f"Failed to write xCRG debug manifest: {exc}")
-
-
-def debug_dump_json(ctx: DebugContext, label: str, payload: object | TOMBase) -> None:
-    """Best-effort debug JSON dump for inferred xCRG runs."""
-    try:
-        ctx.run_dir.mkdir(parents=True, exist_ok=True)
-        readable_path = ctx.run_dir / f"{label}.json"
-        with open(readable_path, "w", encoding="utf-8") as debug_file:
-            if isinstance(payload, TOMBase):
-                data = payload.to_dict()
-            else:
-                data = payload
-            json.dump(data, debug_file, indent=2, sort_keys=True)
-        match payload:
-            case Query() | Response() as entity:
-                summary = trapi.get_message_statistics(entity)
-            case _:
-                summary = ""
-        ctx.artifacts.append(
-            {
-                "label": label,
-                "path": str(readable_path),
-                "written_at": datetime.now(timezone.utc).isoformat(),
-                "summary": summary,
-            }
-        )
-        write_debug_manifest(ctx)
-    except Exception as exc:
-        raise Exception(f"Failed to write debug JSON {label}: {exc}")

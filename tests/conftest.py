@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from xcrg import XCRGConfig, DebugLevel
+
 
 # Configure optional test parameters; these currently only affect integration tests
 def pytest_addoption(parser):
@@ -19,56 +21,68 @@ def pytest_addoption(parser):
         help = "The path to the Curie-to-PMIDs database file"
     )
     parser.addoption(
-        "--save_response",
+        "--debug_level",
+        help = "Choose how much debug data to save for each xCRG run.",
+        choices = [x.value for x in DebugLevel],
+        default = DebugLevel.NONE.value
+    )
+    parser.addoption(
+        "--use_http_cache",
+        help = "Cache all HTTP responses from Retriever.",
         action = "store_true",
-        help = "Save the TRAPI response as a JSON file",
         default = False
     )
 
 
-@pytest.fixture()
-def project_dir() -> Path:
-    return Path(__file__).parent.parent
+@pytest.fixture(scope = "session")
+def config(request) -> XCRGConfig:
+    project_dir = Path(__file__).parent.parent # TODO: Fragile...
 
-
-@pytest.fixture()
-def retriever_url(request) -> str:
-    return request.config.getoption("--retriever_url")
-
-
-@pytest.fixture
-def ngd_db_file(request) -> Path | None:
+    ngd_db_file: Path | None = None
     if file := request.config.getoption("--ngd_db_file"):
-        return Path(file)
-    else:
-        return None
+        ngd_db_file = Path(file)
 
-
-@pytest.fixture
-def curie_to_pmids_db_file(request) -> Path | None:
+    curie_to_pmids_db_file: Path | None = None
     if file := request.config.getoption("--curie_to_pmids_db_file"):
-        return Path(file)
-    else:
-        return None
+        curie_to_pmids_db_file = Path(file)
 
+    debug_level = DebugLevel(request.config.getoption("--debug_level"))
 
-@pytest.fixture()
-def save_response(request) -> bool:
-    return bool(request.config.getoption("--save_response"))
+    debug_dir = project_dir / "output" / "debug"
+    debug_dir.mkdir(parents = True, exist_ok = True)
+
+    use_http_cache = request.config.getoption("--use_http_cache")
+
+    return XCRGConfig(
+        retriever_url = request.config.getoption("--retriever_url"),
+        ngd_db_path = ngd_db_file,
+        curie_to_pmids_db_path = curie_to_pmids_db_file,
+        debug_dir = debug_dir,
+        debug_level = debug_level,
+        debug_use_http_cache = use_http_cache
+    )
 
 
 def pytest_configure(config):
-    # pytest has been configured in this project to run unit tests by default. And so the "all" marker is
-    # here to make it easy to run everything again, instead of having to type "unit or integration", etc.
-    config.addinivalue_line("markers", "all: run all tests")
-    config.addinivalue_line("markers", "integration: run integration tests; requires additional configuration")
+    config.addinivalue_line("markers", "arax: run ARAX compliance tests (slow, requires network)")
+    config.addinivalue_line("markers", "integration: run integration tests (slow, requires network)")
     config.addinivalue_line("markers", "unit: run local unit tests")
 
 
 def pytest_collection_modifyitems(items):
     for item in items:
-        item.add_marker(pytest.mark.all)
+        if "tests/arax/" in str(item.fspath):
+            item.add_marker(pytest.mark.arax)
         if "tests/integration/" in str(item.fspath):
             item.add_marker(pytest.mark.integration)
         elif "tests/unit/" in str(item.fspath):
             item.add_marker(pytest.mark.unit)
+
+
+def pytest_make_parametrize_id(config, val, argname):
+    # Our own special method for defining custom pytest ids
+    # This is primarily so we can make nicer test names/titles
+    if hasattr(val, "get_pytest_id"):
+        return val.get_pytest_id()
+    else:
+        return argname

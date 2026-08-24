@@ -1,23 +1,87 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import cached_property
 from importlib import resources
 from pathlib import Path
+from typing import cast
 
-from translator_tom import CURIE, Query, TOMBase
+from translator_tom import (
+    CURIE,
+    QEdge,
+    QEdgeID,
+    QNode,
+    QNodeID,
+    Query,
+    QueryGraph,
+    TOMBase
+)
 
-from .config import XCRGConfig as Config # TODO
-from .debugging import DebugContext, debug_dump_json
+from . import trapi
+from .config import DebugLevel, XCRGConfig as Config # TODO
+from .constants import DEFAULT_TF_FILE, TP53_CURIE
+from .debugging import DebugContext
 from .reporting import Reporter
 from .utilities import path_or_none
 
 @dataclass
 class RunContext:
-    """A RunnerContext maintains state for a request through the xCRG runner."""
-    query_id: str
-    original_query: Query
-    config: Config
-    reporter: Reporter
-    debug_ctx: DebugContext | None = None
+    """
+    A RunContext maintains and provides convenient access to state
+    for a particular query request through the xCRG runner.
+
+    Attributes:
+        query_id  : the unique identifier for this run
+        query     : the original query submitted to the runner
+        config    : the configuration for this run
+        reporter  : the reporter for this run
+        debug_ctx : the debugging context for this run
+
+        query_edge_id : a reference to the ID for the single edge in the original query
+        query_edge    : a reference to the single edge in the original query
+
+        start_time : the time when the xCRG run began
+    """
+
+    query_id  : str
+    query     : Query
+    config    : Config
+    reporter  : Reporter
+    debug_ctx : DebugContext | None = None
+
+    query_edge_id : QEdgeID = field(init = False)
+    query_edge    : QEdge   = field(init = False)
+
+    start_time = datetime.now(timezone.utc)
+
+    def __post_init__(self):
+        self.query_edge_id, self.query_edge = trapi.get_single_query_edge(self.query.message.query_graph)
+
+    @property
+    def query_graph(self) -> QueryGraph:
+        return cast(QueryGraph, self.query.message.query_graph)
+
+    @property
+    def subject_qid(self) -> QNodeID:
+        """The subject reference in the original query."""
+        return self.query_edge.subject
+
+    @property
+    def subject_qnode(self) -> QNode:
+        """The subject node in the original query."""
+        return self.query_graph.nodes[self.subject_qid]
+
+    @property
+    def object_qid(self) -> QNodeID:
+        """The object reference in the original query."""
+        return self.query_edge.object
+
+    @property
+    def object_qnode(self) -> QNode:
+        """The object node in the original query."""
+        return self.query_graph.nodes[self.object_qid]
 
     @property
     def biolink_version(self):
@@ -35,53 +99,143 @@ class RunContext:
     def curie_to_pmids_db_file(self) -> Path | None:
         return path_or_none(self.config.curie_to_pmids_db_path)
 
+    @property
+    def scoring_method(self) -> str:
+        return self.config.scoring_method
+
+    @property
+    def resource_id(self) -> str:
+        return self.config.resource_id
+
+    @property
+    def num_max_results(self) -> int:
+        return self.config.max_results
+
+    @property
+    def timeout(self) -> int:
+        return self.config.timeout
+
+    @property
+    def use_http_cache(self) -> bool:
+        return self.config.debug_use_http_cache
+
     @staticmethod
     def new(
         query_id: str,
         query: Query,
         config: Config,
         reporter: Reporter,
-    ) -> "RunContext":
-
-        debug_dir: Path | None = None
-        if isinstance(config.debug_dir, Path):
-            debug_dir = config.debug_dir
-        elif isinstance(config.debug_dir, str):
-            debug_dir = Path(config.debug_dir)
-
+    ) -> RunContext:
+        """Instantiate a new RunContext."""
         debug_ctx: DebugContext | None = None
-        if debug_dir and debug_dir.exists():
-            debug_ctx = DebugContext.new(debug_dir = debug_dir, query = query, query_id = query_id)
+        if debug_dir := path_or_none(config.debug_dir):
+            debug_ctx = DebugContext.new(
+                debug_dir = debug_dir,
+                debug_level = config.debug_level,
+                run_name = config.debug_run_name,
+                query = query,
+                query_id = query_id,
+            )
+        else:
+            reporter.info("debug_dir does not exist; debugger will not be used for this run.")
 
         return RunContext(
             query_id = query_id,
-            original_query = query,
+            query = query,
             config = config,
             reporter = reporter,
             debug_ctx = debug_ctx
         )
 
-    def debug_dump_json(self, label: str, payload: object | TOMBase) -> None:
-        if self.debug_ctx:
+    def elapsed_time(self) -> timedelta:
+        """The amount of time that has progressed in the run."""
+        return datetime.now(timezone.utc) - self.start_time
+
+    def debug_dump_json(
+        self,
+        label: str,
+        payload: object | TOMBase,
+        level: DebugLevel = DebugLevel.ALL
+    ) -> None:
+        if not (debug := self.debug_ctx): return
+        try:
+            debug.dump_json(label, payload, level)
+        except Exception as e:
+            self.reporter.warning(str(e))
+
+    @cached_property
+    def tf_list(self) -> list[CURIE]:
+        """Get transcription factors from config or bundled package resources."""
+
+        def try_loading_config_tf_file() -> list[CURIE] | None:
+            if not (tf_file := path_or_none(self.config.tf_path)):
+                return None
+            if not tf_file.exists():
+                self.reporter.warning(f"Transcription factors file does not exist: {tf_file}")
+                return None
             try:
-                debug_dump_json(self.debug_ctx, label, payload)
-            except Exception as e:
-                self.reporter.warning(str(e))
+                self.reporter.debug(f"Loading transcription factors from file: {tf_file}")
+                with tf_file.open(encoding = "utf-8") as f:
+                    return json.load(f).get("tf")
+            except Exception:
+                pass
+            self.reporter.warning(f"Transcription factors could not be loaded from file: {tf_file}")
+            return None
 
+        def try_loading_default_tf_file() -> list[CURIE] | None:
+            try:
+                tf_file = resources.files("xcrg.resources").joinpath(DEFAULT_TF_FILE)
+                self.reporter.debug(f"Loading transcription factors from default file: {DEFAULT_TF_FILE}")
+                with tf_file.open(encoding = "utf-8") as f:
+                    return json.load(f).get("tf")
+            except Exception:
+                pass
+            self.reporter.warning(f"Transcription factors could not be loaded from file: {DEFAULT_TF_FILE}")
+            return None
 
-    def load_tf_list(self) -> list[CURIE]:
-        """Load transcription factors from config or bundled package resources."""
-        tf_file = path_or_none(self.config.tf_path)
-
-        # Fallback if the configured file is not valid
-        if not tf_file or not tf_file.exists():
-            tf_file = resources.files("xcrg.resources").joinpath("transcription_factors.json")
-
-        with tf_file.open(encoding = "utf-8") as f:
-            tf_data = json.load(f)
-
-        tf_list = tf_data.get("tf") or []
+        tf_list = try_loading_config_tf_file()
         if not tf_list:
-            raise ValueError("No transcription factors were found in transcription_factors.json.")
+            tf_list = try_loading_default_tf_file()
+        if not tf_list:
+            raise ValueError("Transcription factors failed to load.")
+
+        endpoint_ids = set(self.subject_qnode.ids_list) | set(self.object_qnode.ids_list)
+
+        tf_list = [
+            tf_id
+            for tf_id in tf_list
+            if tf_id != TP53_CURIE and tf_id not in endpoint_ids
+        ]
+        if not tf_list:
+            raise ValueError("No transcription factors remain after TP53/target filtering.")
 
         return tf_list
+
+    def get_answer_qid(self) -> QNodeID:
+        return trapi.get_answer_qid(self.query_graph, self.subject_qid, self.object_qid)
+
+    def get_cache_dir(self) -> Path | None:
+        if not (debug_dir := path_or_none(self.config.debug_dir)): return None
+        cache_dir = debug_dir / "cache"
+        cache_dir.mkdir(exist_ok = True)
+        return cache_dir
+
+    def write_cache_file(self, filename: str | Path, payload: str):
+        try:
+            if not (cache_dir := self.get_cache_dir()): return
+            cache_file = cache_dir / filename
+            with open(cache_file, "w", encoding = "utf-8") as f:
+                f.write(payload)
+        except Exception as e:
+            self.reporter.warning(f"Failed to write cache file {filename}: {e}")
+
+    def read_cache_file(self, filename: str | Path) -> str | None:
+        try:
+            if not (cache_dir := self.get_cache_dir()): return None
+            cache_file = cache_dir / filename
+            if not cache_file.exists(): return None
+            with open(cache_file, "r", encoding = "utf-8") as f:
+                return f.read()
+        except Exception as e:
+            self.reporter.warning(f"Failed to read cache file {filename}: {e}")
+            return None

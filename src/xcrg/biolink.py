@@ -1,3 +1,5 @@
+from enum import Enum
+
 from xcrg.context import RunContext
 
 try:
@@ -38,6 +40,24 @@ FALLBACK_CATEGORY_DEPTH: dict[str, int] = {
     "biolink:SmallMolecule": 3,
     "biolink:Drug": 4,
 }
+
+# We could pull in "bmt" package, but that seems like overkill
+# when we only need a few biolink classes.
+
+class Agent_Type(Enum):
+    MANUAL_AGENT        = "manual_agent"
+    AUTOMATED_AGENT     = "automated_agent"
+    COMPUTATIONAL_MODEL = "computational_model"
+    TEXT_MINING_AGENT   = "text_mining_agent"
+
+class Knowledge_Level(Enum):
+    KNOWLEDGE_ASSERTION     = "knowledge_assertion"
+    LOGICAL_ENTAILMENT      = "logical_entailment"
+    PREDICTION              = "prediction"
+    STATISTICAL_ASSOCIATION = "statistical_association"
+    TEXT_CO_OCCURRENCE      = "text_co_occurrence"
+    OBSERVATION             = "observation"
+    NOT_PROVIDED            = "not_provided"
 
 
 # TODO: Should we just expect that the user has installed the bmt library?

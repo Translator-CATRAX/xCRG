@@ -270,6 +270,7 @@ def make_xcrg_ngd_edge(
 def add_ngd_analysis_support_graph(
     ctx: RunContext,
     analysis: Analysis,
+    ngd_score: float | None,
     kg_edges: dict[EdgeID, Edge],
     kg_nodes: dict[CURIE, Node],
     auxiliary_graphs: AuxiliaryGraphsDict,
@@ -283,7 +284,6 @@ def add_ngd_analysis_support_graph(
     displaying the NGD value as "inf". Keep that as a string to avoid emitting
     non-standard JSON numeric Infinity.
     """
-    ngd_score = get_ngd_score(ctx, source_id, target_id)
     ngd_value: float | str = ngd_score if ngd_score is not None else "inf"
     publications = get_ngd_publications(ctx, source_id, target_id)
 

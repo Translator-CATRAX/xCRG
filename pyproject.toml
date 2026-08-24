@@ -26,8 +26,10 @@ classifiers = [
 
 [dependency-groups]
 dev = [
+    "optuna==4.9.0",
     "pyright==1.1.411",
     "pytest==9.1.1",
+    "pytest-xdist==3.8.0",
     "ruff==0.15.22",
     "ty==0.0.63"
 ]
@@ -44,8 +46,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 # Additional pytest configuration is performed in tests/conftest.py
+# See scripts/run_tests for additional context, etc.
 pythonpath = ["src"]
 testpaths = ["tests"]
-# Only run unit tests by default.
-# Comment this line if you want better support in IDE's like PyCharm, etc.
-addopts = ["-m unit"]
+
+[tool.ruff.lint]
+ignore = [
+    "E701" # multiple-statements-on-one-line-colon
+]

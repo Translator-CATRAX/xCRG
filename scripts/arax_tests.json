@@ -1,0 +1,1834 @@
+[
+    {
+        "id": "366785e9-bb81-4db8-b2bd-d79f289e150d",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:1636",
+        "candidate_name": "ACE",
+        "answers": [
+            {
+                "id": "CHEBI:8713",
+                "name": "Quinapril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "UNII:R43D2573WO",
+                "name": "Fosinopril",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:6960",
+                "name": "Moexipril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:3380",
+                "name": "Captopril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:3011",
+                "name": "Benazapril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:4784",
+                "name": "Enalapril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:8774",
+                "name": "Ramipril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:8024",
+                "name": "Perindopril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:43755",
+                "name": "Lisinopril",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:9649",
+                "name": "Trandolapril",
+                "expectation": "top_answer"
+            }
+        ]
+    },
+    {
+        "id": "254352e6-a472-4239-be6b-7b863b95df71",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:154",
+        "candidate_name": "ADRB2",
+        "answers": [
+            {
+                "id": "CHEBI:3441",
+                "name": "carvedilol",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:17579",
+                "name": "Beta-Blockers (Inhibitors)",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:6904",
+                "name": "metoprolol",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:8499",
+                "name": "propranolol",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:2904",
+                "name": "atenolol",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:91879",
+                "name": "ICI-118,551 (ZENIDOLOL?)",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "UNII:0NM31M53PW",
+                "name": "Butaxamine",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "895fcfa8-2cd7-41c5-9caa-25c3f9dd31b8",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:59173",
+        "candidate_name": "Bivalirudin",
+        "answers": [
+            {
+                "id": "UMLS:C0040018",
+                "name": "Thrombin",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:4353",
+                "name": "MPO",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "NCBIGene:2147",
+                "name": "F2",
+                "expectation": "top_answer"
+            },
+            {
+                "comments": [
+                   "BUG: https://github.com/NCATSTranslator/Tests/issues/83"
+                ],
+                "id": "CHEMBL.TARGET:CHEMBL204",
+                "name": "UNIPROTKB#P00734",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "b7e9e513-cde3-45ed-b366-38ea9da851b9",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:675",
+        "candidate_name": "BRCA2",
+        "answers": [
+            {
+                "id": "UNII:9X5A2QIA7C",
+                "name": "PARP inhibitor 2X-121",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:16731",
+                "name": "Cinnamaldehyde",
+                "expectation": "bad_but_forgivable"
+            },
+            {
+                "id": "CHEBI:16842",
+                "name": "Formaldehyde",
+                "expectation": "bad_but_forgivable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "PUBCHEM.COMPOUND:14423521",
+                "name": "Ursolic aldehyde",
+                "expectation": "bad_but_forgivable"
+            },
+            {
+                "id": "CHEBI:31355",
+                "name": "Carboplatin",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:176844",
+                "name": "niraparib",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "CHEBI:83766",
+                "name": "olaparib",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "CHEBI:62880",
+                "name": "veliparib",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "CHEBI:134689",
+                "name": "rucaparib",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:231344",
+                "name": "talazoparib",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "CHEBI:27899",
+                "name": "Cisplatin",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "CHEBI:167900",
+                "name": "PJ34",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:41774",
+                "name": "Tamoxifen",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "f78af50c-b1ab-45b1-bd7a-c62edf94df9e",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:1565",
+        "candidate_name": "CYP2D6",
+        "answers": [
+            {
+                "id": "CHEBI:4636",
+                "name": "Diphenhydramine",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:2663",
+                "name": "Amiodarone",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:48390",
+                "name": "Cinacalcet",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:7936",
+                "name": "Paroxetine",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:28593",
+                "name": "Quinidine",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:5118",
+                "name": "Fluoxetine",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:36795",
+                "name": "Duloxetine",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:3219",
+                "name": "Bupropion",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:9566",
+                "name": "Thioridazine",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "CHEBI:8069",
+                "name": "Phenobarbital",
+                "expectation": "never_show",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:3387",
+                "name": "Carbamazepine",
+                "expectation": "never_show",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:8107",
+                "name": "Phenytoin",
+                "expectation": "never_show"
+            },
+            {
+                "id": "PUBCHEM.COMPOUND:3663",
+                "name": "St. John's Wort (Hypericum perforatum)",
+                "expectation": "never_show"
+            },
+            {
+                "id": "CHEBI:28077",
+                "name": "Rifampicin",
+                "expectation": "never_show"
+            }
+        ]
+    },
+    {
+        "id": "0012f9cd-cb88-4c41-b639-2035c91de3d8",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:8653",
+        "candidate_name": "DDX3Y",
+        "answers": [
+            {
+                "id": "UMLS:C0311474",
+                "name": "dna double stranded",
+                "expectation": "never_show"
+            },
+            {
+                "id": "UMLS:C1328819",
+                "name": "Small molecule",
+                "expectation": "never_show"
+            },
+            {
+                "id": "CHEBI:28748",
+                "name": "Doxorubicin",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "UMLS:C4079590",
+                "name": "RK-33",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "3289146b-7275-4da8-959f-cff3160f46f0",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:27744",
+        "candidate_name": "Glyphosate",
+        "answers": [
+            {
+                "id": "NCBIGene:10381",
+                "name": "TUBB3",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "NCBIGene:2596",
+                "name": "GAP43",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+       "id": "20574d1b-2402-4db9-9d4f-d8e57dfe3897",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:3043",
+        "candidate_name": "HBB",
+        "answers": [
+            {
+                "id": "CHEBI:50131",
+                "name": "decitabine",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "PUBCHEM.COMPOUND:26945",
+                "name": "Hemin",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:2038",
+                "name": "azacitidine",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "UMLS:C0581820",
+                "name": "ButyrateDerivatives",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:64103",
+                "name": "sodiumbutyrate",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "UNII:IK8S1P79MU",
+                "name": "arginine butyrate",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "comments": [
+                   "BUG: https://github.com/NCATSTranslator/Tests/issues/80"
+                ],
+                "id": "CHEMBL:4034633",
+                "name": "DNMT inhibitor",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:18050",
+                "name": "L-Glutamine",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:44423",
+                "name": "Hydroxyurea",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "2b2b5980-e500-481d-bee9-9ced3ece7583",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:142437",
+        "candidate_name": "Lepirudin",
+        "answers": [
+            {
+                "comments": [
+                    "BUG: https://github.com/NCATSTranslator/Tests/issues/83",
+                    "Both of the top answers suffer from this issue"
+                ],
+                "id": "NCBIGene:2147",
+                "name": "F2",
+                "expectation": "top_answer"
+            },
+            {
+                "comments": [
+                    "TODO: Are these entities the same or different?",
+                    "XCRG_Test(\"UMLS:C0040018\", \"top_answer\", expected_to_fail = True), # Thrombin"
+                ],
+                "id": "CHEMBL.COMPOUND:CHEMBL2108110",
+                "name": "Thrombin",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:2670",
+                "name": "GFAP",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6774",
+                "name": "STAT3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7108",
+                "name": "TM7SF2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBITaxon:1603998",
+                "name": "JACK2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:283",
+                "name": "ANG",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:80150",
+                "name": "ASRGL1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5604",
+                "name": "MAP2K1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:10891",
+                "name": "PPARGC1A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:97828105",
+                "name": "RHO",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:998",
+                "name": "CDC42",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:133522",
+                "name": "PPARGC1B",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:27295",
+                "name": "PDLIM3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7311",
+                "name": "UBA52",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:920",
+                "name": "CD4",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7442",
+                "name": "TRPV1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBITaxon:1352719",
+                "name": "PCAM1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5553",
+                "name": "PRG2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6590",
+                "name": "SLPI",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1435",
+                "name": "CSF1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:808252",
+                "name": "COX2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:29126",
+                "name": "CD274",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:595",
+                "name": "CCND1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2048",
+                "name": "EPHB2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:9402",
+                "name": "GRAP2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3576",
+                "name": "CXCL8",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3567",
+                "name": "IL5",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1958",
+                "name": "EGR1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:468",
+                "name": "ATF4",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:4843",
+                "name": "NOS2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:4214",
+                "name": "MAP3K1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:8408",
+                "name": "ULK1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:284",
+                "name": "ANGPT1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:894",
+                "name": "CCND2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3574",
+                "name": "IL7",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7020",
+                "name": "TFAP2A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:891",
+                "name": "CCNB1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1901",
+                "name": "S1PR1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6772",
+                "name": "STAT1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:348",
+                "name": "APOE",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100513441",
+                "name": "ATF2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3976",
+                "name": "LIF",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5534",
+                "name": "PPP3R1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6233",
+                "name": "RPS27A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2919",
+                "name": "CXCL1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5328",
+                "name": "PLAU",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:4170",
+                "name": "MCL1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:285",
+                "name": "ANGPT2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:10133",
+                "name": "OPTN",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:10850",
+                "name": "CCL27",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2099",
+                "name": "ESR1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2475",
+                "name": "MTOR",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100506658",
+                "name": "OCLN",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3725",
+                "name": "JUN",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1385",
+                "name": "CREB1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:857",
+                "name": "CAV1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:4803",
+                "name": "NGF",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:14268",
+                "name": "FN1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:339345",
+                "name": "NANOS2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:29072",
+                "name": "SETD2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1437",
+                "name": "CSF2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:22926",
+                "name": "ATF6",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1843",
+                "name": "DUSP1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5594",
+                "name": "MAPK1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3480",
+                "name": "IGF1R",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3596",
+                "name": "IL13",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5345",
+                "name": "SERPINF2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:24547",
+                "name": "MBP",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:10875",
+                "name": "FGL2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:55226",
+                "name": "NAT10",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2167",
+                "name": "FABP4",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:947",
+                "name": "CD34",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100154503",
+                "name": "SRC",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:655",
+                "name": "BMP7",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:361",
+                "name": "AQP4",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:27352",
+                "name": "SGSM3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7316",
+                "name": "UBC",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:8720",
+                "name": "MBTPS1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:860",
+                "name": "RUNX2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:10928",
+                "name": "RALBP1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5743",
+                "name": "PTGS2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7314",
+                "name": "UBB",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3661",
+                "name": "IRF3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6382",
+                "name": "SDC1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:494460",
+                "name": "CXCL12",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:896",
+                "name": "CCND3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1956",
+                "name": "EGFR",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:23409",
+                "name": "SIRT4",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6646",
+                "name": "SOAT1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:423915",
+                "name": "ATRNL1",
+                "expectation": "never_show"
+            }
+        ]
+    },
+    {
+        "id": "ced128a1-c98f-4694-9dd6-28e584c48949",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:50692",
+        "candidate_name": "Mifepristone",
+        "answers": [
+            {
+                "id": "NCBIGene:355",
+                "name": "FAS",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:356",
+                "name": "FASL",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:93659",
+                "name": "HCG",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "b011079c-b674-47da-8c66-ab7d47e7c7aa",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:167574",
+        "candidate_name": "Semaglutide",
+        "answers": [
+            {
+                "comments": [
+                    "NOTE: There are more tests for Semaglutide, but they do not currently return any results",
+                    "TODO: This test appears to be erroneous or misconfigured"
+                ],
+                "id": "CHEBI:5931",
+                "name": "Insulin",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:2740",
+                "name": "GLP1R",
+                "expectation": "top_answer"
+            }
+        ]
+    },
+    {
+        "id": "43d68108-2dd8-463e-aa45-9875da294eec",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:6605",
+        "candidate_name": "SMARCE1",
+        "answers": [
+            {
+                "id": "CHEBI:75998",
+                "name": "trametinib",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:72564",
+                "name": "temozolomide",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "UNII:DPT0O3T46P",
+                "name": "pembrolizumab",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:39867",
+                "name": "valproic acid",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:90943",
+                "name": "osimertinib",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:114785",
+                "name": "erlotinib",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:61390",
+                "name": "afatinib",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "UMLS:C4085970",
+                "name": "amivantamab-vmjw",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "HGNC.FAMILY:3410",
+                "name": "histone-lysine methyltransferases",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:49668",
+                "name": "gefitinib",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "CHEBI:132268",
+                "name": "dacomitinib",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "PUBCHEM.COMPOUND:54671203",
+                "name": "doxycycline",
+                "expectation": "bad_but_forgivable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "090be321-0978-47fd-9d02-0e98670cfbb7",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:74947",
+        "candidate_name": "Thalidomide",
+        "answers": [
+            {
+                "id": "NCBIGene:5004",
+                "name": "ORM1",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:57167",
+                "name": "SALL4",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "NCBIGene:5005",
+                "name": "ORM2",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "87bab1d7-8cf7-485c-b4c0-b6adda7f62b7",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "increased",
+        "candidate_id": "NCBIGene:154",
+        "candidate_name": "ADRB2",
+        "answers": [
+            {
+                "id": "CHEBI:64064",
+                "name": "salmeterol",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:5147",
+                "name": "formoterol",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:9449",
+                "name": "terbutaline",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:2549",
+                "name": "Albuterol",
+                "expectation": "top_answer"
+            },
+            {
+                "id": "CHEBI:8499",
+                "name": "Propranolol",
+                "expectation": "never_show",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "995402db-3253-41ae-8285-ad1ae447dac8",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:27744",
+        "candidate_name": "Glyphosate",
+        "answers": [
+            {
+                "id": "NCBIGene:815",
+                "name": "CAMK2A",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:110084335",
+                "name": "CAMK2B",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "NCBIGene:89780",
+                "name": "Wnt3a",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:7474",
+                "name": "Wnt5a",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:7476",
+                "name": "Wnt7a",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "comments": [
+            "ARAX has a number of duplicated tests in this suite: ATP1A1, ATP1A2, ATP1A3, etc.",
+            "Some of these are documented in GitHub tickets: https://github.com/NCATSTranslator/Tests/issues/46"
+        ],
+        "id": "dc91b4f6-95d9-40b0-95d5-7f2457436c30",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:29103",
+        "candidate_name": "Potassium ion",
+        "answers": [
+            {
+                "id": "NCBIGene:249",
+                "name": "ALPL",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7108",
+                "name": "TM7SF2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:26330",
+                "name": "GAPDHS",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:477",
+                "name": "ATP1A2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2641",
+                "name": "GCG",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:80150",
+                "name": "ASRGL1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6402",
+                "name": "SELL",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:57154",
+                "name": "SMURF1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:56302",
+                "name": "TRPV5",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7311",
+                "name": "UBA52",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:11035",
+                "name": "RIPK3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7130",
+                "name": "TNFAIP6",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6401",
+                "name": "SELE",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1435",
+                "name": "CSF1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100125288",
+                "name": "ZGLP1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:939",
+                "name": "CD27",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:8743",
+                "name": "TNFSF10",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7472",
+                "name": "WNT2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:51497",
+                "name": "NELFCD",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:738",
+                "name": "VPS51",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3576",
+                "name": "CXCL8",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:148327",
+                "name": "CREB3L4",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100154195",
+                "name": "GIT2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7128",
+                "name": "TNFAIP3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:823",
+                "name": "CAPN1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:4843",
+                "name": "NOS2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:55824",
+                "name": "PAG1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:23118",
+                "name": "TAB2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3952",
+                "name": "LEP",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:8811",
+                "name": "GALR2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7132",
+                "name": "TNFRSF1A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:476",
+                "name": "ATP1A1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6403",
+                "name": "SELP",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:54884",
+                "name": "RETSAT",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5428",
+                "name": "POLG",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2919",
+                "name": "CXCL1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:480",
+                "name": "ATP1A4",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:51330",
+                "name": "TNFRSF12A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:285",
+                "name": "ANGPT2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100524014",
+                "name": "TNFAIP8",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:22861",
+                "name": "NLRP1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:22943",
+                "name": "DKK1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6776",
+                "name": "STAT5A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1585",
+                "name": "CYP11B2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:495",
+                "name": "ATP4A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1437",
+                "name": "CSF2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:9421",
+                "name": "HAND1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:397491",
+                "name": "IGF1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:113905823",
+                "name": "CADM1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:10488",
+                "name": "CREB3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:2308",
+                "name": "FOXO1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:479",
+                "name": "ATP12A",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:811",
+                "name": "CALR",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:25157163",
+                "name": "SOD",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:10010",
+                "name": "TANK",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:397665",
+                "name": "PCBP2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:27352",
+                "name": "SGSM3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:355",
+                "name": "FAS",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:4313",
+                "name": "MMP2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:57410",
+                "name": "SCYL1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:4314",
+                "name": "MMP3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:958",
+                "name": "CD40",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3562",
+                "name": "IL3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:9943",
+                "name": "OXSR1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "UMLS:C0058605",
+                "name": "AdenosineTriphosphatases",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:5806",
+                "name": "PTX3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100513111",
+                "name": "NR2C2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1153",
+                "name": "CIRBP",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:3383",
+                "name": "ICAM1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:147138",
+                "name": "TMC8",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:200186",
+                "name": "CRTC2",
+                "expectation": "never_show",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:2597",
+                "name": "GAPDH",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:650",
+                "name": "BMP2",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:1956",
+                "name": "EGFR",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:478",
+                "name": "ATP1A3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:7098",
+                "name": "TLR3",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:100135663",
+                "name": "MAP3K7",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:8717",
+                "name": "TRADD",
+                "expectation": "never_show"
+            },
+            {
+                "id": "NCBIGene:6646",
+                "name": "SOAT1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "UMLS:C0001473",
+                "name": "Adenosine Triphosphatases",
+                "expectation": "never_show"
+            }
+        ]
+    },
+    {
+        "id": "62dcf4e6-d7a3-42ec-b1d9-e82bba048e90",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:41774",
+        "candidate_name": "Tamoxifen",
+        "answers": [
+            {
+                "id": "NCBIGene:35292",
+                "name": "PR",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:817540",
+                "name": "pS2",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:1509",
+                "name": "CTSD",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "NCBIGene:817173",
+                "name": "ER",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "NCBIGene:41957",
+                "name": "AKT",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            },
+            {
+                "id": "UMLS:C2605860",
+                "name": "GPER-1",
+                "expectation": "acceptable"
+            },
+            {
+                "id": "NCBIGene:1956",
+                "name": "EGFR",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "bd9cc2ef-d1e0-43cd-aa1b-a723bb15b26d",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "increased",
+        "candidate_id": "NCBIGene:1080",
+        "candidate_name": "CFTR",
+        "answers": [
+            {
+                "id": "CHEBI:66901",
+                "name": "Ivacaftor",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "9845b196-8e3c-42ad-b172-e984e7a3c665",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:5558",
+        "candidate_name": "Guafacine",
+        "answers": [
+            {
+                "id": "NCBIGene:150",
+                "name": "ADRA2A",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "ca6a81c8-9626-4e42-8e6c-3d9fe344f580",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:4672",
+        "candidate_name": "Docetaxel",
+        "answers": [
+            {
+                "id": "NCBIGene:596",
+                "name": "BCL2",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+       "id": "22812a8e-de59-471a-b13f-7cc18d0eb6fb",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "increased",
+        "candidate_id": "NCBIGene:1742",
+        "candidate_name": "DLG4",
+        "answers": [
+            {
+                "id": "CHEBI:5558",
+                "name": "Guafacine",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "076b3b1b-bc68-42e3-a5c0-38418ca222a5",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:15355",
+        "candidate_name": "Acetylcholine",
+        "answers": [
+            {
+                "id": "UMLS:C0083536",
+                "name": "NG-Nitroarginine Methyl Ester",
+                "expectation": "never_show"
+            }
+        ]
+    },
+    {
+        "id": "352c02bd-878a-47a2-9aec-822d05545b5d",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:4609",
+        "candidate_name": "MYC",
+        "answers": [
+            {
+                "id": "MONDO:0004992",
+                "name": "cancer",
+                "expectation": "never_show"
+            }
+        ]
+    },
+    {
+        "id": "10a839e0-2ed5-4e2b-a6d2-f2a385672e39",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:34648",
+        "candidate_name": "clofibric acid",
+        "answers": [
+            {
+                "id": "NCBIGene:5465",
+                "name": "PPARA",
+                "expectation": "top_answer"
+            }
+        ]
+    },
+    {
+        "id": "4ff73493-c994-4d41-bc00-14234e2ab0bf",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:673",
+        "candidate_name": "BRAF",
+        "answers": [
+            {
+                "id": "CHEBI:75045",
+                "name": "Dabrafenib",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "58c6bf8f-1713-470f-86b7-645e57b407ec",
+        "comments": [
+            "TODO: This fails on ARAX because the output_id \"NCBI:2629\" is incorrect?"
+        ],
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:82752",
+        "candidate_name": "Eliglustat",
+        "answers": [
+            {
+                "id": "NCBIGene:2629",
+                "name": "GBA1",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "7d611ba7-9b6c-4dd2-8658-2931729016f0",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:6524",
+        "candidate_name": "SLC5A2",
+        "answers": [
+            {
+                "id": "CHEBI:73274",
+                "name": "Canagliflozin",
+                "expectation": "top_answer"
+            }
+        ]
+    },
+    {
+        "id": "21e111fb-fd81-4a97-8275-f5dc77d47fa8",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:51297",
+        "candidate_name": "BPIFA1",
+        "answers": [
+            {
+                "id": "CHEBI:16482",
+                "name": "Naphthalene",
+                "expectation": "acceptable"
+            }
+        ]
+    },
+    {
+        "id": "ec342279-7951-4ccc-a65b-c6f1ce71062c",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:8972",
+        "candidate_name": "MGAM",
+        "answers": [
+            {
+                "id": "CHEBI:2376",
+                "name": "Acarbose",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "2f1dc291-eaf5-46fc-bd8c-35f1f63ec810",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:79001",
+        "candidate_name": "VKORC1",
+        "answers": [
+            {
+                "id": "CHEBI:10033",
+                "name": "Warfarin",
+                "expectation": "top_answer"
+            }
+        ]
+    },
+    {
+        "id": "dce4ebec-dfd0-4feb-93f8-bb19603ed8e3",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "decreased",
+        "candidate_id": "CHEBI:170007",
+        "candidate_name": "Nirmatrelvir",
+        "answers": [
+            {
+                "id": "NCBIGene:1576",
+                "name": "CYP3A4",
+                "expectation": "acceptable",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "69f3e42f-b86e-46ae-8a56-d7d8699975df",
+        "type": "find_genes_affected_by_chemical",
+        "direction": "increased",
+        "candidate_id": "CHEBI:34911",
+        "candidate_name": "Permethrin",
+        "answers": [
+            {
+                "id": "NCBIGene:5465",
+                "name": "PPARA",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            }
+        ]
+    },
+    {
+        "id": "7fd2d98f-b4df-49e4-8fce-d9e6faca73ec",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:8654",
+        "candidate_name": "PDE5A",
+        "answers": [
+            {
+                "id": "CHEBI:9139",
+                "name": "Sildenafil",
+                "expectation": "top_answer"
+            }
+        ]
+    },
+    {
+        "id": "b1560d85-59dd-4d62-af2c-ed350fdb34db",
+        "type": "find_chemicals_affecting_gene",
+        "direction": "decreased",
+        "candidate_id": "NCBIGene:3845",
+        "candidate_name": "KRAS",
+        "answers": [
+            {
+                "id": "PUBCHEM.COMPOUND:156124857",
+                "name": "MRTX-1133",
+                "expectation": "top_answer",
+                "fails_on_arax": true
+            }
+        ]
+    }
+]

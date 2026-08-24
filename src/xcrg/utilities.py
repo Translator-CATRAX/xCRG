@@ -1,6 +1,12 @@
+
+from __future__ import annotations
+
 import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
+from datetime import datetime
+from enum import Enum
+from io import TextIOWrapper
 from pathlib import Path
 from typing import (
     Callable,
@@ -24,6 +30,39 @@ MISSING_SORT_VALUE = float("inf")
 T = TypeVar("T")
 
 
+class OrderedEnum(Enum):
+    """Base class for Enums with an ordinal field that represents declaration order."""
+    ordinal: int
+
+    def __new__(cls, value):
+        obj = object.__new__(cls)
+        obj._value_ = value
+        obj.ordinal = len(cls.__members__)
+        return obj
+
+    # __eq__ already taken care of by Enum class
+
+    def __lt__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
+            return NotImplemented
+        return self.ordinal < other.ordinal
+
+    def __le__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
+            return NotImplemented
+        return self.ordinal <= other.ordinal
+
+    def __gt__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
+            return NotImplemented
+        return self.ordinal > other.ordinal
+
+    def __ge__(self, other: OrderedEnum) -> bool:
+        if not isinstance(other, OrderedEnum):
+            return NotImplemented
+        return self.ordinal >= other.ordinal
+
+
 # TODO: Temporary until types are untangled
 #  This class is effectively a TRAPI Result + additional custom properties
 #  The original code would push + pop these xcrg properties
@@ -37,11 +76,26 @@ class XCRGResult:
     xcrg_direct_binding_ids : set[EdgeID]       = field(default_factory = set)
   # xcrg_support_edges      : list[EdgeBinding] = field(default_factory = list)
     xcrg_support_edge_ids   : set[EdgeID]       = field(default_factory = set)
-    xcrg_first_score        : float | None      = None
-    xcrg_first_index        : int | None        = None # = len(final_results),
+    xcrg_score              : float             = field(default = float("inf"))
+    ngd_score               : float | None      = field(default = None)
 
     def to_trapi_result(self):
         return Result(node_bindings = self.node_bindings, analyses = self.analyses)
+
+
+class XcrgJsonEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle special cases with serializing classes."""
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+        elif isinstance(o, Path):
+            return str(o)
+        elif isinstance(o, TOMBase):
+            return o.to_dict()
+        elif is_dataclass(o) and not isinstance(o, type):
+            return asdict(o)
+        else:
+            return super().default(o)
 
 
 def path_or_none(path: str | Path | None) -> Path | None:
@@ -67,6 +121,19 @@ def partition(items: list[T], predicate: Callable[[T], bool]) -> tuple[list[T], 
     return passed, failed
 
 
+# TODO: Reintroduce when we move to Python 3.11 in October
+# def throw(exception: Exception) -> Never:
+#     raise exception
+#
+
+def as_type(value: object, cls: type[T]) -> T | None:
+    """Return value if it matches type T. Return None otherwise."""
+    if isinstance(value, cls):
+        return value
+    else:
+        return None
+
+
 def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
     """Split values into non-empty batches."""
     if chunk_size <= 0:
@@ -76,7 +143,7 @@ def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
 
 def make_stable_id(prefix: str, payload: object) -> str:
     """Return a deterministic compact id for generated KG/support entries."""
-    key = json.dumps(payload, sort_keys=True)
+    key = json.dumps(payload, cls=XcrgJsonEncoder, sort_keys=True)
     suffix = uuid.uuid5(uuid.NAMESPACE_URL, key).hex[:16]
     return f"{prefix}_{suffix}"
 
@@ -98,3 +165,7 @@ def format_json_for_log(value: object | TOMBase) -> str:
     else:
         data = value
     return json.dumps(data, sort_keys=True, separators=(",", ":"))
+
+
+def serialize_json_to_file(obj: object, file: TextIOWrapper):
+    json.dump(obj, file, cls = XcrgJsonEncoder, indent = 4)

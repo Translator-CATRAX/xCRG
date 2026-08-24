@@ -225,7 +225,7 @@ __marimo__/
 # xCRG local smoke-test/debug artifacts
 smoke_debug/
 cached_debug/
-test_output/
+output/
 *_response.json
 *_validator_stderr.log
 *.sqlite

@@ -1,6 +1,5 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import cast
 
 from translator_tom import (
     Analysis,
@@ -9,13 +8,17 @@ from translator_tom import (
     EdgeBinding,
     KnowledgeGraph,
     Node,
+    PathfinderQueryGraph,
     QEdge,
     QEdgeID,
+    QNodeID,
     Query,
     QueryGraph,
     Response,
     Result,
 )
+
+from xcrg.utilities import XCRGResult
 
 
 @dataclass
@@ -29,9 +32,13 @@ class MessageStatistics:
         return MessageStatistics(0, 0, 0)
 
 
-def get_single_query_edge(query: Query) -> tuple[QEdgeID, QEdge]:
+def get_single_query_edge(qgraph: QueryGraph | PathfinderQueryGraph | None) -> tuple[QEdgeID, QEdge]:
     """Return the single query edge for xCRG queries."""
-    qedges = cast(QueryGraph, query.message.query_graph).edges
+    if qgraph is None:
+        raise ValueError("Query graph is required.")
+    if isinstance(qgraph, PathfinderQueryGraph):
+        raise ValueError("PathfinderQueryGraph is not supported.")
+    qedges = qgraph.edges
     if len(qedges) != 1:
         raise ValueError("xCRG queries are currently required to have only one query edge.")
     qedge_id = next(iter(qedges))
@@ -63,12 +70,12 @@ def get_message_statistics(entity: Query | Response) -> MessageStatistics:
 
 def copy_node(
     node_id: CURIE | None,
-    nodes: dict[CURIE, Node],
-    final_nodes: dict[CURIE, Node],
+    old_nodes: dict[CURIE, Node],
+    new_nodes: dict[CURIE, Node],
 ) -> None:
     """Copy a Retriever-provided KG node verbatim into the final KG."""
-    if node_id and node_id in nodes and node_id not in final_nodes:
-        final_nodes[node_id] = deepcopy(nodes[node_id])
+    if node_id and node_id in old_nodes and node_id not in new_nodes:
+        new_nodes[node_id] = deepcopy(old_nodes[node_id])
 
 
 def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
@@ -86,3 +93,43 @@ def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
             copied_binding = deepcopy(binding)
             bindings.append(copied_binding)
     return bindings
+
+
+def get_bound_node_curie(result: Result | XCRGResult, qid: QNodeID) -> CURIE | None:
+    """Return the first node binding id for the given qnode."""
+    bindings = result.node_bindings.get(qid) or []
+    if not bindings:
+        return None
+    return bindings[0].id
+
+
+def result_edge_binding_keys(result: Result) -> set[str]:
+    """Return qedge ids bound by any analysis in the result."""
+    keys = set()
+    for analysis in result.analyses:
+        if isinstance(analysis, Analysis):
+            keys.update(analysis.edge_bindings.keys())
+    return keys
+
+
+def is_two_hop_result(result: Result) -> bool:
+    """Return True for TF-mediated inferred results."""
+    keys = result_edge_binding_keys(result)
+    return "e0" in keys and "e1" in keys # TODO: hardcoded
+
+
+def is_two_hop_query(qgraph: QueryGraph) -> bool:
+    return "e0" in qgraph.edges and "e1" in qgraph.edges # TODO: hardcoded
+
+
+def get_answer_qid(
+    query_graph: QueryGraph,
+    subject_qid: QNodeID,
+    object_qid: QNodeID,
+) -> QNodeID:
+    """Return the unpinned endpoint qnode whose bindings are the answer list."""
+    for qid in (subject_qid, object_qid):
+        if qnode := query_graph.nodes.get(qid):
+            if not qnode.ids:
+                return qid
+    return object_qid

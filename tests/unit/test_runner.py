@@ -1,6 +1,7 @@
 """Smoke tests for the reusable xCRG package."""
 import json
 import sqlite3
+from pathlib import Path
 from typing import cast
 
 from translator_tom import (
@@ -26,10 +27,11 @@ from translator_tom import (
 
 import xcrg.ngd as ngd
 import xcrg.runner as runner
+from xcrg import ranking
 from xcrg.config import XCRGConfig as Config # TODO
 from xcrg.context import RunContext
 from xcrg.reporting import StubReporter
-from xcrg.utilities import format_json_for_log
+from xcrg.utilities import XCRGResult, format_json_for_log
 
 
 def make_context(
@@ -70,6 +72,10 @@ def make_inferred_query() -> Query:
                     "chem": QNode(
                         ids = ["CHEBI:1"],
                         categories = ["biolink:ChemicalEntity"]
+                    ),
+                    "gene": QNode(
+                        ids = ["NCBIGene:1"],
+                        categories = ["biolink:gene"]
                     )
                 },
                 edges = {
@@ -256,7 +262,7 @@ def test_validate_inferred_query():
         message = Message(
             query_graph = QueryGraph(
                 nodes = {
-                    "chem": QNode(categories = ["biolink:ChemicalEntity"]),
+                    "chem": QNode(categories = ["biolink:ChemicalEntity"], ids = None),
                     "gene": QNode(
                         ids = ["NCBIGene:6323"],
                         categories = ["biolink:Gene"]
@@ -293,10 +299,25 @@ def test_validate_inferred_query():
 
 def test_load_tf_list_uses_bundled_default_resource():
     ctx = make_context(query = make_inferred_query())
-    tf_list = ctx.load_tf_list()
+    assert "NCBIGene:8932" in ctx.tf_list
+    assert len(ctx.tf_list) > 100
 
-    assert "NCBIGene:7157" in tf_list
-    assert len(tf_list) > 100
+
+def test_load_tf_list_uses_config_file(tmp_path: Path):
+    tf_file = tmp_path / "tf_file.json"
+    with open(tf_file, "w", encoding = "utf-8") as f:
+        f.write("""
+        {
+            "tf": [
+                "FOO",
+                "BAR"
+            ]
+        }
+        """)
+    config = Config(retriever_url = "", tf_path = tf_file)
+    ctx = make_context(query = make_inferred_query(), config = config)
+    assert "FOO" in ctx.tf_list
+    assert len(ctx.tf_list) == 2
 
 
 def test_merge_filtered_responses_keeps_rich_retriever_metadata():
@@ -377,11 +398,11 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
 
 
 def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
-    original_message = make_inferred_query()
-    ctx = make_context(original_message)
+    ctx = make_context(make_inferred_query())
 
     combined_message = Response(
         message = Message(
+            query_graph = QueryGraph(nodes = {}, edges = {}),
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = []),
@@ -447,13 +468,7 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     # missing_node_attrs = [
     #     binding
@@ -511,10 +526,10 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
             },
         ),
     )
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message, config = config)
+    ctx = make_context(query = make_inferred_query(), config = config)
     combined_message = Response(
         message = Message(
+            query_graph = QueryGraph(nodes = {}, edges = {}),
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = []),
@@ -549,13 +564,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
 
@@ -584,8 +593,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
 
 
 def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message)
+    ctx = make_context(query = make_inferred_query())
     chem_node = Node(
         name = "Chem One",
         categories = ["biolink:SmallMolecule"],
@@ -619,6 +627,7 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
     )
     combined_message = Response(
         message = Message(
+            query_graph = QueryGraph(nodes = {}, edges = {}),
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": chem_node,
@@ -668,13 +677,7 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
@@ -684,22 +687,29 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
     assert "NCBIGene:unused" not in final_nodes
 
 
+# TODO: I am not sure this test is doing something useful anymore
 def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message)
-    assert original_message.message.query_graph
-    original_message.message.query_graph.nodes["gene"] = QNode(
+    ctx = make_context(query = make_inferred_query())
+    assert ctx.query_graph
+    ctx.query_graph.nodes["gene"] = QNode(
         ids = ["NCBIGene:1"],
         categories = ["biolink:gene"]
     )
     combined_message = Response(
         message = Message(
+            query_graph = QueryGraph(nodes = {}, edges = {}),
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(
                         name = "Chem One",
                         categories = ["biolink:SmallMolecule"],
                         attributes = [],
+                    ),
+                    # TODO: Is this test looking for query to fill in this missing node?
+                    #  Without this node the test fails; we would expect retriever to fill this for us...
+                    "NCBIGene:1": Node(
+                        categories = ["biolink:gene"],
+                        attributes = []
                     )
                 },
                 edges = {
@@ -731,13 +741,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
@@ -750,8 +754,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
 
 
 def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message)
+    ctx = make_context(make_inferred_query())
     empty_tf_node = Node(
         name = None,
         categories = ["biolink:unused"],
@@ -759,6 +762,7 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
     )
     combined_message = Response(
         message = Message(
+            query_graph = QueryGraph(nodes = {}, edges = {}),
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(
@@ -811,13 +815,7 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     assert response.message.knowledge_graph
 
@@ -841,8 +839,7 @@ def test_clean_response_limits_to_configured_top_result_count():
         ngd_db_path=None,
         max_results=2,
     )
-    original_message = make_inferred_query()
-    ctx = make_context(query = original_message, config = config)
+    ctx = make_context(query = make_inferred_query(), config = config)
     nodes = {"CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = [])}
     edges = {}
     results = list[Result]()
@@ -876,18 +873,18 @@ def test_clean_response_limits_to_configured_top_result_count():
         )
     combined_message = Response(
         message = Message(
+            query_graph = QueryGraph(nodes = {}, edges = {}),
             knowledge_graph = KnowledgeGraph(nodes = nodes, edges = edges),
             results = results
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
+    xcrg_results = [
+        XCRGResult(node_bindings = x.node_bindings, analyses = x.analyses)
+        for x in response.message.results_list
+    ]
+    ranking.rank_results(ctx, response, xcrg_results)
 
     final_results = response.message.results_list
     assert response.message.knowledge_graph
@@ -903,10 +900,10 @@ def test_clean_response_limits_to_configured_top_result_count():
 
 
 def test_clean_response_copies_retriever_edge_auxiliary_graphs():
-    ctx = make_context()
-    original_message = make_inferred_query()
+    ctx = make_context(make_inferred_query())
     combined_message = Response(
         message = Message(
+            query_graph = QueryGraph(nodes = {}, edges = {}),
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = []),
@@ -961,13 +958,7 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
         )
     )
 
-    response = runner.build_trapi_clean_response(
-        ctx,
-        original_message,
-        combined_message,
-        "chem",
-        "gene"
-    )
+    response = runner.build_trapi_clean_response(ctx, combined_message)
 
     message = response.message
     assert message.knowledge_graph
