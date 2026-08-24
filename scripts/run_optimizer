@@ -126,6 +126,9 @@ def main():
     script_file = Path(sys.argv[0])
     project_dir = script_file.parent.parent # TODO: fragile
 
+    output_dir = project_dir / "output"
+    output_dir.mkdir(exist_ok = True)
+
     study = create_study(direction="maximize")
     objective = make_objective(project_dir)
     study.optimize(objective, n_trials=1000)
@@ -133,7 +136,7 @@ def main():
     print(study.best_value)
     print(study.best_params)
 
-    results_file = script_file.parent / "optuna_results.txt"
+    results_file = output_dir / "optuna_results.txt"
     with open(results_file, "w") as f:
         f.write(f"Most tests passed: {study.best_value}\n")
         f.write(f"Best params: {study.best_params}")
