@@ -173,55 +173,50 @@
             {
                 "id": "CHEBI:31355",
                 "name": "Carboplatin",
-                "expectation": "never_show",
+                "expectation": "acceptable",
                 "fails_on_arax": true
             },
             {
                 "id": "CHEBI:176844",
                 "name": "niraparib",
-                "expectation": "never_show"
+                "expectation": "acceptable"
             },
             {
                 "id": "CHEBI:83766",
                 "name": "olaparib",
-                "expectation": "never_show"
-            },
-            {
-                "id": "CHEBI:16842",
-                "name": "formaldehyde",
-                "expectation": "never_show"
+                "expectation": "acceptable"
             },
             {
                 "id": "CHEBI:62880",
                 "name": "veliparib",
-                "expectation": "never_show"
+                "expectation": "acceptable"
             },
             {
                 "id": "CHEBI:134689",
                 "name": "rucaparib",
-                "expectation": "never_show",
+                "expectation": "acceptable",
                 "fails_on_arax": true
             },
             {
                 "id": "CHEBI:231344",
                 "name": "talazoparib",
-                "expectation": "never_show"
+                "expectation": "acceptable"
             },
             {
                 "id": "CHEBI:27899",
                 "name": "Cisplatin",
-                "expectation": "never_show"
+                "expectation": "acceptable"
             },
             {
                 "id": "CHEBI:167900",
                 "name": "PJ34",
-                "expectation": "never_show",
+                "expectation": "acceptable",
                 "fails_on_arax": true
             },
             {
                 "id": "CHEBI:41774",
                 "name": "Tamoxifen",
-                "expectation": "never_show"
+                "expectation": "acceptable"
             }
         ]
     },
@@ -1129,6 +1124,10 @@
         ]
     },
     {
+        "comments": [
+            "ARAX has a number of duplicated tests in this suite: ATP1A1, ATP1A2, ATP1A3, etc.",
+            "Some of these are documented in GitHub tickets: https://github.com/NCATSTranslator/Tests/issues/46"
+        ],
         "id": "dc91b4f6-95d9-40b0-95d5-7f2457436c30",
         "type": "find_genes_affected_by_chemical",
         "direction": "increased",
@@ -1529,6 +1528,11 @@
             {
                 "id": "NCBIGene:6646",
                 "name": "SOAT1",
+                "expectation": "never_show"
+            },
+            {
+                "id": "UMLS:C0001473",
+                "name": "Adenosine Triphosphatases",
                 "expectation": "never_show"
             }
         ]

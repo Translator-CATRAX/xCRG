@@ -13,6 +13,8 @@ from tests.utilities import (
 
 TEST_NAME = f"arax_test_dc91b4f6-95d9-40b0-95d5-7f2457436c30"
 
+# ARAX has a number of duplicated tests in this suite: ATP1A1, ATP1A2, ATP1A3, etc.
+# Some of these are documented in GitHub tickets: https://github.com/NCATSTranslator/Tests/issues/46
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
@@ -101,6 +103,7 @@ def response(config: xcrg.XCRGConfig) -> Response:
         XCRG_Answer("NCBIGene:100135663", "never_show"), # MAP3K7
         XCRG_Answer("NCBIGene:8717", "never_show"), # TRADD
         XCRG_Answer("NCBIGene:6646", "never_show"), # SOAT1
+        XCRG_Answer("UMLS:C0001473", "never_show"), # Adenosine Triphosphatases
     ]
 )
 def test_increased_activity_or_abundance_of_potassium_ion(response: Response, answer: XCRG_Answer):

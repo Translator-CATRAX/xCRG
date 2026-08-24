@@ -27,7 +27,11 @@ def generate_test_files(arax_dir: Path, tests: list[dict]):
         )
         
         TEST_NAME = f"arax_test_{test["id"]}"
+        
         """).lstrip()
+
+        for comment in test.get("comments", []):
+            s += f"# {comment}\n"
 
         s += dedent(f"""
         @pytest.fixture(scope = "module")
@@ -39,7 +43,7 @@ def generate_test_files(arax_dir: Path, tests: list[dict]):
         @pytest.mark.parametrize(
             "answer",
             [
-        """)
+        """).lstrip()
 
         answers = []
         for answer in test["answers"]:
@@ -91,7 +95,6 @@ def generate_one_shot_tests(arax_dir: Path, tests: list[dict]):
 
         for comment in test.get("comments", []):
             s += f"# {comment}\n"
-
 
         fails = ""
         if answer.get("fails_on_arax", False):
