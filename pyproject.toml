@@ -46,11 +46,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 # Additional pytest configuration is performed in tests/conftest.py
+# See scripts/run_tests for additional context, etc.
 pythonpath = ["src"]
 testpaths = ["tests"]
-# Only run unit tests by default.
-# Comment this line if you want better support in IDE's like PyCharm, etc.
-addopts = ["-m unit"]
 
 [tool.ruff.lint]
 ignore = [

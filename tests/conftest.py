@@ -64,11 +64,8 @@ def config(request) -> XCRGConfig:
 
 
 def pytest_configure(config):
-    # pytest has been configured in this project to run unit tests by default. And so the "all" marker is
-    # here to make it easy to run everything again, instead of having to type "unit or integration", etc.
-    config.addinivalue_line("markers", "all: run unit and integration tests")
-    config.addinivalue_line("markers", "arax: run ARAX compliance tests; slow, requires network.")
-    config.addinivalue_line("markers", "integration: run integration tests; slow, requires network.")
+    config.addinivalue_line("markers", "arax: run ARAX compliance tests (slow, requires network)")
+    config.addinivalue_line("markers", "integration: run integration tests (slow, requires network)")
     config.addinivalue_line("markers", "unit: run local unit tests")
 
 
@@ -77,10 +74,8 @@ def pytest_collection_modifyitems(items):
         if "tests/arax/" in str(item.fspath):
             item.add_marker(pytest.mark.arax)
         if "tests/integration/" in str(item.fspath):
-            item.add_marker(pytest.mark.all)
             item.add_marker(pytest.mark.integration)
         elif "tests/unit/" in str(item.fspath):
-            item.add_marker(pytest.mark.all)
             item.add_marker(pytest.mark.unit)
 
 

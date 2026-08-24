@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# TODO: Abstract this into a generic run_tests script
-# TODO: This would be better than passing args to pytest or abusing pyproject.toml addopts
-
-pytest -m arax -n auto --dist=loadgroup -q --tb=short --debug_level=basic --use_http_cache

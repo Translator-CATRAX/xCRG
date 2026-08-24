@@ -50,6 +50,60 @@ class ScoredResult:
     score: float
 
 
+class Evidence_Category(Enum):
+    NUM_STUDIES      = "num_studies"
+    NUM_PUBLICATIONS = "num_publications"
+    EVIDENCE_COUNT   = "evidence_count"
+
+
+@dataclass
+class Count_Category:
+    log_function : Callable[[float], float]
+    factor       : float
+
+
+@dataclass(frozen = True)
+class Scoring_Params:
+    agent_type_weights      : dict[biolink.Agent_Type, float]
+    knowledge_level_weights : dict[biolink.Knowledge_Level, float]
+    confidence_factor       : float
+    category_weights        : dict[Evidence_Category, Count_Category]
+
+
+DEFAULT_SCORING_PARAMS = Scoring_Params(
+    agent_type_weights = {
+        Agent_Type.MANUAL_AGENT: 2.7481831114390363,
+        Agent_Type.AUTOMATED_AGENT: 4.8577822159030335,
+        Agent_Type.COMPUTATIONAL_MODEL: 1.9647096774358528,
+        Agent_Type.TEXT_MINING_AGENT: 0.017863421090903536,
+    },
+    knowledge_level_weights = {
+        Knowledge_Level.KNOWLEDGE_ASSERTION: 9.973747562944625,
+        Knowledge_Level.LOGICAL_ENTAILMENT: 4.1090453145165835,
+        Knowledge_Level.PREDICTION: 4.65987253204859,
+        Knowledge_Level.STATISTICAL_ASSOCIATION: 4.25861491058457,
+        Knowledge_Level.TEXT_CO_OCCURRENCE: 1.5481832026793478,
+        Knowledge_Level.OBSERVATION: 1.9805966803548753,
+        Knowledge_Level.NOT_PROVIDED: 0.01479977839514357,
+    },
+    confidence_factor = 8.691003711797649,
+    category_weights = {
+        Evidence_Category.NUM_STUDIES: Count_Category(
+            log_function = math.log,
+            factor = 0.21916779253511368
+        ),
+        Evidence_Category.NUM_PUBLICATIONS: Count_Category(
+            log_function = lambda x: x,
+            factor = 7.407108483542785
+        ),
+        Evidence_Category.EVIDENCE_COUNT: Count_Category(
+            log_function = lambda x: x,
+            factor = 8.128071002958169
+        )
+    }
+)
+
+
 def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
     num_publications = 0
     num_studies = 0
@@ -158,34 +212,19 @@ def get_result_statistics(
     )
 
 
-class Evidence_Category(Enum):
-    NUM_STUDIES      = "num_studies"
-    NUM_PUBLICATIONS = "num_publications"
-    EVIDENCE_COUNT   = "evidence_count"
-
-
-@dataclass
-class Count_Category:
-    log_function : Callable[[float], float]
-    factor       : float
-
-
-@dataclass
-class Scoring_Params:
-    agent_type_weights      : dict[biolink.Agent_Type, float]
-    knowledge_level_weights : dict[biolink.Knowledge_Level, float]
-    confidence_factor       : float
-    category_weights        : dict[Evidence_Category, Count_Category]
-
-
-def calculate_score_for_result(statistics: ResultStatistics, params: Scoring_Params) -> float:
+def calculate_score_for_result(
+    statistics: ResultStatistics,
+    params: Scoring_Params = DEFAULT_SCORING_PARAMS
+) -> float:
     total_score: float = 0
 
     for stmt in statistics.qualified_statements:
         score: float = 0
 
-        agent_type = biolink.Agent_Type(stmt.agent_type)
-        agent_factor = params.agent_type_weights.get(agent_type, 1)
+        agent_factor = 0
+        if stmt.agent_type:
+            agent_type = biolink.Agent_Type(stmt.agent_type)
+            agent_factor = params.agent_type_weights[agent_type]
 
         knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
         knowledge_factor = params.knowledge_level_weights.get(knowledge_level, 1)
@@ -240,39 +279,6 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
     if qnode := qgraph.nodes.get(answer_qid):
         use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
 
-    params = Scoring_Params(
-        agent_type_weights = {
-            Agent_Type.MANUAL_AGENT: 2.7481831114390363,
-            Agent_Type.AUTOMATED_AGENT: 4.8577822159030335,
-            Agent_Type.COMPUTATIONAL_MODEL: 1.9647096774358528,
-            Agent_Type.TEXT_MINING_AGENT: 0.017863421090903536,
-        },
-        knowledge_level_weights = {
-            Knowledge_Level.KNOWLEDGE_ASSERTION: 9.973747562944625,
-            Knowledge_Level.LOGICAL_ENTAILMENT: 4.1090453145165835,
-            Knowledge_Level.PREDICTION: 4.65987253204859,
-            Knowledge_Level.STATISTICAL_ASSOCIATION: 4.25861491058457,
-            Knowledge_Level.TEXT_CO_OCCURRENCE: 1.5481832026793478,
-            Knowledge_Level.OBSERVATION: 1.9805966803548753,
-            Knowledge_Level.NOT_PROVIDED: 0.01479977839514357,
-        },
-        confidence_factor = 8.691003711797649,
-        category_weights = {
-            Evidence_Category.NUM_STUDIES: Count_Category(
-                log_function = math.log,
-                factor = 0.21916779253511368
-            ),
-            Evidence_Category.NUM_PUBLICATIONS: Count_Category(
-                log_function = lambda x: x,
-                factor = 7.407108483542785
-            ),
-            Evidence_Category.EVIDENCE_COUNT: Count_Category(
-                log_function = lambda x: x,
-                factor = 8.128071002958169
-            )
-        }
-    )
-
     scored_results = list[ScoredResult]()
     for result in results:
         stats = get_result_statistics(
@@ -282,7 +288,7 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
             answer_qid,
             use_category_specificity
         )
-        score = calculate_score_for_result(stats, params)
+        score = calculate_score_for_result(stats)
         scored_result = ScoredResult(result, stats, score)
         scored_results.append(scored_result)
         result.ngd_score = stats.ngd_score

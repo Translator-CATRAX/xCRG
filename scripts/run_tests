@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+SCRIPT_NAME="$(basename "$0")"
+
+print_help_and_exit() {
+    printf "Run xCRG tests\n\n"
+    printf "Usage: %s <cmd> [pytest args...]\n\n" "$SCRIPT_NAME"
+    printf "Commands:\n"
+    printf "  all         : run unit and integration tests\n"
+    printf "  arax        : run ARAX compliance tests (slow, requires network)\n"
+    printf "  help        : print this message\n"
+    printf "  integration : run integration tests (slow, requires network)\n"
+    printf "  unit        : run local unit tests\n"
+    exit 0
+}
+
+if (($# < 1)); then
+    print_help_and_exit
+fi
+
+CMD="$1" && shift
+
+case "$CMD" in
+    arax)
+        pytest -m arax -n auto --dist=loadgroup -q --tb=short --debug_level=basic --use_http_cache "$@"
+        ;;
+    all)
+        pytest -m "unit or integration" --use_http_cache "$@"
+        ;;
+    help)
+        print_help_and_exit
+        ;;
+    integration)
+        pytest -m integration --use_http_cache "$@"
+        ;;
+    unit)
+        pytest -m unit "$@"
+        ;;
+    *)
+        printf "Unknown command: %s\n" "$CMD"
+        ;;
+esac
