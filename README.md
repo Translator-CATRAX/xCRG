@@ -190,27 +190,20 @@ deployments unless the caller has storage/retention controls in place.
 
 ```bash
 # Run unit tests
-pytest
+scripts/run_tests unit
 
 # Run integration tests
-#
-# These may be ran locally, but are slow and depend heavily on external
-# resources like servers, database files, etc.
-#
-# There are several CLI args that may be provided. These are documented in tests/conftest.py.
-# You can also view them by running `pytest --help` and examining "Custom options"
-pytest -m integration
+scripts/run_tests integration
 
-# Run all tests
-pytest -m all
+# Run unit and integration tests
+scripts/run_tests all
 ```
 
 Recommended validation before updating an integration pin:
 
 ```bash
-pytest
-ruff check
-ty check
+scripts/run_tests all
+scripts/run_checks
 ```
 
 ## Notes
