@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, cast
@@ -212,88 +213,111 @@ def get_result_statistics(
     )
 
 
-def calculate_score_for_result(
-    statistics: ResultStatistics,
-    params: Scoring_Params = DEFAULT_SCORING_PARAMS
-) -> float:
-    total_score: float = 0
+class XCRG_Ranker(ABC):
+        def rank_results(
+            self,
+            ctx: RunContext,
+            response: Response,
+            results: list[XCRGResult]
+        ) -> list[ScoredResult]:
+            ...
 
-    for stmt in statistics.qualified_statements:
-        score: float = 0
 
-        agent_factor = 0
-        if stmt.agent_type:
-            agent_type = biolink.Agent_Type(stmt.agent_type)
-            agent_factor = params.agent_type_weights[agent_type]
+class Custom_Ranker(XCRG_Ranker):
+    @staticmethod
+    def calculate_score_for_result(
+        statistics: ResultStatistics,
+        params: Scoring_Params = DEFAULT_SCORING_PARAMS
+    ) -> float:
+        total_score: float = 0
 
-        knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
-        knowledge_factor = params.knowledge_level_weights.get(knowledge_level, 1)
+        for stmt in statistics.qualified_statements:
+            score: float = 0
 
-        # For now, just having a confidence score is enough to boost the score
-        if stmt.confidence_score:
-            confidence_factor = params.confidence_factor
-        else:
-            confidence_factor = 1
+            agent_factor = 0
+            if stmt.agent_type:
+                agent_type = biolink.Agent_Type(stmt.agent_type)
+                agent_factor = params.agent_type_weights[agent_type]
 
-        factors = [
-            agent_factor,
-            knowledge_factor,
-            confidence_factor
-        ]
+            knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
+            knowledge_factor = params.knowledge_level_weights.get(knowledge_level, 1)
 
-        category = params.category_weights[Evidence_Category.NUM_STUDIES]
-        score += category.log_function(stmt.num_studies + 1) * category.factor
+            # For now, just having a confidence score is enough to boost the score
+            if stmt.confidence_score:
+                confidence_factor = params.confidence_factor
+            else:
+                confidence_factor = 1
 
-        category = params.category_weights[Evidence_Category.NUM_PUBLICATIONS]
-        score += category.log_function(stmt.num_publications + 1) * category.factor
+            factors = [
+                agent_factor,
+                knowledge_factor,
+                confidence_factor
+            ]
 
-        category = params.category_weights[Evidence_Category.EVIDENCE_COUNT]
-        score += category.log_function(stmt.evidence_count + 1) * category.factor
+            category = params.category_weights[Evidence_Category.NUM_STUDIES]
+            score += category.log_function(stmt.num_studies + 1) * category.factor
 
-        score *= (sum(factors) / len(factors))
+            category = params.category_weights[Evidence_Category.NUM_PUBLICATIONS]
+            score += category.log_function(stmt.num_publications + 1) * category.factor
 
-        total_score += score
+            category = params.category_weights[Evidence_Category.EVIDENCE_COUNT]
+            score += category.log_function(stmt.evidence_count + 1) * category.factor
 
-    # ngd_factor = (statistics.ngd_score or 0) + 1
-    # info_factor = ((statistics.information_content or 0) / 100) + 1 # TODO
-    # specificity_factor = statistics.specificity / 4 # TODO
-    #
-    # factors = [
-    #     ngd_factor,
-    #     info_factor,
-    #     specificity_factor
-    # ]
-    #
-    # return total_score # * (sum(factors) / len(factors))
+            score *= (sum(factors) / len(factors))
 
-    return total_score
+            total_score += score
+
+        # ngd_factor = (statistics.ngd_score or 0) + 1
+        # info_factor = ((statistics.information_content or 0) / 100) + 1 # TODO
+        # specificity_factor = statistics.specificity / 4 # TODO
+        #
+        # factors = [
+        #     ngd_factor,
+        #     info_factor,
+        #     specificity_factor
+        # ]
+        #
+        # return total_score # * (sum(factors) / len(factors))
+
+        return total_score
+
+    def rank_results(
+        self,
+        ctx: RunContext,
+        response: Response,
+        results: list[XCRGResult]
+    ) -> list[ScoredResult]:
+        """Score, sort, rank, and limit results in the response."""
+        qgraph = cast(QueryGraph, response.message.query_graph)
+
+        answer_qid = ctx.get_answer_qid()
+
+        use_category_specificity = False
+        if qnode := qgraph.nodes.get(answer_qid):
+            use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
+
+        scored_results = list[ScoredResult]()
+        for result in results:
+            stats = get_result_statistics(
+                ctx,
+                response.message,
+                result,
+                answer_qid,
+                use_category_specificity
+            )
+            score = Custom_Ranker.calculate_score_for_result(stats)
+            scored_result = ScoredResult(result, stats, score)
+            scored_results.append(scored_result)
+            result.ngd_score = stats.ngd_score
+
+        return sorted(scored_results, key = lambda x: x.score, reverse = True)
 
 
 def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult]) -> list[XCRGResult]:
     """Score, sort, rank, and limit results in the response."""
-    qgraph = cast(QueryGraph, response.message.query_graph)
+    ranker = Custom_Ranker() # TODO
 
-    answer_qid = ctx.get_answer_qid()
-
-    use_category_specificity = False
-    if qnode := qgraph.nodes.get(answer_qid):
-        use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
-
-    scored_results = list[ScoredResult]()
-    for result in results:
-        stats = get_result_statistics(
-            ctx,
-            response.message,
-            result,
-            answer_qid,
-            use_category_specificity
-        )
-        score = calculate_score_for_result(stats)
-        scored_result = ScoredResult(result, stats, score)
-        scored_results.append(scored_result)
-        result.ngd_score = stats.ngd_score
-
-    sorted_results = sorted(scored_results, key = lambda x: x.score, reverse = True)
+    ranked_results = ranker.rank_results(ctx, response, results)
 
     ctx.debug_dump_json(
         label = "xcrg_scored_results",
@@ -303,12 +327,12 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
                 "score": r.score,
                 "stats": r.stats,
             }
-            for i, r in enumerate(sorted_results, start = 1)
+            for i, r in enumerate(ranked_results, start = 1)
         ],
         level = DebugLevel.BASIC
     )
 
-    final_results = [x.result for x in sorted_results]
+    final_results = [x.result for x in ranked_results]
     final_results = final_results[0:ctx.num_max_results]
 
     return final_results

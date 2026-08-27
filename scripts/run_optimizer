@@ -12,10 +12,10 @@ from translator_tom import CURIE
 from xcrg.biolink import Agent_Type, Knowledge_Level
 from xcrg.ranking import (
     Count_Category,
+    Custom_Ranker,
     Evidence_Category,
     QualifiedStatement, ResultStatistics,
-    Scoring_Params,
-    calculate_score_for_result
+    Scoring_Params
 )
 
 
@@ -103,12 +103,14 @@ def make_objective(project_dir: Path):
             }
         )
 
+        ranker = Custom_Ranker()
+
         passed_tests = 0
         for test in arax_tests:
             results = list[tuple[float, CURIE]]()
             for stats in statistics[test["id"]]:
                 curie = stats.answer_id
-                score = calculate_score_for_result(stats, params)
+                score = ranker.calculate_score_for_result(stats, params)
                 results.append((score, curie))
             answer_ids = [x[1] for x in sorted(results, key = lambda x: x[0], reverse = True)]
             answer_ids = answer_ids[0:500] # TODO
