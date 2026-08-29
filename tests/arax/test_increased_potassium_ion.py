@@ -11,7 +11,7 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
-TEST_NAME = f"arax_test_dc91b4f6-95d9-40b0-95d5-7f2457436c30"
+TEST_NAME = "arax_test_dc91b4f6-95d9-40b0-95d5-7f2457436c30"
 
 # ARAX has a number of duplicated tests in this suite: ATP1A1, ATP1A2, ATP1A3, etc.
 # Some of these are documented in GitHub tickets: https://github.com/NCATSTranslator/Tests/issues/46
