@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import math
-from abc import ABC
-from dataclasses import dataclass
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, cast
 
@@ -32,23 +32,19 @@ class QualifiedStatement:
     confidence_score : float | None
 
 
-@dataclass(frozen = True, slots = False)
-class ResultStatistics:
-    answer_id            : CURIE
-    answer_name          : str
+@dataclass(slots = False)
+class Result_Summary:
+    result               : XCRGResult # The original result
+    curie                : CURIE
+    name                 : str
+    score                : float # The final score of the result
     specificity          : int
     information_content  : int
+    # TODO: number of nodes/hops?
     num_direct_edges     : int
     num_xcrg_edges       : int
     ngd_score            : float | None
     qualified_statements : list[QualifiedStatement]
-
-
-@dataclass(frozen = True, slots = False)
-class ScoredResult:
-    result: XCRGResult
-    stats: ResultStatistics
-    score: float
 
 
 class Evidence_Category(Enum):
@@ -65,6 +61,7 @@ class Count_Category:
 
 @dataclass(frozen = True)
 class Scoring_Params:
+    k                       : float
     agent_type_weights      : dict[biolink.Agent_Type, float]
     knowledge_level_weights : dict[biolink.Knowledge_Level, float]
     confidence_factor       : float
@@ -72,6 +69,7 @@ class Scoring_Params:
 
 
 DEFAULT_SCORING_PARAMS = Scoring_Params(
+    k = 60, # Much literature argues that 60 is a good default for RRF
     agent_type_weights = {
         Agent_Type.MANUAL_AGENT: 2.7481831114390363,
         Agent_Type.AUTOMATED_AGENT: 4.8577822159030335,
@@ -142,13 +140,13 @@ def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
     )
 
 
-def get_result_statistics(
+def create_result_summary(
     ctx: RunContext,
     message: Message,
     result: XCRGResult,
     answer_qid: QNodeID,
     use_category_specificity: bool,
-) -> ResultStatistics:
+) -> Result_Summary:
     """Return sort metrics for the answer node bound by a result."""
     assert (kgraph := message.knowledge_graph)
 
@@ -201,9 +199,11 @@ def get_result_statistics(
         result.node_bindings[ctx.object_qid][0].id
     )
 
-    return ResultStatistics(
-        answer_id = answer_id,
-        answer_name = answer_name,
+    return Result_Summary(
+        result = result,
+        curie = answer_id,
+        name = answer_name,
+        score = 0,
         specificity = specificity,
         information_content = information_content,
         num_direct_edges = num_direct_edges,
@@ -213,38 +213,36 @@ def get_result_statistics(
     )
 
 
-class XCRG_Ranker(ABC):
-        def rank_results(
-            self,
-            ctx: RunContext,
-            response: Response,
-            results: list[XCRGResult]
-        ) -> list[ScoredResult]:
-            ...
+@dataclass
+class Ranker(ABC):
+    """Base class for xCRG ranker."""
+    scoring_params: Scoring_Params = field(default = DEFAULT_SCORING_PARAMS)
+
+    @abstractmethod
+    def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
+        """Score, sort, and rank results in the response."""
+        ...
 
 
-class Custom_Ranker(XCRG_Ranker):
-    @staticmethod
-    def calculate_score_for_result(
-        statistics: ResultStatistics,
-        params: Scoring_Params = DEFAULT_SCORING_PARAMS
-    ) -> float:
+class Custom_Ranker(Ranker):
+    """Ranker that implements a custom strategy."""
+    def calculate_score_for_result(self, summary: Result_Summary) -> float:
         total_score: float = 0
 
-        for stmt in statistics.qualified_statements:
+        for stmt in summary.qualified_statements:
             score: float = 0
 
             agent_factor = 0
             if stmt.agent_type:
                 agent_type = biolink.Agent_Type(stmt.agent_type)
-                agent_factor = params.agent_type_weights[agent_type]
+                agent_factor = self.scoring_params.agent_type_weights[agent_type]
 
             knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
-            knowledge_factor = params.knowledge_level_weights.get(knowledge_level, 1)
+            knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
 
             # For now, just having a confidence score is enough to boost the score
             if stmt.confidence_score:
-                confidence_factor = params.confidence_factor
+                confidence_factor = self.scoring_params.confidence_factor
             else:
                 confidence_factor = 1
 
@@ -254,13 +252,13 @@ class Custom_Ranker(XCRG_Ranker):
                 confidence_factor
             ]
 
-            category = params.category_weights[Evidence_Category.NUM_STUDIES]
+            category = self.scoring_params.category_weights[Evidence_Category.NUM_STUDIES]
             score += category.log_function(stmt.num_studies + 1) * category.factor
 
-            category = params.category_weights[Evidence_Category.NUM_PUBLICATIONS]
+            category = self.scoring_params.category_weights[Evidence_Category.NUM_PUBLICATIONS]
             score += category.log_function(stmt.num_publications + 1) * category.factor
 
-            category = params.category_weights[Evidence_Category.EVIDENCE_COUNT]
+            category = self.scoring_params.category_weights[Evidence_Category.EVIDENCE_COUNT]
             score += category.log_function(stmt.evidence_count + 1) * category.factor
 
             score *= (sum(factors) / len(factors))
@@ -281,58 +279,134 @@ class Custom_Ranker(XCRG_Ranker):
 
         return total_score
 
-    def rank_results(
-        self,
-        ctx: RunContext,
-        response: Response,
-        results: list[XCRGResult]
-    ) -> list[ScoredResult]:
-        """Score, sort, rank, and limit results in the response."""
-        qgraph = cast(QueryGraph, response.message.query_graph)
+    def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
+        summaries: list[Result_Summary] = list(summaries.values())
+        for summary in summaries:
+            summary.score = self.calculate_score_for_result(summary)
+        return sorted(summaries, key = lambda x: x.score, reverse = True)
 
-        answer_qid = ctx.get_answer_qid()
 
-        use_category_specificity = False
-        if qnode := qgraph.nodes.get(answer_qid):
-            use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
+@dataclass
+class RRF_Ranker(Ranker):
+    """Ranker that implements Reciprocal Rank Fusion (RFF) strategy."""
+    @staticmethod
+    def rank_summaries(
+        results: dict[CURIE, Result_Summary],
+        ranks: dict[CURIE, list[float]],
+        mapper: Callable[[Result_Summary], float]
+    ):
+        stats = sorted(results.values(), key = mapper, reverse = True)
+        # We need to tie-break rankings for items with the same score
+        i = 0
+        n = len(stats)
+        while i < n:
+            j = i
+            # find the extent of the tie block
+            while j < n and mapper(stats[i]) == mapper(stats[j]):
+                j += 1
+            avg_rank = (i + 1 + j) / 2.0  # average of positions i+1..j
+            for idx in range(i, j):
+                ranks.setdefault(stats[idx].curie, []).append(avg_rank)
+            i = j
+        return ranks
 
-        scored_results = list[ScoredResult]()
-        for result in results:
-            stats = get_result_statistics(
-                ctx,
-                response.message,
-                result,
-                answer_qid,
-                use_category_specificity
-            )
-            score = Custom_Ranker.calculate_score_for_result(stats)
-            scored_result = ScoredResult(result, stats, score)
-            scored_results.append(scored_result)
-            result.ngd_score = stats.ngd_score
+    def score_stmts(self, summary: Result_Summary, category: Evidence_Category):
+        score: float = 0
 
-        return sorted(scored_results, key = lambda x: x.score, reverse = True)
+        for stmt in summary.qualified_statements:
+            agent_factor = 0
+            if stmt.agent_type:
+                agent_type = biolink.Agent_Type(stmt.agent_type)
+                agent_factor = self.scoring_params.agent_type_weights[agent_type]
+
+            knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
+            knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
+
+            # For now, just having a confidence score is enough to boost the score
+            if stmt.confidence_score:
+                confidence_factor = self.scoring_params.confidence_factor
+            else:
+                confidence_factor = 1
+
+            category_factor = self.scoring_params.category_weights[category].factor
+
+            value: float
+            match category:
+                case Evidence_Category.NUM_PUBLICATIONS: value = stmt.num_publications + 1
+                case Evidence_Category.NUM_STUDIES:      value = stmt.num_studies      + 1
+                case Evidence_Category.EVIDENCE_COUNT:   value = stmt.evidence_count   + 1
+
+            score += value * agent_factor * knowledge_factor * confidence_factor * category_factor
+
+        return score
+
+    def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
+        ranks = dict[CURIE, list[float]]()
+
+        self.rank_summaries(summaries, ranks, lambda x: x.specificity)
+        self.rank_summaries(summaries, ranks, lambda x: x.information_content)
+        self.rank_summaries(summaries, ranks, lambda x: x.num_direct_edges)
+        self.rank_summaries(summaries, ranks, lambda x: x.num_xcrg_edges)
+        self.rank_summaries(summaries, ranks, lambda x: x.ngd_score or 0)
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x, Evidence_Category.NUM_PUBLICATIONS))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x, Evidence_Category.NUM_STUDIES))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x, Evidence_Category.EVIDENCE_COUNT))
+
+        k = self.scoring_params.k
+
+        for curie, summary in summaries.items():
+            for rank in ranks[curie]:
+                summary.score += 1.0 / (rank + k)
+
+        return sorted(summaries.values(), key = lambda x: x.score, reverse = True)
 
 
 def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult]) -> list[XCRGResult]:
     """Score, sort, rank, and limit results in the response."""
-    ranker = Custom_Ranker() # TODO
+    qgraph = cast(QueryGraph, response.message.query_graph)
 
-    ranked_results = ranker.rank_results(ctx, response, results)
+    answer_qid = ctx.get_answer_qid()
+
+    use_category_specificity = False
+    if qnode := qgraph.nodes.get(answer_qid):
+        use_category_specificity = any(biolink.is_chemical_category(ctx, c) for c in qnode.categories_list)
+
+    summaries = dict[CURIE, Result_Summary]()
+    for result in results:
+        summary = create_result_summary(
+            ctx,
+            response.message,
+            result,
+            answer_qid,
+            use_category_specificity
+        )
+        summaries[summary.curie] = summary
+
+    ranker = Custom_Ranker() # TODO
+    # ranker = RRF_Ranker()
+
+    ranked_summaries = ranker.rank_results(summaries)
 
     ctx.debug_dump_json(
         label = "xcrg_scored_results",
         payload = [
             {
-                "rank": i,
-                "score": r.score,
-                "stats": r.stats,
+                "curie": x.curie,
+                "name": x.name,
+                "score": x.score,
+                "specificity": x.specificity,
+                "information_content": x.information_content,
+                "num_direct_edges": x.num_direct_edges,
+                "num_xcrg_edges": x.num_xcrg_edges,
+                "ngd_score": x.ngd_score,
+                "qualified_statements": x.qualified_statements
             }
-            for i, r in enumerate(ranked_results, start = 1)
+            for x in ranked_summaries
         ],
         level = DebugLevel.BASIC
     )
 
-    final_results = [x.result for x in ranked_results]
+    final_results = [x.result for x in ranked_summaries]
     final_results = final_results[0:ctx.num_max_results]
 
     return final_results

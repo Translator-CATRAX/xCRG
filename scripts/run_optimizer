@@ -4,6 +4,7 @@ import math
 import sys
 from math import ceil
 from pathlib import Path
+from textwrap import dedent
 from typing import Callable
 
 from optuna import Trial, create_study
@@ -12,9 +13,8 @@ from translator_tom import CURIE
 from xcrg.biolink import Agent_Type, Knowledge_Level
 from xcrg.ranking import (
     Count_Category,
-    Custom_Ranker,
     Evidence_Category,
-    QualifiedStatement, ResultStatistics,
+    QualifiedStatement, RRF_Ranker, Ranker, Result_Summary,
     Scoring_Params
 )
 
@@ -24,6 +24,13 @@ LOG_FUNCTIONS: dict[str, Callable[[float], float]] = {
     "log": math.log,
     "log2": math.log2,
     "log10": math.log10
+}
+
+LOG_FUNCTION_STRS: dict[str, str] = {
+    "identity": "lambda x: x",
+    "log": "math.log",
+    "log2": "math.log2",
+    "log10": "math.log10"
 }
 
 
@@ -42,50 +49,35 @@ def make_objective(project_dir: Path):
     with open(json_file, "r") as f:
         arax_tests = json.load(f)
 
-    statistics = dict[str, list[ResultStatistics]]()
+    test_id_to_summaries = dict[str, list[Result_Summary]]()
     for test in arax_tests:
         test_id: str = test["id"]
         test_dir = project_dir / f"output/debug/arax_test_{test_id}"
 
         matches = list(test_dir.glob("*.xcrg_scored_results.json"))
-
         json_file = matches[0]
         with open(json_file, "r") as f:
             xcrg_scored_results = json.load(f)
 
         for result in xcrg_scored_results:
-            stats = result["stats"]
-
-            qualified_statements = list[QualifiedStatement]()
-            for stmt in stats["qualified_statements"]:
-                qualified_statements.append(QualifiedStatement(
-                     num_publications = stmt["num_publications"],
-                     num_studies = stmt["num_studies"],
-                     evidence_count = stmt["evidence_count"],
-                     knowledge_level = stmt["knowledge_level"],
-                     agent_type = stmt["agent_type"],
-                     confidence_score = stmt["confidence_score"],
-                ))
-
-            statistics.setdefault(test_id, []).append(ResultStatistics(
-                answer_id = stats["answer_id"],
-                answer_name = stats["answer_name"],
-                specificity = stats["specificity"],
-                information_content = stats["information_content"],
-                num_direct_edges = stats["num_direct_edges"],
-                num_xcrg_edges = stats["num_xcrg_edges"],
-                ngd_score = stats["ngd_score"],
-                qualified_statements = qualified_statements
-            ))
+            # Bunch of hacks to turn the json back into dataclasses
+            result["result"] = None
+            summary = Result_Summary(**result)
+            summary.qualified_statements = [
+                QualifiedStatement(**x)
+                for x in summary.qualified_statements
+            ]
+            test_id_to_summaries.setdefault(test_id, []).append(summary)
 
     def objective(trial: Trial) -> int:
         params = Scoring_Params(
+            k = 60, # TODO
             agent_type_weights = {
-                x: trial.suggest_float(f"{x.value}_weight", 0.0, 10.0)
+                x: trial.suggest_float(f"Agent_Type.{x.value}.weight", 0.0, 10.0)
                 for x in Agent_Type
             },
             knowledge_level_weights = {
-                x: trial.suggest_float(f"{x.value}_weight", 0.0, 10.0)
+                x: trial.suggest_float(f"Knowledge_Level.{x.value}.weight", 0.0, 10.0)
                 for x in Knowledge_Level
             },
             confidence_factor = trial.suggest_float("confidence_factor", 0.0, 10.0),
@@ -93,26 +85,24 @@ def make_objective(project_dir: Path):
                 x: Count_Category(
                     log_function = LOG_FUNCTIONS[
                         trial.suggest_categorical(
-                            f"{x.value}_log_function",
+                            f"Evidence_Category.{x.value}.log_function",
                             ["identity", "log", "log2", "log10"],
                         )
                     ],
-                    factor = trial.suggest_float(f"{x.value}_factor", 0.0, 10.0)
+                    factor = trial.suggest_float(f"Evidence_Category.{x.value}.factor", 0.0, 10.0)
                 )
                 for x in Evidence_Category
             }
         )
 
-        ranker = Custom_Ranker()
+        # ranker: Ranker = Custom_Ranker(params)
+        ranker: Ranker = RRF_Ranker(params)
 
         passed_tests = 0
         for test in arax_tests:
-            results = list[tuple[float, CURIE]]()
-            for stats in statistics[test["id"]]:
-                curie = stats.answer_id
-                score = ranker.calculate_score_for_result(stats, params)
-                results.append((score, curie))
-            answer_ids = [x[1] for x in sorted(results, key = lambda x: x[0], reverse = True)]
+            summaries = { x.curie: x for x in test_id_to_summaries[test["id"]] }
+            summaries = ranker.rank_results(summaries)
+            answer_ids = [x.curie for x in summaries]
             answer_ids = answer_ids[0:500] # TODO
             for answer in test["answers"]:
                 answer_id = answer["id"]
@@ -138,10 +128,36 @@ def main():
     print(study.best_value)
     print(study.best_params)
 
-    results_file = output_dir / "optuna_results.txt"
+    results_file = output_dir / "optuna_results.py"
+
+    s = dedent("""Scoring_Params(
+    k = 60,
+    agent_type_weights = {
+    """)
+    for x in Agent_Type:
+        value = study.best_params[f"Agent_Type.{x.value}.weight"]
+        s += f"        Agent_Type.{x.name}: {value},\n"
+    s += "    },\n"
+    s += "    knowledge_level_weights = {\n"
+    for x in Knowledge_Level:
+        value = study.best_params[f"Knowledge_Level.{x.value}.weight"]
+        s += f"        Knowledge_Level.{x.name}: {value},\n"
+    s += "    },\n"
+    s += f"    confidence_factor = {study.best_params["confidence_factor"]},\n"
+    s +=  "    category_weights = {\n"
+    for x in Evidence_Category:
+        log_function = study.best_params[f"Evidence_Category.{x.value}.log_function"]
+        factor = study.best_params[f"Evidence_Category.{x.value}.factor"]
+        s += f"        Evidence_Category.{x.name}: Count_Category(\n"
+        s += f"            log_function = {LOG_FUNCTION_STRS[log_function]},\n"
+        s += f"            factor = {factor}\n"
+        s +=  "         ),\n"
+    s += "    }\n"
+    s += ")\n"
+
     with open(results_file, "w") as f:
-        f.write(f"Most tests passed: {study.best_value}\n")
-        f.write(f"Best params: {study.best_params}")
+        f.write(f"MOST_TESTS_PASSED = {study.best_value}\n")
+        f.write(f"BEST_PARAMS = {s}")
 
 
 if __name__ == "__main__":
