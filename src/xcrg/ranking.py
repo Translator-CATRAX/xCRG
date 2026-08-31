@@ -34,17 +34,17 @@ class QualifiedStatement:
 
 @dataclass(slots = False)
 class Result_Summary:
-    result               : XCRGResult # The original result
-    curie                : CURIE
-    name                 : str
-    score                : float # The final score of the result
-    specificity          : int
-    information_content  : int
-    # TODO: number of nodes/hops?
-    num_direct_edges     : int
-    num_xcrg_edges       : int
-    ngd_score            : float | None
-    qualified_statements : list[QualifiedStatement]
+    result                 : XCRGResult # The original result
+    curie                  : CURIE
+    name                   : str
+    score                  : float # The final score of the result
+    specificity            : int
+    information_content    : int
+    num_direct_edges       : int
+    direct_qualified_stmts : list[QualifiedStatement]
+    num_xcrg_edges         : int
+    xcrg_qualified_stmts   : list[QualifiedStatement]
+    ngd_score              : float | None
 
 
 class Evidence_Category(Enum):
@@ -181,17 +181,17 @@ def create_result_summary(
     num_direct_edges = len(result.xcrg_direct_binding_ids)
     num_xcrg_edges = len(result.xcrg_support_edge_ids)
 
-    qualified_statements = list[QualifiedStatement]()
-
-    for edge_id in result.xcrg_support_edge_ids:
-        attributes = kgraph.edges[edge_id].attributes_list
-        statement = get_qualified_stmt(attributes)
-        qualified_statements.append(statement)
-
+    direct_qualified_stmts = list[QualifiedStatement]()
     for edge_id in result.xcrg_direct_binding_ids:
         attributes = kgraph.edges[edge_id].attributes_list
         statement = get_qualified_stmt(attributes)
-        qualified_statements.append(statement)
+        direct_qualified_stmts.append(statement)
+
+    xcrg_qualified_stmts = list[QualifiedStatement]()
+    for edge_id in result.xcrg_support_edge_ids:
+        attributes = kgraph.edges[edge_id].attributes_list
+        statement = get_qualified_stmt(attributes)
+        xcrg_qualified_stmts.append(statement)
 
     ngd_score = get_ngd_score(
         ctx,
@@ -207,8 +207,9 @@ def create_result_summary(
         specificity = specificity,
         information_content = information_content,
         num_direct_edges = num_direct_edges,
+        direct_qualified_stmts = direct_qualified_stmts,
         num_xcrg_edges = num_xcrg_edges,
-        qualified_statements = qualified_statements,
+        xcrg_qualified_stmts = xcrg_qualified_stmts,
         ngd_score = ngd_score
     )
 
@@ -226,40 +227,47 @@ class Ranker(ABC):
 
 class Custom_Ranker(Ranker):
     """Ranker that implements a custom strategy."""
+
+    def score_qualified_stmt(self, stmt: QualifiedStatement) -> float:
+        score: float = 0
+
+        agent_factor = 0
+        if stmt.agent_type:
+            agent_type = biolink.Agent_Type(stmt.agent_type)
+            agent_factor = self.scoring_params.agent_type_weights[agent_type]
+
+        knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
+        knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
+
+        confidence_factor = (stmt.confidence_score or 0) + 1
+
+        factors = [
+            agent_factor,
+            knowledge_factor,
+            confidence_factor
+        ]
+
+        category = self.scoring_params.category_weights[Evidence_Category.NUM_STUDIES]
+        score += category.log_function(stmt.num_studies + 1) * category.factor
+
+        category = self.scoring_params.category_weights[Evidence_Category.NUM_PUBLICATIONS]
+        score += category.log_function(stmt.num_publications + 1) * category.factor
+
+        category = self.scoring_params.category_weights[Evidence_Category.EVIDENCE_COUNT]
+        score += category.log_function(stmt.evidence_count + 1) * category.factor
+
+        score *= (sum(factors) / len(factors))
+
+        return score
+
     def calculate_score_for_result(self, summary: Result_Summary) -> float:
         total_score: float = 0
 
-        for stmt in summary.qualified_statements:
-            score: float = 0
+        for stmt in summary.direct_qualified_stmts:
+            total_score += self.score_qualified_stmt(stmt) * 64 # completely arbitrary weight
 
-            agent_factor = 0
-            if stmt.agent_type:
-                agent_type = biolink.Agent_Type(stmt.agent_type)
-                agent_factor = self.scoring_params.agent_type_weights[agent_type]
-
-            knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
-            knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
-
-            confidence_factor = (stmt.confidence_score or 0) + 1
-
-            factors = [
-                agent_factor,
-                knowledge_factor,
-                confidence_factor
-            ]
-
-            category = self.scoring_params.category_weights[Evidence_Category.NUM_STUDIES]
-            score += category.log_function(stmt.num_studies + 1) * category.factor
-
-            category = self.scoring_params.category_weights[Evidence_Category.NUM_PUBLICATIONS]
-            score += category.log_function(stmt.num_publications + 1) * category.factor
-
-            category = self.scoring_params.category_weights[Evidence_Category.EVIDENCE_COUNT]
-            score += category.log_function(stmt.evidence_count + 1) * category.factor
-
-            score *= (sum(factors) / len(factors))
-
-            total_score += score
+        for stmt in summary.xcrg_qualified_stmts:
+            total_score += self.score_qualified_stmt(stmt)
 
         # ngd_factor = (statistics.ngd_score or 0) + 1
         # info_factor = ((statistics.information_content or 0) / 100) + 1 # TODO
@@ -272,8 +280,6 @@ class Custom_Ranker(Ranker):
         # ]
         #
         # return total_score # * (sum(factors) / len(factors))
-
-        total_score *= summary.num_direct_edges + 1
 
         return total_score
 
@@ -396,9 +402,10 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
                 "specificity": x.specificity,
                 "information_content": x.information_content,
                 "num_direct_edges": x.num_direct_edges,
+                "direct_qualififed_stmts": x.direct_qualified_stmts,
                 "num_xcrg_edges": x.num_xcrg_edges,
+                "xcrg_qualififed_stmts": x.xcrg_qualified_stmts,
                 "ngd_score": x.ngd_score,
-                "qualified_statements": x.qualified_statements
             }
             for i, x in enumerate(ranked_summaries, start = 1)
         ],
