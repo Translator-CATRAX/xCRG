@@ -163,7 +163,7 @@ def main():
         s += f"            log_function = {LOG_FUNCTION_STRS[log_function]},\n"
         s += f"            factor = {factor}\n"
         s +=  "         ),\n"
-    s += "    }\n"
+    s += "    },\n"
     s += f"    direct_evidence_weight = {study.best_params["direct_evidence_weight"]},\n"
     s += ")\n"
 

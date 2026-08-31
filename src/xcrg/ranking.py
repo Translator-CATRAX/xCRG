@@ -72,37 +72,38 @@ class Scoring_Params:
 DEFAULT_SCORING_PARAMS = Scoring_Params(
     k = 60, # Much literature argues that 60 is a good default for RRF
     agent_type_weights = {
-        Agent_Type.MANUAL_AGENT: 38,
-        Agent_Type.AUTOMATED_AGENT: 92,
-        Agent_Type.COMPUTATIONAL_MODEL: 17,
-        Agent_Type.TEXT_MINING_AGENT: 41,
+        Agent_Type.MANUAL_AGENT: 57,
+        Agent_Type.AUTOMATED_AGENT: 85,
+        Agent_Type.COMPUTATIONAL_MODEL: 45,
+        Agent_Type.TEXT_MINING_AGENT: 61,
     },
     knowledge_level_weights = {
-        Knowledge_Level.KNOWLEDGE_ASSERTION: 89,
-        Knowledge_Level.LOGICAL_ENTAILMENT: 74,
-        Knowledge_Level.PREDICTION: 29,
-        Knowledge_Level.STATISTICAL_ASSOCIATION: 63,
-        Knowledge_Level.TEXT_CO_OCCURRENCE: 76,
-        Knowledge_Level.OBSERVATION: 67,
-        Knowledge_Level.NOT_PROVIDED: 9,
+        Knowledge_Level.KNOWLEDGE_ASSERTION: 97,
+        Knowledge_Level.LOGICAL_ENTAILMENT: 25,
+        Knowledge_Level.PREDICTION: 68,
+        Knowledge_Level.STATISTICAL_ASSOCIATION: 11,
+        Knowledge_Level.TEXT_CO_OCCURRENCE: 3,
+        Knowledge_Level.OBSERVATION: 15,
+        Knowledge_Level.NOT_PROVIDED: 38,
     },
-    confidence_factor = 8,
+    confidence_factor = 41,
     category_weights = {
         Evidence_Category.NUM_STUDIES: Count_Category(
-            log_function = math.log2,
-            factor = 15
+            log_function = lambda x: x,
+            factor = 97
          ),
         Evidence_Category.NUM_PUBLICATIONS: Count_Category(
             log_function = lambda x: x,
-            factor = 100
+            factor = 61
          ),
         Evidence_Category.EVIDENCE_COUNT: Count_Category(
             log_function = math.log10,
-            factor = 30
+            factor = 76
          ),
     },
-    direct_evidence_weight = 80
+    direct_evidence_weight = 97,
 )
+
 
 
 def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
@@ -241,7 +242,12 @@ class Custom_Ranker(Ranker):
         knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
         knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
 
-        confidence_factor = (stmt.confidence_score or 0) + 1
+        # Try and normalize confidence score; these can vary wildly
+        confidence_factor: float = 1
+        match stmt.confidence_score or 0:
+            case x if 0 < x < 1:   confidence_factor = 1 + x
+            case x if 0 < x < 10:  confidence_factor = 1 + (x / 10)
+            case x if 0 < x < 100: confidence_factor = 1 + (x / 100)
 
         factors = [
             agent_factor,
