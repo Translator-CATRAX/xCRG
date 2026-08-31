@@ -66,40 +66,42 @@ class Scoring_Params:
     knowledge_level_weights : dict[biolink.Knowledge_Level, float]
     confidence_factor       : float
     category_weights        : dict[Evidence_Category, Count_Category]
+    direct_evidence_weight  : float
 
 
 DEFAULT_SCORING_PARAMS = Scoring_Params(
     k = 60, # Much literature argues that 60 is a good default for RRF
     agent_type_weights = {
-        Agent_Type.MANUAL_AGENT: 2.7481831114390363,
-        Agent_Type.AUTOMATED_AGENT: 4.8577822159030335,
-        Agent_Type.COMPUTATIONAL_MODEL: 1.9647096774358528,
-        Agent_Type.TEXT_MINING_AGENT: 0.017863421090903536,
+        Agent_Type.MANUAL_AGENT: 38,
+        Agent_Type.AUTOMATED_AGENT: 92,
+        Agent_Type.COMPUTATIONAL_MODEL: 17,
+        Agent_Type.TEXT_MINING_AGENT: 41,
     },
     knowledge_level_weights = {
-        Knowledge_Level.KNOWLEDGE_ASSERTION: 9.973747562944625,
-        Knowledge_Level.LOGICAL_ENTAILMENT: 4.1090453145165835,
-        Knowledge_Level.PREDICTION: 4.65987253204859,
-        Knowledge_Level.STATISTICAL_ASSOCIATION: 4.25861491058457,
-        Knowledge_Level.TEXT_CO_OCCURRENCE: 1.5481832026793478,
-        Knowledge_Level.OBSERVATION: 1.9805966803548753,
-        Knowledge_Level.NOT_PROVIDED: 0.01479977839514357,
+        Knowledge_Level.KNOWLEDGE_ASSERTION: 89,
+        Knowledge_Level.LOGICAL_ENTAILMENT: 74,
+        Knowledge_Level.PREDICTION: 29,
+        Knowledge_Level.STATISTICAL_ASSOCIATION: 63,
+        Knowledge_Level.TEXT_CO_OCCURRENCE: 76,
+        Knowledge_Level.OBSERVATION: 67,
+        Knowledge_Level.NOT_PROVIDED: 9,
     },
-    confidence_factor = 8.691003711797649,
+    confidence_factor = 8,
     category_weights = {
         Evidence_Category.NUM_STUDIES: Count_Category(
-            log_function = math.log,
-            factor = 0.21916779253511368
-        ),
+            log_function = math.log2,
+            factor = 15
+         ),
         Evidence_Category.NUM_PUBLICATIONS: Count_Category(
             log_function = lambda x: x,
-            factor = 7.407108483542785
-        ),
+            factor = 100
+         ),
         Evidence_Category.EVIDENCE_COUNT: Count_Category(
-            log_function = lambda x: x,
-            factor = 8.128071002958169
-        )
-    }
+            log_function = math.log10,
+            factor = 30
+         ),
+    },
+    direct_evidence_weight = 80
 )
 
 
@@ -264,7 +266,7 @@ class Custom_Ranker(Ranker):
         total_score: float = 0
 
         for stmt in summary.direct_qualified_stmts:
-            total_score += self.score_qualified_stmt(stmt) * 64 # completely arbitrary weight
+            total_score += self.score_qualified_stmt(stmt) * self.scoring_params.direct_evidence_weight
 
         for stmt in summary.xcrg_qualified_stmts:
             total_score += self.score_qualified_stmt(stmt)
@@ -402,9 +404,9 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
                 "specificity": x.specificity,
                 "information_content": x.information_content,
                 "num_direct_edges": x.num_direct_edges,
-                "direct_qualififed_stmts": x.direct_qualified_stmts,
+                "direct_qualified_stmts": x.direct_qualified_stmts,
                 "num_xcrg_edges": x.num_xcrg_edges,
-                "xcrg_qualififed_stmts": x.xcrg_qualified_stmts,
+                "xcrg_qualified_stmts": x.xcrg_qualified_stmts,
                 "ngd_score": x.ngd_score,
             }
             for i, x in enumerate(ranked_summaries, start = 1)

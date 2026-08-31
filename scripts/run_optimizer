@@ -8,6 +8,8 @@ from textwrap import dedent
 from typing import Callable
 
 from optuna import Trial, create_study
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
 from translator_tom import CURIE
 
 from xcrg.biolink import Agent_Type, Knowledge_Level
@@ -15,7 +17,7 @@ from xcrg.ranking import (
     Count_Category,
     Evidence_Category,
     QualifiedStatement, RRF_Ranker, Ranker, Result_Summary,
-    Scoring_Params
+    Scoring_Params, Custom_Ranker
 )
 
 
@@ -62,10 +64,15 @@ def make_objective(project_dir: Path):
         for result in xcrg_scored_results:
             # Bunch of hacks to turn the json back into dataclasses
             result["result"] = None
+            del result["rank"]
             summary = Result_Summary(**result)
-            summary.qualified_statements = [
+            summary.direct_qualified_stmts = [
                 QualifiedStatement(**x)
-                for x in summary.qualified_statements
+                for x in summary.direct_qualified_stmts
+            ]
+            summary.xcrg_qualified_stmts = [
+                QualifiedStatement(**x)
+                for x in summary.xcrg_qualified_stmts
             ]
             test_id_to_summaries.setdefault(test_id, []).append(summary)
 
@@ -73,14 +80,14 @@ def make_objective(project_dir: Path):
         params = Scoring_Params(
             k = 60, # TODO
             agent_type_weights = {
-                x: trial.suggest_float(f"Agent_Type.{x.value}.weight", 0.0, 10.0)
+                x: trial.suggest_int(f"Agent_Type.{x.value}.weight", 1, 100)
                 for x in Agent_Type
             },
             knowledge_level_weights = {
-                x: trial.suggest_float(f"Knowledge_Level.{x.value}.weight", 0.0, 10.0)
+                x: trial.suggest_int(f"Knowledge_Level.{x.value}.weight", 1, 100)
                 for x in Knowledge_Level
             },
-            confidence_factor = trial.suggest_float("confidence_factor", 0.0, 10.0),
+            confidence_factor = trial.suggest_int("confidence_factor", 1, 100),
             category_weights = {
                 x: Count_Category(
                     log_function = LOG_FUNCTIONS[
@@ -89,14 +96,15 @@ def make_objective(project_dir: Path):
                             ["identity", "log", "log2", "log10"],
                         )
                     ],
-                    factor = trial.suggest_float(f"Evidence_Category.{x.value}.factor", 0.0, 10.0)
+                    factor = trial.suggest_int(f"Evidence_Category.{x.value}.factor", 1, 100)
                 )
                 for x in Evidence_Category
-            }
+            },
+            direct_evidence_weight = trial.suggest_int("direct_evidence_weight", 1, 100)
         )
 
-        # ranker: Ranker = Custom_Ranker(params)
-        ranker: Ranker = RRF_Ranker(params)
+        ranker: Ranker = Custom_Ranker(params)
+        # ranker: Ranker = RRF_Ranker(params)
 
         passed_tests = 0
         for test in arax_tests:
@@ -121,9 +129,12 @@ def main():
     output_dir = project_dir / "output"
     output_dir.mkdir(exist_ok = True)
 
-    study = create_study(direction="maximize")
+    study = create_study(
+        direction = "maximize",
+        storage = JournalStorage(JournalFileBackend(file_path = str(output_dir) + "/optuna_journal.log"))
+    )
     objective = make_objective(project_dir)
-    study.optimize(objective, n_trials=1000)
+    study.optimize(objective, n_trials = 1000, n_jobs = 4)
 
     print(study.best_value)
     print(study.best_params)
@@ -153,6 +164,7 @@ def main():
         s += f"            factor = {factor}\n"
         s +=  "         ),\n"
     s += "    }\n"
+    s += f"    direct_evidence_weight = {study.best_params["direct_evidence_weight"]},\n"
     s += ")\n"
 
     with open(results_file, "w") as f:
