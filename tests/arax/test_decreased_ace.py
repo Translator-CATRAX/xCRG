@@ -11,7 +11,7 @@ from tests.utilities import (
     find_chemicals_affecting_gene,
 )
 
-TEST_NAME = "arax_test_366785e9-bb81-4db8-b2bd-d79f289e150d"
+TEST_NAME = "arax_test_decreased_ace"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:

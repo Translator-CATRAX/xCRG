@@ -11,7 +11,7 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
-TEST_NAME = "arax_test_995402db-3253-41ae-8285-ad1ae447dac8"
+TEST_NAME = "arax_test_increased_glyphosate"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
