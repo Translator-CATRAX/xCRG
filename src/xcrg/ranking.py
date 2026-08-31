@@ -240,11 +240,7 @@ class Custom_Ranker(Ranker):
             knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
             knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
 
-            # For now, just having a confidence score is enough to boost the score
-            if stmt.confidence_score:
-                confidence_factor = self.scoring_params.confidence_factor
-            else:
-                confidence_factor = 1
+            confidence_factor = (stmt.confidence_score or 0) + 1
 
             factors = [
                 agent_factor,
@@ -276,6 +272,8 @@ class Custom_Ranker(Ranker):
         # ]
         #
         # return total_score # * (sum(factors) / len(factors))
+
+        total_score *= summary.num_direct_edges + 1
 
         return total_score
 
@@ -391,6 +389,7 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
         label = "xcrg_scored_results",
         payload = [
             {
+                "rank": i,
                 "curie": x.curie,
                 "name": x.name,
                 "score": x.score,
@@ -401,7 +400,7 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
                 "ngd_score": x.ngd_score,
                 "qualified_statements": x.qualified_statements
             }
-            for x in ranked_summaries
+            for i, x in enumerate(ranked_summaries, start = 1)
         ],
         level = DebugLevel.BASIC
     )
