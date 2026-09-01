@@ -54,7 +54,8 @@ def make_objective(project_dir: Path):
     test_id_to_summaries = dict[str, list[Result_Summary]]()
     for test in arax_tests:
         test_id: str = test["id"]
-        test_dir = project_dir / f"output/debug/arax_test_{test_id}"
+        test_safe_name = test["candidate_name"].replace(" ", "_").lower() # TODO
+        test_dir = project_dir / f"output/debug/arax_test_{test["direction"]}_{test_safe_name}"
 
         matches = list(test_dir.glob("*.xcrg_scored_results.json"))
         json_file = matches[0]
@@ -78,7 +79,7 @@ def make_objective(project_dir: Path):
 
     def objective(trial: Trial) -> int:
         params = Scoring_Params(
-            k = 60, # TODO
+            k = trial.suggest_int(f"k", 0, 100),
             agent_type_weights = {
                 x: trial.suggest_int(f"Agent_Type.{x.value}.weight", 1, 100)
                 for x in Agent_Type
@@ -141,10 +142,9 @@ def main():
 
     results_file = output_dir / "optuna_results.py"
 
-    s = dedent("""Scoring_Params(
-    k = 60,
-    agent_type_weights = {
-    """)
+    s = "Scoring_Params(\n"
+    s += f"     k = {study.best_params["k"]},\n"
+    s +=  "     agent_type_weights = {\n"
     for x in Agent_Type:
         value = study.best_params[f"Agent_Type.{x.value}.weight"]
         s += f"        Agent_Type.{x.name}: {value},\n"
