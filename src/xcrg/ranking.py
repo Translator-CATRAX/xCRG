@@ -42,6 +42,7 @@ class Result_Summary:
     information_content    : int
     num_direct_edges       : int
     direct_qualified_stmts : list[QualifiedStatement]
+    num_xcrg_nodes         : int
     num_xcrg_edges         : int
     xcrg_qualified_stmts   : list[QualifiedStatement]
     ngd_score              : float | None
@@ -182,7 +183,14 @@ def create_result_summary(
     information_content: int = max(values)
 
     num_direct_edges = len(result.xcrg_direct_binding_ids)
+
+    xcrg_nodes = set[CURIE]()
     num_xcrg_edges = len(result.xcrg_support_edge_ids)
+    for binding in result.xcrg_direct_binding_ids:
+        edge = kgraph.edges[binding]
+        xcrg_nodes.add(edge.subject)
+        xcrg_nodes.add(edge.object)
+    num_xcrg_nodes = len(xcrg_nodes)
 
     direct_qualified_stmts = list[QualifiedStatement]()
     for edge_id in result.xcrg_direct_binding_ids:
@@ -211,6 +219,7 @@ def create_result_summary(
         information_content = information_content,
         num_direct_edges = num_direct_edges,
         direct_qualified_stmts = direct_qualified_stmts,
+        num_xcrg_nodes = num_xcrg_nodes,
         num_xcrg_edges = num_xcrg_edges,
         xcrg_qualified_stmts = xcrg_qualified_stmts,
         ngd_score = ngd_score
@@ -239,8 +248,10 @@ class Custom_Ranker(Ranker):
             agent_type = biolink.Agent_Type(stmt.agent_type)
             agent_factor = self.scoring_params.agent_type_weights[agent_type]
 
-        knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
-        knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
+        knowledge_factor = 1
+        if stmt.knowledge_level:
+            knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
+            knowledge_factor = self.scoring_params.knowledge_level_weights[knowledge_level]
 
         # Try and normalize confidence score; these can vary wildly
         confidence_factor: float = 1
@@ -300,7 +311,7 @@ class Custom_Ranker(Ranker):
 
 @dataclass
 class RRF_Ranker(Ranker):
-    """Ranker that implements Reciprocal Rank Fusion (RFF) strategy."""
+    """Ranker that implements Reciprocal Rank Fusion (RRF) strategy."""
     @staticmethod
     def rank_summaries(
         results: dict[CURIE, Result_Summary],
@@ -322,47 +333,67 @@ class RRF_Ranker(Ranker):
             i = j
         return ranks
 
-    def score_stmts(self, summary: Result_Summary, category: Evidence_Category):
-        score: float = 0
+    def score_stmts(self, statements: list[QualifiedStatement], category: Evidence_Category):
+        total_score: float = 0
 
-        for stmt in summary.qualified_statements:
-            agent_factor = 0
+        for stmt in statements:
+            score = 0
+
+            agent_factor = 1
             if stmt.agent_type:
                 agent_type = biolink.Agent_Type(stmt.agent_type)
                 agent_factor = self.scoring_params.agent_type_weights[agent_type]
 
-            knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
-            knowledge_factor = self.scoring_params.knowledge_level_weights.get(knowledge_level, 1)
+            knowledge_factor = 1
+            if stmt.knowledge_level:
+                knowledge_level = biolink.Knowledge_Level(stmt.knowledge_level)
+                knowledge_factor = self.scoring_params.knowledge_level_weights[knowledge_level]
 
-            # For now, just having a confidence score is enough to boost the score
-            if stmt.confidence_score:
-                confidence_factor = self.scoring_params.confidence_factor
-            else:
-                confidence_factor = 1
+            # Try and normalize confidence score; these can vary wildly
+            confidence_factor: float = 1
+            match stmt.confidence_score or 0:
+                case x if 0 < x < 1:   confidence_factor = 1 + x
+                case x if 0 < x < 10:  confidence_factor = 1 + (x / 10)
+                case x if 0 < x < 100: confidence_factor = 1 + (x / 100)
 
             category_factor = self.scoring_params.category_weights[category].factor
 
-            value: float
             match category:
-                case Evidence_Category.NUM_PUBLICATIONS: value = stmt.num_publications + 1
-                case Evidence_Category.NUM_STUDIES:      value = stmt.num_studies      + 1
-                case Evidence_Category.EVIDENCE_COUNT:   value = stmt.evidence_count   + 1
+                case Evidence_Category.NUM_PUBLICATIONS: score += stmt.num_publications + 1
+                case Evidence_Category.NUM_STUDIES:      score += stmt.num_studies      + 1
+                case Evidence_Category.EVIDENCE_COUNT:   score += stmt.evidence_count   + 1
 
-            score += value * agent_factor * knowledge_factor * confidence_factor * category_factor
+            factors = [
+                agent_factor,
+                knowledge_factor,
+                confidence_factor,
+                category_factor
+            ]
 
-        return score
+            score *= (sum(factors) / len(factors))
+
+            total_score += score
+
+        return total_score
 
     def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
         ranks = dict[CURIE, list[float]]()
 
+        ranker = Custom_Ranker(scoring_params = self.scoring_params)
+
         self.rank_summaries(summaries, ranks, lambda x: x.specificity)
         self.rank_summaries(summaries, ranks, lambda x: x.information_content)
         self.rank_summaries(summaries, ranks, lambda x: x.num_direct_edges)
+        self.rank_summaries(summaries, ranks, lambda x: x.num_xcrg_nodes)
         self.rank_summaries(summaries, ranks, lambda x: x.num_xcrg_edges)
         self.rank_summaries(summaries, ranks, lambda x: x.ngd_score or 0)
-        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x, Evidence_Category.NUM_PUBLICATIONS))
-        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x, Evidence_Category.NUM_STUDIES))
-        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x, Evidence_Category.EVIDENCE_COUNT))
+        self.rank_summaries(summaries, ranks, lambda x: ranker.calculate_score_for_result(x))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.direct_qualified_stmts, Evidence_Category.NUM_PUBLICATIONS))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.direct_qualified_stmts, Evidence_Category.NUM_STUDIES))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.direct_qualified_stmts, Evidence_Category.EVIDENCE_COUNT))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.xcrg_qualified_stmts, Evidence_Category.NUM_PUBLICATIONS))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.xcrg_qualified_stmts, Evidence_Category.NUM_STUDIES))
+        self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.xcrg_qualified_stmts, Evidence_Category.EVIDENCE_COUNT))
 
         k = self.scoring_params.k
 
@@ -394,8 +425,8 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
         )
         summaries[summary.curie] = summary
 
-    ranker = Custom_Ranker() # TODO
-    # ranker = RRF_Ranker()
+    # ranker = Custom_Ranker() # TODO
+    ranker = RRF_Ranker()
 
     ranked_summaries = ranker.rank_results(summaries)
 
@@ -411,6 +442,7 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
                 "information_content": x.information_content,
                 "num_direct_edges": x.num_direct_edges,
                 "direct_qualified_stmts": x.direct_qualified_stmts,
+                "num_xcrg_nodes": x.num_xcrg_nodes,
                 "num_xcrg_edges": x.num_xcrg_edges,
                 "xcrg_qualified_stmts": x.xcrg_qualified_stmts,
                 "ngd_score": x.ngd_score,
