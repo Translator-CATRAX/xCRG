@@ -234,7 +234,7 @@ class Custom_Ranker(Ranker):
     def score_qualified_stmt(self, stmt: QualifiedStatement) -> float:
         score: float = 0
 
-        agent_factor = 0
+        agent_factor = 1
         if stmt.agent_type:
             agent_type = biolink.Agent_Type(stmt.agent_type)
             agent_factor = self.scoring_params.agent_type_weights[agent_type]
