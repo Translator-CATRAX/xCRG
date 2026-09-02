@@ -288,17 +288,17 @@ class Custom_Ranker(Ranker):
         for stmt in summary.xcrg_qualified_stmts:
             total_score += self.score_qualified_stmt(stmt)
 
-        # ngd_factor = (statistics.ngd_score or 0) + 1
-        # info_factor = ((statistics.information_content or 0) / 100) + 1 # TODO
-        # specificity_factor = statistics.specificity / 4 # TODO
-        #
-        # factors = [
-        #     ngd_factor,
-        #     info_factor,
-        #     specificity_factor
-        # ]
-        #
-        # return total_score # * (sum(factors) / len(factors))
+        ngd_factor = (summary.ngd_score or 0) + 1
+        # info_factor = ((summary.information_content or 0) / 100) + 1
+        # specificity_factor = summary.specificity / 4
+
+        factors = [
+            ngd_factor,
+            # info_factor,
+            # specificity_factor
+        ]
+
+        total_score *= sum(factors) / len(factors)
 
         # Heavily penalize results with no direct connections
         if not summary.direct_qualified_stmts:
