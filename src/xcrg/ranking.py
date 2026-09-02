@@ -300,6 +300,10 @@ class Custom_Ranker(Ranker):
         #
         # return total_score # * (sum(factors) / len(factors))
 
+        # Heavily penalize results with no direct connections
+        if not summary.direct_qualified_stmts:
+            total_score *= 0.5
+
         return total_score
 
     def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
