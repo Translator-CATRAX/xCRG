@@ -35,4 +35,5 @@ def test_opentelemetry_is_working(config: xcrg.XCRGConfig):
 
     span = spans[0]
     assert span.name == "run_query"
-    assert span.attributes["query_id"] == query_id
+    assert (attributes := span.attributes)
+    assert attributes["query_id"] == query_id
