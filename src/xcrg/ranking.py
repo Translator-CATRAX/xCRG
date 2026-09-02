@@ -425,8 +425,8 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
         )
         summaries[summary.curie] = summary
 
-    # ranker = Custom_Ranker() # TODO
-    ranker = RRF_Ranker()
+    ranker = Custom_Ranker()
+    # ranker = RRF_Ranker()
 
     ranked_summaries = ranker.rank_results(summaries)
 
