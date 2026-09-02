@@ -9,6 +9,7 @@ import uuid
 from copy import deepcopy
 from typing import cast
 
+from opentelemetry import trace
 from translator_tom import (
     CURIE,
     Analysis,
@@ -54,6 +55,11 @@ from .utilities import (
     make_stable_id,
     XCRGResult
 )
+
+
+# Defer to the parent application to instantiate global opentelemetry provider.
+# We can put tracer in a separate module if we wind up using it elsewhere.
+tracer = trace.get_tracer("xcrg")
 
 
 def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
@@ -842,45 +848,53 @@ def is_xcrg_mvp2_query(query: dict | Query) -> bool: # TODO: is_valid_query
         return False
 
 
+# TODO: Rename to "async_run_query"
 async def async_run_xcrg(
-    message: dict,
+    message: Query | dict | str,
     config: XCRGConfig,
     logger: logging.Logger | Reporter | None = LogReporter(),
     query_id: str | None = None,
 ) -> dict:
     """Run xCRG and return a complete TRAPI response."""
+    with tracer.start_as_current_span("run_query") as span:
+        query_id = query_id or uuid.uuid4().hex[:8]
+        span.set_attribute("query_id", query_id)
 
-    reporter: Reporter
-    if isinstance(logger, Reporter):
-        reporter = logger
-    elif isinstance(logger, logging.Logger):
-        reporter = LogReporter(logger)
-    else:
-        reporter = StubReporter()
+        reporter: Reporter
+        match logger:
+            case Reporter():       reporter = logger
+            case logging.Logger(): reporter = LogReporter(logger)
+            case _:                reporter = StubReporter()
 
-    query = Query.from_dict(message)
-    # TODO: Query.timeout will become available in TRAPI 2.0
-    # query.timeout = query.timeout or config.timeout
-    query.submitter = query.submitter or config.resource_id
+        query: Query
+        match message:
+            case Query(): query = message
+            case dict():  query = Query.from_dict(message)
+            case str():   query = Query.from_json(message)
 
-    ctx = RunContext.new(
-        query_id = query_id or uuid.uuid4().hex[:8],
-        query = query,
-        config = config,
-        reporter = reporter
-    )
+        # TODO: Query.timeout will become available in TRAPI 2.0
+        # query.timeout = query.timeout or config.timeout
+        query.submitter = query.submitter or config.resource_id
 
-    response: Response
-    if validate_query(query) == "inferred":
-        response = await run_inferred_lookup(ctx)
-    else:
-        response = await run_direct_lookup(ctx)
+        ctx = RunContext.new(
+            query_id = query_id,
+            query = query,
+            config = config,
+            reporter = reporter
+        )
 
-    return response.to_dict()
+        response: Response
+        if validate_query(query) == "inferred":
+            response = await run_inferred_lookup(ctx)
+        else:
+            response = await run_direct_lookup(ctx)
+
+        return response.to_dict()
 
 
+# TODO: Rename to "run_query"
 def run_xcrg(
-    message: dict,
+    message: Query | dict | str,
     config: XCRGConfig,
     logger: logging.Logger | Reporter | None = LogReporter(),
     query_id: str | None = None,

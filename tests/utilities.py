@@ -7,6 +7,7 @@ from translator_tom import (
     Message,
     QEdge,
     QNode,
+    QNodeID,
     Qualifier,
     QualifierConstraint,
     Query,
@@ -37,12 +38,11 @@ class XCRG_Answer:
         return f"{self.curie} should be {self.expectation}{status}"
 
 
-def find_chemicals_affecting_gene(
-    config: XCRGConfig,
-    direction: Literal["increased", "decreased"],
-    gene_id: CURIE
-) -> Response:
-    query = Query(
+def make_xcrg_query(
+    nodes: dict[QNodeID, QNode],
+    direction: Literal["increased", "decreased"]
+) -> Query:
+    return Query(
         message = Message(
             query_graph = QueryGraph(
                 edges = {
@@ -67,55 +67,39 @@ def find_chemicals_affecting_gene(
                         ]
                     )
                 },
-                nodes = {
-                    "sn": QNode(categories = ["biolink:ChemicalEntity"], ids = None),
-                    "on": QNode(categories = ["biolink:Gene"], ids = [gene_id])
-                }
+                nodes = nodes
             )
         )
     )
-    response = run_xcrg(query.to_dict(), config)
+
+
+def find_chemicals_affecting_gene(
+    config: XCRGConfig,
+    direction: Literal["increased", "decreased"],
+    gene_id: CURIE,
+    query_id: str | None = None
+) -> Response:
+    nodes = {
+        "sn": QNode(categories=["biolink:ChemicalEntity"], ids=None),
+        "on": QNode(categories=["biolink:Gene"], ids=[gene_id])
+    }
+    query = make_xcrg_query(nodes, direction)
+    response = run_xcrg(query.to_dict(), config, query_id = query_id)
     return Response.from_dict(response)
 
 
 def find_genes_affected_by_chemical(
     config: XCRGConfig,
     direction: Literal["increased", "decreased"],
-    chemical_id: CURIE
+    chemical_id: CURIE,
+    query_id: str | None = None
 ) -> Response:
-    query = Query(
-        message = Message(
-            query_graph = QueryGraph(
-                edges = {
-                    "t_edge": QEdge(
-                        knowledge_type = "inferred",
-                        subject = "sn",
-                        predicates = ["biolink:affects"],
-                        object = "on",
-                        qualifier_constraints = [
-                            QualifierConstraint(
-                                qualifier_set = [
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_aspect_qualifier",
-                                        qualifier_value = "activity_or_abundance"
-                                    ),
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_direction_qualifier",
-                                        qualifier_value = direction
-                                    )
-                                ]
-                            )
-                        ]
-                    )
-                },
-                nodes = {
-                    "sn": QNode(categories = ["biolink:ChemicalEntity"], ids = [chemical_id]),
-                    "on": QNode(categories = ["biolink:Gene"], ids = None)
-                }
-            )
-        )
-    )
-    response = run_xcrg(query.to_dict(), config)
+    nodes = {
+        "sn": QNode(categories=["biolink:ChemicalEntity"], ids=[chemical_id]),
+        "on": QNode(categories=["biolink:Gene"], ids=None)
+    }
+    query = make_xcrg_query(nodes, direction)
+    response = run_xcrg(query.to_dict(), config, query_id = query_id)
     return Response.from_dict(response)
 
 
