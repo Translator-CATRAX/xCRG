@@ -22,16 +22,16 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("CHEBI:8713", "top_answer"), # Quinapril
-        XCRG_Answer("UNII:R43D2573WO", "top_answer", fails_on_arax = True), # Fosinopril
-        XCRG_Answer("CHEBI:6960", "top_answer"), # Moexipril
-        XCRG_Answer("CHEBI:3380", "top_answer"), # Captopril
-        XCRG_Answer("CHEBI:3011", "top_answer"), # Benazapril
-        XCRG_Answer("CHEBI:4784", "top_answer"), # Enalapril
-        XCRG_Answer("CHEBI:8774", "top_answer"), # Ramipril
-        XCRG_Answer("CHEBI:8024", "top_answer"), # Perindopril
-        XCRG_Answer("CHEBI:43755", "top_answer"), # Lisinopril
-        XCRG_Answer("CHEBI:9649", "top_answer"), # Trandolapril
+        XCRG_Answer("CHEBI:8713", "Quinapril", "top_answer"),
+        XCRG_Answer("UNII:R43D2573WO", "Fosinopril", "top_answer", fails_on_arax = True),
+        XCRG_Answer("CHEBI:6960", "Moexipril", "top_answer"),
+        XCRG_Answer("CHEBI:3380", "Captopril", "top_answer"),
+        XCRG_Answer("CHEBI:3011", "Benazapril", "top_answer"),
+        XCRG_Answer("CHEBI:4784", "Enalapril", "top_answer"),
+        XCRG_Answer("CHEBI:8774", "Ramipril", "top_answer"),
+        XCRG_Answer("CHEBI:8024", "Perindopril", "top_answer"),
+        XCRG_Answer("CHEBI:43755", "Lisinopril", "top_answer"),
+        XCRG_Answer("CHEBI:9649", "Trandolapril", "top_answer"),
     ]
 )
 def test_decreased_activity_or_abundance_of_ace(response: Response, answer: XCRG_Answer):

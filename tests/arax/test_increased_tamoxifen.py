@@ -22,13 +22,13 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("NCBIGene:35292", "acceptable", fails_on_arax = True), # PR
-        XCRG_Answer("NCBIGene:817540", "acceptable", fails_on_arax = True), # pS2
-        XCRG_Answer("NCBIGene:1509", "acceptable"), # CTSD
-        XCRG_Answer("NCBIGene:817173", "acceptable", fails_on_arax = True), # ER
-        XCRG_Answer("NCBIGene:41957", "acceptable", fails_on_arax = True), # AKT
-        XCRG_Answer("UMLS:C2605860", "acceptable"), # GPER-1
-        XCRG_Answer("NCBIGene:1956", "acceptable"), # EGFR
+        XCRG_Answer("NCBIGene:35292", "PR", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:817540", "pS2", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:1509", "CTSD", "acceptable"),
+        XCRG_Answer("NCBIGene:817173", "ER", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:41957", "AKT", "acceptable", fails_on_arax = True),
+        XCRG_Answer("UMLS:C2605860", "GPER-1", "acceptable"),
+        XCRG_Answer("NCBIGene:1956", "EGFR", "acceptable"),
     ]
 )
 def test_increased_activity_or_abundance_of_tamoxifen(response: Response, answer: XCRG_Answer):

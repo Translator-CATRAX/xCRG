@@ -22,9 +22,9 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("NCBIGene:355", "acceptable", fails_on_arax = True), # FAS
-        XCRG_Answer("NCBIGene:356", "acceptable", fails_on_arax = True), # FASL
-        XCRG_Answer("NCBIGene:93659", "acceptable", fails_on_arax = True), # HCG
+        XCRG_Answer("NCBIGene:355", "FAS", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:356", "FASL", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:93659", "HCG", "acceptable", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_mifepristone(response: Response, answer: XCRG_Answer):

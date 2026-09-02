@@ -22,11 +22,11 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("CHEBI:64064", "top_answer"), # salmeterol
-        XCRG_Answer("CHEBI:5147", "top_answer"), # formoterol
-        XCRG_Answer("CHEBI:9449", "top_answer"), # terbutaline
-        XCRG_Answer("CHEBI:2549", "top_answer"), # Albuterol
-        XCRG_Answer("CHEBI:8499", "never_show", fails_on_arax = True), # Propranolol
+        XCRG_Answer("CHEBI:64064", "salmeterol", "top_answer"),
+        XCRG_Answer("CHEBI:5147", "formoterol", "top_answer"),
+        XCRG_Answer("CHEBI:9449", "terbutaline", "top_answer"),
+        XCRG_Answer("CHEBI:2549", "Albuterol", "top_answer"),
+        XCRG_Answer("CHEBI:8499", "Propranolol", "never_show", fails_on_arax = True),
     ]
 )
 def test_increased_activity_or_abundance_of_adrb2(response: Response, answer: XCRG_Answer):

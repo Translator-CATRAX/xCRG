@@ -22,9 +22,9 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("NCBIGene:5004", "acceptable", fails_on_arax = True), # ORM1
-        XCRG_Answer("NCBIGene:57167", "acceptable"), # SALL4
-        XCRG_Answer("NCBIGene:5005", "acceptable", fails_on_arax = True), # ORM2
+        XCRG_Answer("NCBIGene:5004", "ORM1", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:57167", "SALL4", "acceptable"),
+        XCRG_Answer("NCBIGene:5005", "ORM2", "acceptable", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_thalidomide(response: Response, answer: XCRG_Answer):

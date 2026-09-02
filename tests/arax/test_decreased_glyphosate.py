@@ -22,8 +22,8 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("NCBIGene:10381", "acceptable"), # TUBB3
-        XCRG_Answer("NCBIGene:2596", "acceptable", fails_on_arax = True), # GAP43
+        XCRG_Answer("NCBIGene:10381", "TUBB3", "acceptable"),
+        XCRG_Answer("NCBIGene:2596", "GAP43", "acceptable", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_glyphosate(response: Response, answer: XCRG_Answer):

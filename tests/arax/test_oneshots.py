@@ -13,85 +13,85 @@ from tests.utilities import (
 def test_ivacaftor_increased_activity_or_abundance_of_cftr(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_increased_cftr")
     response = find_chemicals_affecting_gene(config, "increased", "NCBIGene:1080")  # CFTR
-    assert_answer(response, XCRG_Answer("CHEBI:66901", "acceptable"))  # Ivacaftor
+    assert_answer(response, XCRG_Answer("CHEBI:66901", "Ivacaftor", "acceptable"))
 
 def test_adra2a_increased_activity_or_abundance_of_guafacine(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_increased_guafacine")
     response = find_genes_affected_by_chemical(config, "increased", "CHEBI:5558")  # Guafacine
-    assert_answer(response, XCRG_Answer("NCBIGene:150", "acceptable"))  # ADRA2A
+    assert_answer(response, XCRG_Answer("NCBIGene:150", "ADRA2A", "acceptable"))
 
 def test_bcl2_decreased_activity_or_abundance_of_docetaxel(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_docetaxel")
     response = find_genes_affected_by_chemical(config, "decreased", "CHEBI:4672")  # Docetaxel
-    assert_answer(response, XCRG_Answer("NCBIGene:596", "acceptable"))  # BCL2
+    assert_answer(response, XCRG_Answer("NCBIGene:596", "BCL2", "acceptable"))
 
 def test_guafacine_increased_activity_or_abundance_of_dlg4(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_increased_dlg4")
     response = find_chemicals_affecting_gene(config, "increased", "NCBIGene:1742")  # DLG4
-    assert_answer(response, XCRG_Answer("CHEBI:5558", "acceptable"))  # Guafacine
+    assert_answer(response, XCRG_Answer("CHEBI:5558", "Guafacine", "acceptable"))
 
 def test_ng_nitroarginine_methyl_ester_increased_activity_or_abundance_of_acetylcholine(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_increased_acetylcholine")
     response = find_genes_affected_by_chemical(config, "increased", "CHEBI:15355")  # Acetylcholine
-    assert_answer(response, XCRG_Answer("UMLS:C0083536", "never_show"))  # NG-Nitroarginine Methyl Ester
+    assert_answer(response, XCRG_Answer("UMLS:C0083536", "NG-Nitroarginine Methyl Ester", "never_show"))
 
 def test_cancer_decreased_activity_or_abundance_of_myc(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_myc")
     response = find_genes_affected_by_chemical(config, "decreased", "NCBIGene:4609")  # MYC
-    assert_answer(response, XCRG_Answer("MONDO:0004992", "never_show"))  # cancer
+    assert_answer(response, XCRG_Answer("MONDO:0004992", "cancer", "never_show"))
 
 def test_ppara_increased_activity_or_abundance_of_clofibric_acid(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_increased_clofibric_acid")
     response = find_genes_affected_by_chemical(config, "increased", "CHEBI:34648")  # clofibric acid
-    assert_answer(response, XCRG_Answer("NCBIGene:5465", "top_answer"))  # PPARA
+    assert_answer(response, XCRG_Answer("NCBIGene:5465", "PPARA", "top_answer"))
 
 def test_dabrafenib_decreased_activity_or_abundance_of_braf(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_braf")
     response = find_chemicals_affecting_gene(config, "decreased", "NCBIGene:673")  # BRAF
-    assert_answer(response, XCRG_Answer("CHEBI:75045", "acceptable"))  # Dabrafenib
+    assert_answer(response, XCRG_Answer("CHEBI:75045", "Dabrafenib", "acceptable"))
 
 # TODO: This fails on ARAX because the output_id "NCBI:2629" is incorrect?
 def test_gba1_decreased_activity_or_abundance_of_eliglustat(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_eliglustat")
     response = find_genes_affected_by_chemical(config, "decreased", "CHEBI:82752")  # Eliglustat
-    assert_answer(response, XCRG_Answer("NCBIGene:2629", "acceptable", fails_on_arax = True))  # GBA1
+    assert_answer(response, XCRG_Answer("NCBIGene:2629", "GBA1", "acceptable", fails_on_arax = True))
 
 def test_canagliflozin_decreased_activity_or_abundance_of_slc5a2(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_slc5a2")
     response = find_chemicals_affecting_gene(config, "decreased", "NCBIGene:6524")  # SLC5A2
-    assert_answer(response, XCRG_Answer("CHEBI:73274", "top_answer"))  # Canagliflozin
+    assert_answer(response, XCRG_Answer("CHEBI:73274", "Canagliflozin", "top_answer"))
 
 def test_naphthalene_decreased_activity_or_abundance_of_bpifa1(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_bpifa1")
     response = find_chemicals_affecting_gene(config, "decreased", "NCBIGene:51297")  # BPIFA1
-    assert_answer(response, XCRG_Answer("CHEBI:16482", "acceptable"))  # Naphthalene
+    assert_answer(response, XCRG_Answer("CHEBI:16482", "Naphthalene", "acceptable"))
 
 def test_acarbose_decreased_activity_or_abundance_of_mgam(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_mgam")
     response = find_chemicals_affecting_gene(config, "decreased", "NCBIGene:8972")  # MGAM
-    assert_answer(response, XCRG_Answer("CHEBI:2376", "top_answer", fails_on_arax = True))  # Acarbose
+    assert_answer(response, XCRG_Answer("CHEBI:2376", "Acarbose", "top_answer", fails_on_arax = True))
 
 def test_warfarin_decreased_activity_or_abundance_of_vkorc1(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_vkorc1")
     response = find_chemicals_affecting_gene(config, "decreased", "NCBIGene:79001")  # VKORC1
-    assert_answer(response, XCRG_Answer("CHEBI:10033", "top_answer"))  # Warfarin
+    assert_answer(response, XCRG_Answer("CHEBI:10033", "Warfarin", "top_answer"))
 
 def test_cyp3a4_decreased_activity_or_abundance_of_nirmatrelvir(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_nirmatrelvir")
     response = find_genes_affected_by_chemical(config, "decreased", "CHEBI:170007")  # Nirmatrelvir
-    assert_answer(response, XCRG_Answer("NCBIGene:1576", "acceptable", fails_on_arax = True))  # CYP3A4
+    assert_answer(response, XCRG_Answer("NCBIGene:1576", "CYP3A4", "acceptable", fails_on_arax = True))
 
 def test_ppara_increased_activity_or_abundance_of_permethrin(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_increased_permethrin")
     response = find_genes_affected_by_chemical(config, "increased", "CHEBI:34911")  # Permethrin
-    assert_answer(response, XCRG_Answer("NCBIGene:5465", "top_answer", fails_on_arax = True))  # PPARA
+    assert_answer(response, XCRG_Answer("NCBIGene:5465", "PPARA", "top_answer", fails_on_arax = True))
 
 def test_sildenafil_decreased_activity_or_abundance_of_pde5a(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_pde5a")
     response = find_chemicals_affecting_gene(config, "decreased", "NCBIGene:8654")  # PDE5A
-    assert_answer(response, XCRG_Answer("CHEBI:9139", "top_answer"))  # Sildenafil
+    assert_answer(response, XCRG_Answer("CHEBI:9139", "Sildenafil", "top_answer"))
 
 def test_mrtx_1133_decreased_activity_or_abundance_of_kras(config: xcrg.XCRGConfig):
     config = replace(config, debug_run_name = "arax_test_decreased_kras")
     response = find_chemicals_affecting_gene(config, "decreased", "NCBIGene:3845")  # KRAS
-    assert_answer(response, XCRG_Answer("PUBCHEM.COMPOUND:156124857", "top_answer", fails_on_arax = True))  # MRTX-1133
+    assert_answer(response, XCRG_Answer("PUBCHEM.COMPOUND:156124857", "MRTX-1133", "top_answer", fails_on_arax = True))

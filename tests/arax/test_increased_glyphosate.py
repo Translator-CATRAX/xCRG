@@ -22,11 +22,11 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("NCBIGene:815", "acceptable", fails_on_arax = True), # CAMK2A
-        XCRG_Answer("NCBIGene:110084335", "acceptable"), # CAMK2B
-        XCRG_Answer("NCBIGene:89780", "acceptable", fails_on_arax = True), # Wnt3a
-        XCRG_Answer("NCBIGene:7474", "acceptable", fails_on_arax = True), # Wnt5a
-        XCRG_Answer("NCBIGene:7476", "acceptable"), # Wnt7a
+        XCRG_Answer("NCBIGene:815", "CAMK2A", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:110084335", "CAMK2B", "acceptable"),
+        XCRG_Answer("NCBIGene:89780", "Wnt3a", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:7474", "Wnt5a", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:7476", "Wnt7a", "acceptable"),
     ]
 )
 def test_increased_activity_or_abundance_of_glyphosate(response: Response, answer: XCRG_Answer):

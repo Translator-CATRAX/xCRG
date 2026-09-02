@@ -24,8 +24,8 @@ def response(config: xcrg.XCRGConfig) -> Response:
     [
         # NOTE: There are more tests for Semaglutide, but they do not currently return any results
         # TODO: This test appears to be erroneous or misconfigured
-        XCRG_Answer("CHEBI:5931", "acceptable", fails_on_arax = True), # Insulin
-        XCRG_Answer("NCBIGene:2740", "top_answer"), # GLP1R
+        XCRG_Answer("CHEBI:5931", "Insulin", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:2740", "GLP1R", "top_answer"),
     ]
 )
 def test_increased_activity_or_abundance_of_semaglutide(response: Response, answer: XCRG_Answer):

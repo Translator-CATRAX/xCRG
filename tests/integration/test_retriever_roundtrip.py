@@ -22,8 +22,8 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("CHEBI:46195", "exists"), # Acetaminophen
-        XCRG_Answer("CHEBI:5855",  "exists")  # Ibuprofen
+        XCRG_Answer("CHEBI:46195", "Acetaminophen", "exists"),
+        XCRG_Answer("CHEBI:5855", "Ibuprofen", "exists"),
     ]
 )
 def test_decreased_activity_or_abundance_of_ace(response: Response, answer: XCRG_Answer):
