@@ -11,7 +11,7 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
-TEST_NAME = f"arax_test_3289146b-7275-4da8-959f-cff3160f46f0"
+TEST_NAME = "arax_test_decreased_glyphosate"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
@@ -22,8 +22,8 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("NCBIGene:10381", "acceptable"), # TUBB3
-        XCRG_Answer("NCBIGene:2596", "acceptable", fails_on_arax = True), # GAP43
+        XCRG_Answer("NCBIGene:10381", "TUBB3", "acceptable"),
+        XCRG_Answer("NCBIGene:2596", "GAP43", "acceptable", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_glyphosate(response: Response, answer: XCRG_Answer):

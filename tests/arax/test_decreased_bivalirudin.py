@@ -11,7 +11,7 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
-TEST_NAME = f"arax_test_895fcfa8-2cd7-41c5-9caa-25c3f9dd31b8"
+TEST_NAME = "arax_test_decreased_bivalirudin"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
@@ -22,11 +22,11 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("UMLS:C0040018", "top_answer", fails_on_arax = True), # Thrombin
-        XCRG_Answer("NCBIGene:4353", "top_answer"), # MPO
-        XCRG_Answer("NCBIGene:2147", "top_answer"), # F2
+        XCRG_Answer("UMLS:C0040018", "Thrombin", "top_answer", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:4353", "MPO", "top_answer"),
+        XCRG_Answer("NCBIGene:2147", "F2", "top_answer"),
         # BUG: https://github.com/NCATSTranslator/Tests/issues/83
-        XCRG_Answer("CHEMBL.TARGET:CHEMBL204", "top_answer", fails_on_arax = True), # UNIPROTKB#P00734
+        XCRG_Answer("CHEMBL.TARGET:CHEMBL204", "UNIPROTKB#P00734", "top_answer", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_bivalirudin(response: Response, answer: XCRG_Answer):

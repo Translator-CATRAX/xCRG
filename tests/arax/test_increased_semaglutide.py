@@ -11,7 +11,7 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
-TEST_NAME = f"arax_test_b011079c-b674-47da-8c66-ab7d47e7c7aa"
+TEST_NAME = "arax_test_increased_semaglutide"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
@@ -24,8 +24,8 @@ def response(config: xcrg.XCRGConfig) -> Response:
     [
         # NOTE: There are more tests for Semaglutide, but they do not currently return any results
         # TODO: This test appears to be erroneous or misconfigured
-        XCRG_Answer("CHEBI:5931", "acceptable", fails_on_arax = True), # Insulin
-        XCRG_Answer("NCBIGene:2740", "top_answer"), # GLP1R
+        XCRG_Answer("CHEBI:5931", "Insulin", "acceptable", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:2740", "GLP1R", "top_answer"),
     ]
 )
 def test_increased_activity_or_abundance_of_semaglutide(response: Response, answer: XCRG_Answer):

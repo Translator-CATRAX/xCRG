@@ -30,12 +30,13 @@ AnswerExpectation = Literal[
 @dataclass
 class XCRG_Answer:
     curie: CURIE
+    name: str
     expectation: AnswerExpectation
     fails_on_arax: bool = False
 
     def get_pytest_id(self) -> str:
         status = " (fails on ARAX)" if self.fails_on_arax else ""
-        return f"{self.curie} should be {self.expectation}{status}"
+        return f"{self.name} should be {self.expectation}{status}"
 
 
 def make_xcrg_query(

@@ -11,7 +11,7 @@ from tests.utilities import (
     find_genes_affected_by_chemical,
 )
 
-TEST_NAME = f"arax_test_dc91b4f6-95d9-40b0-95d5-7f2457436c30"
+TEST_NAME = "arax_test_increased_potassium_ion"
 
 # ARAX has a number of duplicated tests in this suite: ATP1A1, ATP1A2, ATP1A3, etc.
 # Some of these are documented in GitHub tickets: https://github.com/NCATSTranslator/Tests/issues/46
@@ -24,86 +24,86 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("NCBIGene:249", "never_show"), # ALPL
-        XCRG_Answer("NCBIGene:7108", "never_show"), # TM7SF2
-        XCRG_Answer("NCBIGene:26330", "never_show"), # GAPDHS
-        XCRG_Answer("NCBIGene:477", "never_show"), # ATP1A2
-        XCRG_Answer("NCBIGene:2641", "never_show"), # GCG
-        XCRG_Answer("NCBIGene:80150", "never_show"), # ASRGL1
-        XCRG_Answer("NCBIGene:6402", "never_show"), # SELL
-        XCRG_Answer("NCBIGene:57154", "never_show"), # SMURF1
-        XCRG_Answer("NCBIGene:56302", "never_show"), # TRPV5
-        XCRG_Answer("NCBIGene:7311", "never_show"), # UBA52
-        XCRG_Answer("NCBIGene:11035", "never_show"), # RIPK3
-        XCRG_Answer("NCBIGene:7130", "never_show"), # TNFAIP6
-        XCRG_Answer("NCBIGene:6401", "never_show"), # SELE
-        XCRG_Answer("NCBIGene:1435", "never_show"), # CSF1
-        XCRG_Answer("NCBIGene:100125288", "never_show"), # ZGLP1
-        XCRG_Answer("NCBIGene:939", "never_show"), # CD27
-        XCRG_Answer("NCBIGene:8743", "never_show"), # TNFSF10
-        XCRG_Answer("NCBIGene:7472", "never_show"), # WNT2
-        XCRG_Answer("NCBIGene:51497", "never_show"), # NELFCD
-        XCRG_Answer("NCBIGene:738", "never_show"), # VPS51
-        XCRG_Answer("NCBIGene:3576", "never_show"), # CXCL8
-        XCRG_Answer("NCBIGene:148327", "never_show"), # CREB3L4
-        XCRG_Answer("NCBIGene:100154195", "never_show"), # GIT2
-        XCRG_Answer("NCBIGene:7128", "never_show"), # TNFAIP3
-        XCRG_Answer("NCBIGene:823", "never_show"), # CAPN1
-        XCRG_Answer("NCBIGene:4843", "never_show"), # NOS2
-        XCRG_Answer("NCBIGene:55824", "never_show"), # PAG1
-        XCRG_Answer("NCBIGene:23118", "never_show"), # TAB2
-        XCRG_Answer("NCBIGene:3952", "never_show"), # LEP
-        XCRG_Answer("NCBIGene:8811", "never_show"), # GALR2
-        XCRG_Answer("NCBIGene:7132", "never_show"), # TNFRSF1A
-        XCRG_Answer("NCBIGene:476", "never_show"), # ATP1A1
-        XCRG_Answer("NCBIGene:6403", "never_show"), # SELP
-        XCRG_Answer("NCBIGene:54884", "never_show"), # RETSAT
-        XCRG_Answer("NCBIGene:5428", "never_show"), # POLG
-        XCRG_Answer("NCBIGene:2919", "never_show"), # CXCL1
-        XCRG_Answer("NCBIGene:480", "never_show"), # ATP1A4
-        XCRG_Answer("NCBIGene:51330", "never_show"), # TNFRSF12A
-        XCRG_Answer("NCBIGene:285", "never_show"), # ANGPT2
-        XCRG_Answer("NCBIGene:100524014", "never_show"), # TNFAIP8
-        XCRG_Answer("NCBIGene:22861", "never_show"), # NLRP1
-        XCRG_Answer("NCBIGene:22943", "never_show"), # DKK1
-        XCRG_Answer("NCBIGene:6776", "never_show"), # STAT5A
-        XCRG_Answer("NCBIGene:1585", "never_show"), # CYP11B2
-        XCRG_Answer("NCBIGene:495", "never_show"), # ATP4A
-        XCRG_Answer("NCBIGene:1437", "never_show"), # CSF2
-        XCRG_Answer("NCBIGene:9421", "never_show"), # HAND1
-        XCRG_Answer("NCBIGene:397491", "never_show"), # IGF1
-        XCRG_Answer("NCBIGene:113905823", "never_show"), # CADM1
-        XCRG_Answer("NCBIGene:10488", "never_show"), # CREB3
-        XCRG_Answer("NCBIGene:2308", "never_show"), # FOXO1
-        XCRG_Answer("NCBIGene:479", "never_show"), # ATP12A
-        XCRG_Answer("NCBIGene:811", "never_show"), # CALR
-        XCRG_Answer("NCBIGene:25157163", "never_show"), # SOD
-        XCRG_Answer("NCBIGene:10010", "never_show"), # TANK
-        XCRG_Answer("NCBIGene:397665", "never_show"), # PCBP2
-        XCRG_Answer("NCBIGene:27352", "never_show"), # SGSM3
-        XCRG_Answer("NCBIGene:355", "never_show"), # FAS
-        XCRG_Answer("NCBIGene:4313", "never_show"), # MMP2
-        XCRG_Answer("NCBIGene:57410", "never_show"), # SCYL1
-        XCRG_Answer("NCBIGene:4314", "never_show"), # MMP3
-        XCRG_Answer("NCBIGene:958", "never_show"), # CD40
-        XCRG_Answer("NCBIGene:3562", "never_show"), # IL3
-        XCRG_Answer("NCBIGene:9943", "never_show"), # OXSR1
-        XCRG_Answer("UMLS:C0058605", "never_show"), # AdenosineTriphosphatases
-        XCRG_Answer("NCBIGene:5806", "never_show"), # PTX3
-        XCRG_Answer("NCBIGene:100513111", "never_show"), # NR2C2
-        XCRG_Answer("NCBIGene:1153", "never_show"), # CIRBP
-        XCRG_Answer("NCBIGene:3383", "never_show"), # ICAM1
-        XCRG_Answer("NCBIGene:147138", "never_show"), # TMC8
-        XCRG_Answer("NCBIGene:200186", "never_show", fails_on_arax = True), # CRTC2
-        XCRG_Answer("NCBIGene:2597", "never_show"), # GAPDH
-        XCRG_Answer("NCBIGene:650", "never_show"), # BMP2
-        XCRG_Answer("NCBIGene:1956", "never_show"), # EGFR
-        XCRG_Answer("NCBIGene:478", "never_show"), # ATP1A3
-        XCRG_Answer("NCBIGene:7098", "never_show"), # TLR3
-        XCRG_Answer("NCBIGene:100135663", "never_show"), # MAP3K7
-        XCRG_Answer("NCBIGene:8717", "never_show"), # TRADD
-        XCRG_Answer("NCBIGene:6646", "never_show"), # SOAT1
-        XCRG_Answer("UMLS:C0001473", "never_show"), # Adenosine Triphosphatases
+        XCRG_Answer("NCBIGene:249", "ALPL", "never_show"),
+        XCRG_Answer("NCBIGene:7108", "TM7SF2", "never_show"),
+        XCRG_Answer("NCBIGene:26330", "GAPDHS", "never_show"),
+        XCRG_Answer("NCBIGene:477", "ATP1A2", "never_show"),
+        XCRG_Answer("NCBIGene:2641", "GCG", "never_show"),
+        XCRG_Answer("NCBIGene:80150", "ASRGL1", "never_show"),
+        XCRG_Answer("NCBIGene:6402", "SELL", "never_show"),
+        XCRG_Answer("NCBIGene:57154", "SMURF1", "never_show"),
+        XCRG_Answer("NCBIGene:56302", "TRPV5", "never_show"),
+        XCRG_Answer("NCBIGene:7311", "UBA52", "never_show"),
+        XCRG_Answer("NCBIGene:11035", "RIPK3", "never_show"),
+        XCRG_Answer("NCBIGene:7130", "TNFAIP6", "never_show"),
+        XCRG_Answer("NCBIGene:6401", "SELE", "never_show"),
+        XCRG_Answer("NCBIGene:1435", "CSF1", "never_show"),
+        XCRG_Answer("NCBIGene:100125288", "ZGLP1", "never_show"),
+        XCRG_Answer("NCBIGene:939", "CD27", "never_show"),
+        XCRG_Answer("NCBIGene:8743", "TNFSF10", "never_show"),
+        XCRG_Answer("NCBIGene:7472", "WNT2", "never_show"),
+        XCRG_Answer("NCBIGene:51497", "NELFCD", "never_show"),
+        XCRG_Answer("NCBIGene:738", "VPS51", "never_show"),
+        XCRG_Answer("NCBIGene:3576", "CXCL8", "never_show"),
+        XCRG_Answer("NCBIGene:148327", "CREB3L4", "never_show"),
+        XCRG_Answer("NCBIGene:100154195", "GIT2", "never_show"),
+        XCRG_Answer("NCBIGene:7128", "TNFAIP3", "never_show"),
+        XCRG_Answer("NCBIGene:823", "CAPN1", "never_show"),
+        XCRG_Answer("NCBIGene:4843", "NOS2", "never_show"),
+        XCRG_Answer("NCBIGene:55824", "PAG1", "never_show"),
+        XCRG_Answer("NCBIGene:23118", "TAB2", "never_show"),
+        XCRG_Answer("NCBIGene:3952", "LEP", "never_show"),
+        XCRG_Answer("NCBIGene:8811", "GALR2", "never_show"),
+        XCRG_Answer("NCBIGene:7132", "TNFRSF1A", "never_show"),
+        XCRG_Answer("NCBIGene:476", "ATP1A1", "never_show"),
+        XCRG_Answer("NCBIGene:6403", "SELP", "never_show"),
+        XCRG_Answer("NCBIGene:54884", "RETSAT", "never_show"),
+        XCRG_Answer("NCBIGene:5428", "POLG", "never_show"),
+        XCRG_Answer("NCBIGene:2919", "CXCL1", "never_show"),
+        XCRG_Answer("NCBIGene:480", "ATP1A4", "never_show"),
+        XCRG_Answer("NCBIGene:51330", "TNFRSF12A", "never_show"),
+        XCRG_Answer("NCBIGene:285", "ANGPT2", "never_show"),
+        XCRG_Answer("NCBIGene:100524014", "TNFAIP8", "never_show"),
+        XCRG_Answer("NCBIGene:22861", "NLRP1", "never_show"),
+        XCRG_Answer("NCBIGene:22943", "DKK1", "never_show"),
+        XCRG_Answer("NCBIGene:6776", "STAT5A", "never_show"),
+        XCRG_Answer("NCBIGene:1585", "CYP11B2", "never_show"),
+        XCRG_Answer("NCBIGene:495", "ATP4A", "never_show"),
+        XCRG_Answer("NCBIGene:1437", "CSF2", "never_show"),
+        XCRG_Answer("NCBIGene:9421", "HAND1", "never_show"),
+        XCRG_Answer("NCBIGene:397491", "IGF1", "never_show"),
+        XCRG_Answer("NCBIGene:113905823", "CADM1", "never_show"),
+        XCRG_Answer("NCBIGene:10488", "CREB3", "never_show"),
+        XCRG_Answer("NCBIGene:2308", "FOXO1", "never_show"),
+        XCRG_Answer("NCBIGene:479", "ATP12A", "never_show"),
+        XCRG_Answer("NCBIGene:811", "CALR", "never_show"),
+        XCRG_Answer("NCBIGene:25157163", "SOD", "never_show"),
+        XCRG_Answer("NCBIGene:10010", "TANK", "never_show"),
+        XCRG_Answer("NCBIGene:397665", "PCBP2", "never_show"),
+        XCRG_Answer("NCBIGene:27352", "SGSM3", "never_show"),
+        XCRG_Answer("NCBIGene:355", "FAS", "never_show"),
+        XCRG_Answer("NCBIGene:4313", "MMP2", "never_show"),
+        XCRG_Answer("NCBIGene:57410", "SCYL1", "never_show"),
+        XCRG_Answer("NCBIGene:4314", "MMP3", "never_show"),
+        XCRG_Answer("NCBIGene:958", "CD40", "never_show"),
+        XCRG_Answer("NCBIGene:3562", "IL3", "never_show"),
+        XCRG_Answer("NCBIGene:9943", "OXSR1", "never_show"),
+        XCRG_Answer("UMLS:C0058605", "AdenosineTriphosphatases", "never_show"),
+        XCRG_Answer("NCBIGene:5806", "PTX3", "never_show"),
+        XCRG_Answer("NCBIGene:100513111", "NR2C2", "never_show"),
+        XCRG_Answer("NCBIGene:1153", "CIRBP", "never_show"),
+        XCRG_Answer("NCBIGene:3383", "ICAM1", "never_show"),
+        XCRG_Answer("NCBIGene:147138", "TMC8", "never_show"),
+        XCRG_Answer("NCBIGene:200186", "CRTC2", "never_show", fails_on_arax = True),
+        XCRG_Answer("NCBIGene:2597", "GAPDH", "never_show"),
+        XCRG_Answer("NCBIGene:650", "BMP2", "never_show"),
+        XCRG_Answer("NCBIGene:1956", "EGFR", "never_show"),
+        XCRG_Answer("NCBIGene:478", "ATP1A3", "never_show"),
+        XCRG_Answer("NCBIGene:7098", "TLR3", "never_show"),
+        XCRG_Answer("NCBIGene:100135663", "MAP3K7", "never_show"),
+        XCRG_Answer("NCBIGene:8717", "TRADD", "never_show"),
+        XCRG_Answer("NCBIGene:6646", "SOAT1", "never_show"),
+        XCRG_Answer("UMLS:C0001473", "Adenosine Triphosphatases", "never_show"),
     ]
 )
 def test_increased_activity_or_abundance_of_potassium_ion(response: Response, answer: XCRG_Answer):

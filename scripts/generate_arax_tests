@@ -26,7 +26,7 @@ def generate_test_files(arax_dir: Path, tests: list[dict]):
             {test["type"]},
         )
         
-        TEST_NAME = f"arax_test_{test["id"]}"
+        TEST_NAME = "arax_test_{test["direction"]}_{safe_name}"
         
         """).lstrip()
 
@@ -50,10 +50,10 @@ def generate_test_files(arax_dir: Path, tests: list[dict]):
             x = ""
             for comment in answer.get("comments", []):
                 x += f"        # {comment}\n"
-            x += f'        XCRG_Answer("{answer["id"]}", "{answer["expectation"]}"'
+            x += f'        XCRG_Answer("{answer["id"]}", "{answer['name']}", "{answer["expectation"]}"'
             if answer.get("fails_on_arax", False):
                 x += ", fails_on_arax = True"
-            x += f"), # {answer["name"]}"
+            x += f"),"
             answers.append(x)
         s += "\n".join(answers)
 
@@ -102,9 +102,9 @@ def generate_one_shot_tests(arax_dir: Path, tests: list[dict]):
 
         s += dedent(f"""
         def test_{safe_answer_name}_{test["direction"]}_activity_or_abundance_of_{safe_candidate_name}(config: xcrg.XCRGConfig):
-            config = replace(config, debug_run_name = f"arax_test_{test["id"]}")
+            config = replace(config, debug_run_name = "arax_test_{test["direction"]}_{safe_candidate_name}")
             response = {test["type"]}(config, "{test["direction"]}", "{test["candidate_id"]}")  # {test["candidate_name"]}
-            assert_answer(response, XCRG_Answer("{answer["id"]}", "{answer["expectation"]}"{fails}))  # {answer["name"]}
+            assert_answer(response, XCRG_Answer("{answer["id"]}", "{answer["name"]}", "{answer["expectation"]}"{fails}))
         
         """).lstrip()
 

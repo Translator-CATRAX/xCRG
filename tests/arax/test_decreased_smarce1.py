@@ -11,7 +11,7 @@ from tests.utilities import (
     find_chemicals_affecting_gene,
 )
 
-TEST_NAME = f"arax_test_43d68108-2dd8-463e-aa45-9875da294eec"
+TEST_NAME = "arax_test_decreased_smarce1"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
@@ -22,18 +22,18 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("CHEBI:75998", "top_answer", fails_on_arax = True), # trametinib
-        XCRG_Answer("CHEBI:72564", "top_answer", fails_on_arax = True), # temozolomide
-        XCRG_Answer("UNII:DPT0O3T46P", "top_answer", fails_on_arax = True), # pembrolizumab
-        XCRG_Answer("CHEBI:39867", "top_answer", fails_on_arax = True), # valproic acid
-        XCRG_Answer("CHEBI:90943", "acceptable", fails_on_arax = True), # osimertinib
-        XCRG_Answer("CHEBI:114785", "acceptable", fails_on_arax = True), # erlotinib
-        XCRG_Answer("CHEBI:61390", "acceptable", fails_on_arax = True), # afatinib
-        XCRG_Answer("UMLS:C4085970", "acceptable", fails_on_arax = True), # amivantamab-vmjw
-        XCRG_Answer("HGNC.FAMILY:3410", "acceptable", fails_on_arax = True), # histone-lysine methyltransferases
-        XCRG_Answer("CHEBI:49668", "acceptable", fails_on_arax = True), # gefitinib
-        XCRG_Answer("CHEBI:132268", "acceptable", fails_on_arax = True), # dacomitinib
-        XCRG_Answer("PUBCHEM.COMPOUND:54671203", "bad_but_forgivable", fails_on_arax = True), # doxycycline
+        XCRG_Answer("CHEBI:75998", "trametinib", "top_answer", fails_on_arax = True),
+        XCRG_Answer("CHEBI:72564", "temozolomide", "top_answer", fails_on_arax = True),
+        XCRG_Answer("UNII:DPT0O3T46P", "pembrolizumab", "top_answer", fails_on_arax = True),
+        XCRG_Answer("CHEBI:39867", "valproic acid", "top_answer", fails_on_arax = True),
+        XCRG_Answer("CHEBI:90943", "osimertinib", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:114785", "erlotinib", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:61390", "afatinib", "acceptable", fails_on_arax = True),
+        XCRG_Answer("UMLS:C4085970", "amivantamab-vmjw", "acceptable", fails_on_arax = True),
+        XCRG_Answer("HGNC.FAMILY:3410", "histone-lysine methyltransferases", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:49668", "gefitinib", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:132268", "dacomitinib", "acceptable", fails_on_arax = True),
+        XCRG_Answer("PUBCHEM.COMPOUND:54671203", "doxycycline", "bad_but_forgivable", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_smarce1(response: Response, answer: XCRG_Answer):

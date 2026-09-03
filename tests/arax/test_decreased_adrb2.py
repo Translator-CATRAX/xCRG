@@ -11,7 +11,7 @@ from tests.utilities import (
     find_chemicals_affecting_gene,
 )
 
-TEST_NAME = f"arax_test_254352e6-a472-4239-be6b-7b863b95df71"
+TEST_NAME = "arax_test_decreased_adrb2"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
@@ -22,13 +22,13 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("CHEBI:3441", "top_answer"), # carvedilol
-        XCRG_Answer("CHEBI:17579", "top_answer", fails_on_arax = True), # Beta-Blockers (Inhibitors)
-        XCRG_Answer("CHEBI:6904", "top_answer"), # metoprolol
-        XCRG_Answer("CHEBI:8499", "top_answer", fails_on_arax = True), # propranolol
-        XCRG_Answer("CHEBI:2904", "top_answer"), # atenolol
-        XCRG_Answer("CHEBI:91879", "top_answer", fails_on_arax = True), # ICI-118,551 (ZENIDOLOL?)
-        XCRG_Answer("UNII:0NM31M53PW", "acceptable", fails_on_arax = True), # Butaxamine
+        XCRG_Answer("CHEBI:3441", "carvedilol", "top_answer"),
+        XCRG_Answer("CHEBI:17579", "Beta-Blockers (Inhibitors)", "top_answer", fails_on_arax = True),
+        XCRG_Answer("CHEBI:6904", "metoprolol", "top_answer"),
+        XCRG_Answer("CHEBI:8499", "propranolol", "top_answer", fails_on_arax = True),
+        XCRG_Answer("CHEBI:2904", "atenolol", "top_answer"),
+        XCRG_Answer("CHEBI:91879", "ICI-118,551 (ZENIDOLOL?)", "top_answer", fails_on_arax = True),
+        XCRG_Answer("UNII:0NM31M53PW", "Butaxamine", "acceptable", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_adrb2(response: Response, answer: XCRG_Answer):

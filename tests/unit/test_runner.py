@@ -402,7 +402,7 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
 
     combined_message = Response(
         message = Message(
-            query_graph = QueryGraph(nodes = {}, edges = {}),
+            query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = []),
@@ -529,7 +529,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
     ctx = make_context(query = make_inferred_query(), config = config)
     combined_message = Response(
         message = Message(
-            query_graph = QueryGraph(nodes = {}, edges = {}),
+            query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = []),
@@ -627,7 +627,7 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
     )
     combined_message = Response(
         message = Message(
-            query_graph = QueryGraph(nodes = {}, edges = {}),
+            query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": chem_node,
@@ -697,7 +697,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
     )
     combined_message = Response(
         message = Message(
-            query_graph = QueryGraph(nodes = {}, edges = {}),
+            query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(
@@ -762,7 +762,7 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
     )
     combined_message = Response(
         message = Message(
-            query_graph = QueryGraph(nodes = {}, edges = {}),
+            query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(
@@ -873,7 +873,7 @@ def test_clean_response_limits_to_configured_top_result_count():
         )
     combined_message = Response(
         message = Message(
-            query_graph = QueryGraph(nodes = {}, edges = {}),
+            query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(nodes = nodes, edges = edges),
             results = results
         )
@@ -903,7 +903,7 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
     ctx = make_context(make_inferred_query())
     combined_message = Response(
         message = Message(
-            query_graph = QueryGraph(nodes = {}, edges = {}),
+            query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(
                 nodes = {
                     "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = []),

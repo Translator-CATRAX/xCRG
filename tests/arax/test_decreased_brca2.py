@@ -11,7 +11,7 @@ from tests.utilities import (
     find_chemicals_affecting_gene,
 )
 
-TEST_NAME = f"arax_test_b7e9e513-cde3-45ed-b366-38ea9da851b9"
+TEST_NAME = "arax_test_decreased_brca2"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
@@ -22,19 +22,19 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("UNII:9X5A2QIA7C", "acceptable", fails_on_arax = True), # PARP inhibitor 2X-121
-        XCRG_Answer("CHEBI:16731", "bad_but_forgivable"), # Cinnamaldehyde
-        XCRG_Answer("CHEBI:16842", "bad_but_forgivable", fails_on_arax = True), # Formaldehyde
-        XCRG_Answer("PUBCHEM.COMPOUND:14423521", "bad_but_forgivable"), # Ursolic aldehyde
-        XCRG_Answer("CHEBI:31355", "acceptable", fails_on_arax = True), # Carboplatin
-        XCRG_Answer("CHEBI:176844", "acceptable"), # niraparib
-        XCRG_Answer("CHEBI:83766", "acceptable"), # olaparib
-        XCRG_Answer("CHEBI:62880", "acceptable"), # veliparib
-        XCRG_Answer("CHEBI:134689", "acceptable", fails_on_arax = True), # rucaparib
-        XCRG_Answer("CHEBI:231344", "acceptable"), # talazoparib
-        XCRG_Answer("CHEBI:27899", "acceptable"), # Cisplatin
-        XCRG_Answer("CHEBI:167900", "acceptable", fails_on_arax = True), # PJ34
-        XCRG_Answer("CHEBI:41774", "acceptable"), # Tamoxifen
+        XCRG_Answer("UNII:9X5A2QIA7C", "PARP inhibitor 2X-121", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:16731", "Cinnamaldehyde", "bad_but_forgivable"),
+        XCRG_Answer("CHEBI:16842", "Formaldehyde", "bad_but_forgivable", fails_on_arax = True),
+        XCRG_Answer("PUBCHEM.COMPOUND:14423521", "Ursolic aldehyde", "bad_but_forgivable"),
+        XCRG_Answer("CHEBI:31355", "Carboplatin", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:176844", "niraparib", "acceptable"),
+        XCRG_Answer("CHEBI:83766", "olaparib", "acceptable"),
+        XCRG_Answer("CHEBI:62880", "veliparib", "acceptable"),
+        XCRG_Answer("CHEBI:134689", "rucaparib", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:231344", "talazoparib", "acceptable"),
+        XCRG_Answer("CHEBI:27899", "Cisplatin", "acceptable"),
+        XCRG_Answer("CHEBI:167900", "PJ34", "acceptable", fails_on_arax = True),
+        XCRG_Answer("CHEBI:41774", "Tamoxifen", "acceptable"),
     ]
 )
 def test_decreased_activity_or_abundance_of_brca2(response: Response, answer: XCRG_Answer):

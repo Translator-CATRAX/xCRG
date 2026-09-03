@@ -11,7 +11,7 @@ from tests.utilities import (
     find_chemicals_affecting_gene,
 )
 
-TEST_NAME = f"arax_test_0012f9cd-cb88-4c41-b639-2035c91de3d8"
+TEST_NAME = "arax_test_decreased_ddx3y"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
@@ -22,10 +22,10 @@ def response(config: xcrg.XCRGConfig) -> Response:
 @pytest.mark.parametrize(
     "answer",
     [
-        XCRG_Answer("UMLS:C0311474", "never_show"), # dna double stranded
-        XCRG_Answer("UMLS:C1328819", "never_show"), # Small molecule
-        XCRG_Answer("CHEBI:28748", "acceptable", fails_on_arax = True), # Doxorubicin
-        XCRG_Answer("UMLS:C4079590", "acceptable", fails_on_arax = True), # RK-33
+        XCRG_Answer("UMLS:C0311474", "dna double stranded", "never_show"),
+        XCRG_Answer("UMLS:C1328819", "Small molecule", "never_show"),
+        XCRG_Answer("CHEBI:28748", "Doxorubicin", "acceptable", fails_on_arax = True),
+        XCRG_Answer("UMLS:C4079590", "RK-33", "acceptable", fails_on_arax = True),
     ]
 )
 def test_decreased_activity_or_abundance_of_ddx3y(response: Response, answer: XCRG_Answer):
