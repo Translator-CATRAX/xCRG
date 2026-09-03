@@ -68,6 +68,7 @@ class Scoring_Params:
     confidence_factor       : float
     category_weights        : dict[Evidence_Category, Count_Category]
     direct_evidence_weight  : float
+    ngd_score_factor        : float
 
 
 DEFAULT_SCORING_PARAMS = Scoring_Params(
@@ -103,6 +104,7 @@ DEFAULT_SCORING_PARAMS = Scoring_Params(
          ),
     },
     direct_evidence_weight = 97,
+    ngd_score_factor = 10000
 )
 
 
@@ -288,19 +290,14 @@ class Custom_Ranker(Ranker):
         for stmt in summary.xcrg_qualified_stmts:
             total_score += self.score_qualified_stmt(stmt)
 
-        ngd_factor = (summary.ngd_score or 0) + 1
-        # info_factor = ((summary.information_content or 0) / 100) + 1
-        # specificity_factor = summary.specificity / 4
+        # TODO: information_content
+        # TODO: specificity
 
-        factors = [
-            ngd_factor,
-            # info_factor,
-            # specificity_factor
-        ]
+        # Reward results with an NGD score
+        if ngd_score := summary.ngd_score:
+            total_score += ngd_score * self.scoring_params.ngd_score_factor
 
-        total_score *= sum(factors) / len(factors)
-
-        # Heavily penalize results with no direct connections
+        # Penalize results with no direct connections
         if not summary.direct_qualified_stmts:
             total_score *= 0.5
 

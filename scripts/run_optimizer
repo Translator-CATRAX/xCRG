@@ -100,7 +100,8 @@ def make_objective(project_dir: Path):
                 )
                 for x in Evidence_Category
             },
-            direct_evidence_weight = trial.suggest_int("direct_evidence_weight", 1, 100)
+            direct_evidence_weight = trial.suggest_int("direct_evidence_weight", 1, 100),
+            ngd_score_factor = trial.suggest_int("ngd_score_factor", 1, 1_000_000_000),
         )
 
         ranker: Ranker = Custom_Ranker(params)
@@ -164,6 +165,7 @@ def main():
         s +=  "         ),\n"
     s += "    },\n"
     s += f"    direct_evidence_weight = {study.best_params["direct_evidence_weight"]},\n"
+    s += f"    ngd_score_factor = {study.best_params["ngd_score_factor"]},\n"
     s += ")\n"
 
     with open(results_file, "w") as f:
