@@ -71,8 +71,9 @@ class Scoring_Params:
     ngd_score_factor        : float
 
 
+# These values are mostly determined using scripts/run_optimizer
 DEFAULT_SCORING_PARAMS = Scoring_Params(
-    k = 60, # Much literature argues that 60 is a good default for RRF
+    k = 60, # Manually set; much literature argues that 60 is a good default for RRF
     agent_type_weights = {
         Agent_Type.MANUAL_AGENT: 57,
         Agent_Type.AUTOMATED_AGENT: 85,
@@ -104,9 +105,8 @@ DEFAULT_SCORING_PARAMS = Scoring_Params(
          ),
     },
     direct_evidence_weight = 97,
-    ngd_score_factor = 10000
+    ngd_score_factor = 10000 # Manually set
 )
-
 
 
 def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
