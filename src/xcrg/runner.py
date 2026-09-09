@@ -860,6 +860,11 @@ async def async_run_xcrg(
         query_id = query_id or uuid.uuid4().hex[:8]
         span.set_attribute("query_id", query_id)
 
+        # TODO: Remove this block when RTX is refactored to use xcrg.Reporter
+        #  We cannot use reporter.critical or reporter.fatal while doing this
+        if logger and logger.__class__.__name__ == "ARAXXCRGLogger":
+            logger = LogReporter(cast(logging.Logger, logger))
+
         reporter: Reporter
         match logger:
             case Reporter():       reporter = logger
