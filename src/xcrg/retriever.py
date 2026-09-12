@@ -174,7 +174,7 @@ def _filter_inferred_response(ctx: RunContext, response: Response) -> Response:
     )
 
 
-async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> tuple[int ,Response]:
+async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> tuple[int, Response]:
     """Make HTTP query to Retriever and return HTTP status code + TRAPI Response"""
 
     # Try and return a cached TRAPI Response if appropriate debugging options are set
