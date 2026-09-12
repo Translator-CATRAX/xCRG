@@ -115,9 +115,8 @@ class RunContext:
     def timeout(self) -> int:
         return self.config.timeout
 
-    @property
     def use_http_cache(self) -> bool:
-        return self.config.debug_use_http_cache
+        return self.config.http_cache_dir is not None
 
     @staticmethod
     def new(
@@ -215,8 +214,7 @@ class RunContext:
         return trapi.get_answer_qid(self.query_graph, self.subject_qid, self.object_qid)
 
     def get_cache_dir(self) -> Path | None:
-        if not (debug_dir := path_or_none(self.config.debug_dir)): return None
-        cache_dir = debug_dir / "cache"
+        if not (cache_dir := path_or_none(self.config.http_cache_dir)): return None
         cache_dir.mkdir(exist_ok = True)
         return cache_dir
 

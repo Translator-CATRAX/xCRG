@@ -53,13 +53,17 @@ def config(request) -> XCRGConfig:
 
     use_http_cache = request.config.getoption("--use_http_cache")
 
+    http_cache_dir: Path | None = None
+    if use_http_cache:
+        http_cache_dir = debug_dir / "cache"
+
     return XCRGConfig(
         retriever_url = request.config.getoption("--retriever_url"),
         ngd_db_path = ngd_db_file,
         curie_to_pmids_db_path = curie_to_pmids_db_file,
         debug_dir = debug_dir,
         debug_level = debug_level,
-        debug_use_http_cache = use_http_cache
+        http_cache_dir = http_cache_dir
     )
 
 
