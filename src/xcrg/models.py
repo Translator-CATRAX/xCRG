@@ -65,7 +65,7 @@ class Message_Statistics:
 
 
 @dataclass
-class Summary_Template:
+class Template_Summary:
     template_index   : int
     first_direction  : Direction
     second_direction : Direction
@@ -80,6 +80,6 @@ class Debug_Summary:
     tf_count        : int
     batch_size      : int
     batch_count     : int
-    direct_response : Message_Statistics       = field(default_factory = Message_Statistics.zero)
-    merged_response : Message_Statistics       = field(default_factory = Message_Statistics.zero)
-    templates       : list[Summary_Template]  = field(default_factory = list)
+    direct_response : Message_Statistics     = field(default_factory = Message_Statistics.zero)
+    merged_response : Message_Statistics     = field(default_factory = Message_Statistics.zero)
+    templates       : list[Template_Summary] = field(default_factory = list)

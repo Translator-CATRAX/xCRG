@@ -7,7 +7,7 @@ import json
 import logging
 import uuid
 from copy import deepcopy
-from typing import cast
+from typing import Coroutine, cast
 
 from opentelemetry import trace
 from translator_tom import (
@@ -47,8 +47,9 @@ from .models import (
     DIRECTION_TEMPLATES,
     Batch_Summary,
     Debug_Summary,
+    Direction_Template,
     Message_Statistics,
-    Summary_Template,
+    Template_Summary,
 )
 from .queries import (
     Direction,
@@ -719,28 +720,40 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
         direct_response = Message_Statistics.get_from(direct_response)
     )
 
+    async def process_lookup(batch_idx: int, template: Direction_Template, tf_batch: list[CURIE]) -> tuple[Response, Batch_Summary]:
+        two_hop_query = build_two_hop_query(ctx, tf_batch, template[0], template[1])
+        ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_query", two_hop_query)
+
+        response = await retriever.run_sync_lookup(ctx, two_hop_query)
+        ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_response", response)
+
+        summary = Batch_Summary(
+            batch_index = batch_idx,
+            tf_ids = tf_batch,
+            tf_count = len(tf_batch),
+            response = Message_Statistics.get_from(response)
+        )
+
+        return response, summary
+
+    # Batches are processed using asyncio to work around response times from retriever
     for i, template in enumerate(templates, start = 1):
-        template_summary = Summary_Template(
+        template_summary = Template_Summary(
             template_index = i,
             first_direction = template[0],
             second_direction = template[1]
         )
 
+        tasks = list[Coroutine[int, list[CURIE], tuple[Response, Batch_Summary]]]()
         for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
-            two_hop_query = build_two_hop_query(ctx, tf_batch, template[0], template[1])
-            ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_query", two_hop_query)
+            tasks.append(process_lookup(batch_idx, template, tf_batch))
 
-            filtered_response = await retriever.run_sync_lookup(ctx, two_hop_query)
-            ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_response", filtered_response)
+        results: list[tuple[Response, Batch_Summary]] = await asyncio.gather(*tasks)
+        for response, summary in results:
+            filtered_responses.append(response)
+            template_summary.batches.append(summary)
 
-            filtered_responses.append(filtered_response)
-            template_summary.batches.append(Batch_Summary(
-                batch_index = batch_idx,
-                tf_ids = tf_batch,
-                tf_count = len(tf_batch),
-                response = Message_Statistics.get_from(filtered_response),
-            ))
-
+        template_summary.batches.sort(key = lambda x: x.batch_index) # Put back in original order
         debug_summary.templates.append(template_summary)
 
     merged_query_graph = build_combined_query_graph(ctx)
