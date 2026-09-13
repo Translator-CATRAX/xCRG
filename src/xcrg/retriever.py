@@ -24,6 +24,7 @@ from .constants import (
     TP53_CURIE
 )
 from .context import RunContext
+from .models import Message_Statistics
 from .utilities import format_json_for_log, make_stable_id
 
 
@@ -237,7 +238,7 @@ async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
     if not message.auxiliary_graphs:
         message.auxiliary_graphs = AuxiliaryGraphsDict()
 
-    counts = trapi.get_message_statistics(response)
+    counts = Message_Statistics.get_from(response)
 
     ctx.reporter.info(
         "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",

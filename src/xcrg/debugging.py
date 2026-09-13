@@ -15,6 +15,7 @@ from translator_tom import (
 )
 
 from . import trapi
+from .models import Message_Statistics
 from .utilities import OrderedEnum, serialize_json_to_file
 
 
@@ -119,7 +120,7 @@ class DebugContext:
 
             match payload:
                 case Query() | Response() as entity:
-                    summary = trapi.get_message_statistics(entity)
+                    summary = Message_Statistics.get_from(entity)
                 case _:
                     summary = ""
 

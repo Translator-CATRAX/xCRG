@@ -43,8 +43,14 @@ from . import DebugLevel, biolink, ngd, ranking, retriever, trapi
 from .constants import TF_QNODE_ID, DIRECT_QEDGE_ID
 from .config import XCRGConfig
 from .context import RunContext
-from .queries import (
+from .models import (
     DIRECTION_TEMPLATES,
+    Batch_Summary,
+    Debug_Summary,
+    Message_Statistics,
+    Summary_Template,
+)
+from .queries import (
     Direction,
     build_one_hop_query,
     build_two_hop_query
@@ -703,22 +709,22 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     )
 
     filtered_responses = []
-    debug_summary = {
-        "query_id": ctx.query_id,
-        "final_direction": final_direction,
-        "tf_count": len(ctx.tf_list),
-        "batch_size": ctx.config.tf_batch_size,
-        "batch_count": len(tf_batches),
-        "direct_response": trapi.get_message_statistics(direct_response),
-        "templates": [],
-    }
+    debug_summary = Debug_Summary(
+        query_id = ctx.query_id,
+        debug_run_dir = str(ctx.debug_ctx and ctx.debug_ctx.run_dir or ""), # TODO
+        final_direction = final_direction,
+        tf_count = len(ctx.tf_list),
+        batch_size = ctx.config.tf_batch_size,
+        batch_count = len(tf_batches),
+        direct_response = Message_Statistics.get_from(direct_response)
+    )
+
     for i, template in enumerate(templates, start = 1):
-        template_summary = {
-            "template_index": i,
-            "first_direction": template[0],
-            "second_direction": template[1],
-            "batches": [],
-        }
+        template_summary = Summary_Template(
+            template_index = i,
+            first_direction = template[0],
+            second_direction = template[1]
+        )
 
         for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
             two_hop_query = build_two_hop_query(ctx, tf_batch, template[0], template[1])
@@ -728,16 +734,14 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
             ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_response", filtered_response)
 
             filtered_responses.append(filtered_response)
-            template_summary["batches"].append(
-                {
-                    "batch_index": batch_idx,
-                    "tf_ids": tf_batch,
-                    "tf_count": len(tf_batch),
-                    # "raw_response": trapi.get_message_statistics(response),
-                    "response": trapi.get_message_statistics(filtered_response),
-                }
-            )
-        debug_summary["templates"].append(template_summary)
+            template_summary.batches.append(Batch_Summary(
+                batch_index = batch_idx,
+                tf_ids = tf_batch,
+                tf_count = len(tf_batch),
+                response = Message_Statistics.get_from(filtered_response),
+            ))
+
+        debug_summary.templates.append(template_summary)
 
     merged_query_graph = build_combined_query_graph(ctx)
 
@@ -762,8 +766,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     ctx.debug_dump_json("merged_debug_response", merged)
 
     final_response = build_trapi_clean_response(ctx, merged)
-    debug_summary["merged_response"] = trapi.get_message_statistics(final_response)
-    debug_summary["debug_run_dir"] = str(ctx.debug_ctx and ctx.debug_ctx.run_dir) # TODO
+    debug_summary.merged_response = Message_Statistics.get_from(final_response)
 
     ctx.debug_dump_json("inferred_debug_summary", debug_summary)
     ctx.debug_dump_json("final_response", final_response, level = DebugLevel.BASIC)

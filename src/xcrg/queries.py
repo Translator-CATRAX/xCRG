@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from enum import Enum
 
 from translator_tom import (
     CURIE,
@@ -18,27 +17,7 @@ from translator_tom import (
 
 from .constants import TF_QNODE_ID, DIRECT_QEDGE_ID
 from .context import RunContext
-
-
-class Direction(Enum):
-    INCREASED = "increased"
-    DECREASED = "decreased"
-
-
-Direction_Template = tuple[Direction, Direction]
-
-
-# Sign-compatible two-hop templates for desired final direction
-DIRECTION_TEMPLATES: dict[Direction, tuple[Direction_Template, Direction_Template]] = {
-    Direction.INCREASED: (
-        (Direction.INCREASED, Direction.INCREASED),
-        (Direction.DECREASED, Direction.DECREASED)
-    ),
-    Direction.DECREASED: (
-        (Direction.INCREASED, Direction.DECREASED),
-        (Direction.DECREASED, Direction.INCREASED)
-    )
-}
+from .models import Direction
 
 
 def build_two_hop_query(

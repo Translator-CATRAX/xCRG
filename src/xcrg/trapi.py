@@ -1,35 +1,20 @@
 from copy import deepcopy
-from dataclasses import dataclass
 
 from translator_tom import (
     Analysis,
     Biolink,
     CURIE,
     EdgeBinding,
-    KnowledgeGraph,
     Node,
     PathfinderQueryGraph,
     QEdge,
     QEdgeID,
     QNodeID,
-    Query,
     QueryGraph,
-    Response,
     Result,
 )
 
 from xcrg.utilities import XCRGResult
-
-
-@dataclass
-class MessageStatistics:
-    result_count : int
-    node_count   : int
-    edge_count   : int
-
-    @staticmethod
-    def zero():
-        return MessageStatistics(0, 0, 0)
 
 
 def get_single_query_edge(qgraph: QueryGraph | PathfinderQueryGraph | None) -> tuple[QEdgeID, QEdge]:
@@ -55,17 +40,6 @@ def get_qualifier_value(edge: QEdge, qualifier_type_id: Biolink.Qualifier) -> st
         if qualifier.qualifier_type_id == qualifier_type_id:
             return qualifier.qualifier_value
     return None
-
-
-def get_message_statistics(entity: Query | Response) -> MessageStatistics:
-    """Return compact counts for a TRAPI response."""
-    message = entity.message
-    knowledge_graph = message.knowledge_graph or KnowledgeGraph.new()
-    return MessageStatistics(
-        result_count = len(message.results_list),
-        node_count = len(knowledge_graph.nodes),
-        edge_count = len(knowledge_graph.edges),
-    )
 
 
 def copy_node(
