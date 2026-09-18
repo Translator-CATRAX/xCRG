@@ -178,12 +178,12 @@ def _filter_inferred_response(ctx: RunContext, response: Response) -> Response:
 async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> tuple[int, Response]:
     """Make HTTP query to Retriever and return HTTP status code + TRAPI Response"""
 
-    # Try and return a cached TRAPI Response if appropriate debugging options are set
+    # Try and return a cached TRAPI Response if appropriate options are set
     cache_filename: Path | None = None
-    if ctx.use_http_cache:
-        cache_filename: Path = Path(make_stable_id("http_response", query) + ".json")
+    if ctx.use_cache:
+        cache_filename: Path = Path(make_stable_id("retriever_trapi_response", query) + ".json")
         if not query.bypass_cache and (text := ctx.read_cache_file(cache_filename)):
-            ctx.reporter.info(f"Returning cached HTTP response: {cache_filename}")
+            ctx.reporter.info(f"Returning cached Retriever TRAPI response: {cache_filename}")
             return 200, Response.from_json(text)
 
     # TODO: We need to clarify the correct behavior for timeout
@@ -203,7 +203,7 @@ async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> t
             )
             raise
 
-        # Write HTTP response to cache if appropriate debugging options are set
+        # Write HTTP response to cache if appropriate options are set
         if cache_filename:
             ctx.reporter.debug(f"Writing HTTP response to cache file: {cache_filename}")
             ctx.write_cache_file(cache_filename, http_response.text)

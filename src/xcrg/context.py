@@ -115,8 +115,8 @@ class RunContext:
     def timeout(self) -> int:
         return self.config.timeout
 
-    def use_http_cache(self) -> bool:
-        return self.config.http_cache_dir is not None
+    def use_cache(self) -> bool:
+        return self.config.cache_dir is not None
 
     @staticmethod
     def new(
@@ -214,9 +214,21 @@ class RunContext:
         return trapi.get_answer_qid(self.query_graph, self.subject_qid, self.object_qid)
 
     def get_cache_dir(self) -> Path | None:
-        if not (cache_dir := path_or_none(self.config.http_cache_dir)): return None
+        if not (cache_dir := path_or_none(self.config.cache_dir)): return None
         cache_dir.mkdir(exist_ok = True)
         return cache_dir
+
+    def clear_cache(self):
+        # We currently only cleanup level-1 JSON files
+        try:
+            if not (cache_dir := self.get_cache_dir()): return
+            self.reporter.debug("Clearing cache")
+            for file in cache_dir.glob("*.json"):
+                file.unlink()
+                self.reporter.debug(f"Removing cache file: {file}")
+            self.reporter.info("Cache has been cleared")
+        except Exception as e:
+            self.reporter.warning(f"Failed to clear cache dir: {e}")
 
     def write_cache_file(self, filename: str | Path, payload: str):
         try:
@@ -230,8 +242,15 @@ class RunContext:
     def read_cache_file(self, filename: str | Path) -> str | None:
         try:
             if not (cache_dir := self.get_cache_dir()): return None
+
             cache_file = cache_dir / filename
             if not cache_file.exists(): return None
+
+            if self.config.cache_ttl:
+                expires_at = cache_file.stat().st_mtime + self.config.cache_ttl.seconds
+                now = datetime.now(timezone.utc).timestamp()
+                if expires_at <= now: return None
+
             with open(cache_file, "r", encoding = "utf-8") as f:
                 return f.read()
         except Exception as e:

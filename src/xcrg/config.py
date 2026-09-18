@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import Sequence
 
@@ -26,7 +27,9 @@ class XCRGConfig:
     max_results            : int                     = 500
     trapi_schema_version   : str                     = "1.6.0"
     biolink_version        : str                     = "4.3.2"
-    http_cache_dir         : Path | None             = None
+    cache_dir              : Path | None             = None
+    cache_ttl              : timedelta | None        = None
+    cache_clear_on_start   : bool                    = True
     debug_dir              : str | Path | None       = None
     debug_run_name         : str | None              = None
     debug_level            : str | DebugLevel | None = DebugLevel.BASIC

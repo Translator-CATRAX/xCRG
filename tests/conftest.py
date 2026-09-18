@@ -27,8 +27,8 @@ def pytest_addoption(parser):
         default = DebugLevel.NONE.value
     )
     parser.addoption(
-        "--use_http_cache",
-        help = "Cache all HTTP responses from Retriever.",
+        "--use_cache",
+        help = "Use filesystem cache to improve performance.",
         action = "store_true",
         default = False
     )
@@ -51,11 +51,10 @@ def config(request) -> XCRGConfig:
     debug_dir = project_dir / "output" / "debug"
     debug_dir.mkdir(parents = True, exist_ok = True)
 
-    use_http_cache = request.config.getoption("--use_http_cache")
+    use_cache = request.config.getoption("--use_cache")
 
-    http_cache_dir: Path | None = None
-    if use_http_cache:
-        http_cache_dir = debug_dir / "cache"
+    cache_dir: Path | None = None
+    if use_cache: cache_dir = debug_dir / "cache"
 
     return XCRGConfig(
         retriever_url = request.config.getoption("--retriever_url"),
@@ -63,7 +62,9 @@ def config(request) -> XCRGConfig:
         curie_to_pmids_db_path = curie_to_pmids_db_file,
         debug_dir = debug_dir,
         debug_level = debug_level,
-        http_cache_dir = http_cache_dir
+        cache_dir = cache_dir,
+        cache_ttl = None,
+        cache_clear_on_start = False
     )
 
 
