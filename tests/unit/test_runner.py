@@ -1,6 +1,4 @@
 """Smoke tests for the reusable xCRG package."""
-import json
-import sqlite3
 from pathlib import Path
 from typing import cast
 
@@ -32,6 +30,7 @@ from xcrg.config import XCRGConfig as Config # TODO
 from xcrg.context import RunContext
 from xcrg.reporting import StubReporter
 from xcrg.utilities import XCRGResult, format_json_for_log
+from tests.utilities import make_curie_to_pmids_db
 
 
 def make_context(
@@ -48,20 +47,6 @@ def make_context(
         ),
         reporter = StubReporter()
     )
-
-
-def make_curie_to_pmids_db(tmp_path, rows: dict[str, list[int]]) -> str:
-    """create test data in sqlite database"""
-    db_path = tmp_path / "curie_to_pmids.sqlite"
-    connection = sqlite3.connect(db_path)
-    connection.execute("CREATE TABLE curie_to_pmids (curie TEXT PRIMARY KEY, pmids TEXT)")
-    connection.executemany(
-        "INSERT INTO curie_to_pmids VALUES (?, ?)",
-        [(curie, json.dumps(pmids)) for curie, pmids in rows.items()],
-    )
-    connection.commit()
-    connection.close()
-    return str(db_path)
 
 
 def make_inferred_query() -> Query:

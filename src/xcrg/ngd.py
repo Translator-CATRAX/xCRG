@@ -3,6 +3,7 @@ import math
 import sqlite3
 from collections import OrderedDict
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import cast
 
 from translator_tom import (
@@ -21,6 +22,7 @@ from translator_tom import (
 from . import trapi
 from .context import RunContext
 from .pmid import get_curie_pmids
+from .reporting import Reporter
 from .utilities import make_stable_id
 
 
@@ -42,33 +44,29 @@ COMPUTED_EDGE_CONTAINER_DESCRIPTION = (
 )
 
 
-def get_ngd_connection(ctx: RunContext) -> sqlite3.Connection | None:
+def get_ngd_connection(db_file: Path | None, reporter: Reporter) -> sqlite3.Connection | None:
     """Return a cached read-only NGD SQLite connection when the local DB exists."""
     global _NGD_WARNING_EMITTED
 
-    db_path = ctx.ngd_db_file
-    if db_path is None:
+    if db_file is None:
         if not _NGD_WARNING_EMITTED:
-            ctx.reporter.warning("xCRG NGD DB path is not configured; NGD tie-breaker is disabled.")
+            reporter.warning("xCRG NGD DB path is not configured; NGD tie-breaker is disabled.")
             _NGD_WARNING_EMITTED = True
         return None
 
-    cache_key = db_path.as_posix()
+    cache_key = db_file.as_posix()
     if cache_key in _NGD_CONNECTIONS:
         return _NGD_CONNECTIONS[cache_key]
 
-    if not db_path.exists():
+    if not db_file.exists():
         if not _NGD_WARNING_EMITTED:
-            ctx.reporter.warning(
-                "xCRG NGD DB not found at %s; NGD tie-breaker is disabled.",
-                db_path,
-            )
+            reporter.warning("xCRG NGD DB not found at %s; NGD tie-breaker is disabled.", db_file)
             _NGD_WARNING_EMITTED = True
         return None
 
     try:
         connection = sqlite3.connect(
-            f"file:{db_path.as_posix()}?mode=ro",
+            f"file:{db_file.as_posix()}?mode=ro",
             uri=True,
             check_same_thread=False,
         )
@@ -76,17 +74,14 @@ def get_ngd_connection(ctx: RunContext) -> sqlite3.Connection | None:
         return connection
     except sqlite3.Error as exc:
         if not _NGD_WARNING_EMITTED:
-            ctx.reporter.warning(
-                "Failed to open xCRG NGD DB at %s; NGD tie-breaker is disabled: %s",
-                db_path,
-                exc,
-            )
+            reporter.warning("Failed to open xCRG NGD DB at %s; NGD tie-breaker is disabled: %s", db_file, exc)
             _NGD_WARNING_EMITTED = True
         return None
 
 
 def get_ngd_neighbors(
-    ctx: RunContext,
+    ngd_db_file: Path | None,
+    reporter: Reporter,
     curie: CURIE | None,
 ) -> dict[CURIE, float] | None:
     """Return cached NGD neighbors for one CURIE from the adjacency-list DB."""
@@ -97,15 +92,12 @@ def get_ngd_neighbors(
         _NGD_NEIGHBOR_CACHE.move_to_end(curie)
         return _NGD_NEIGHBOR_CACHE[curie]
 
-    connection = get_ngd_connection(ctx)
+    connection = get_ngd_connection(ngd_db_file, reporter)
     if connection is None:
         return None
 
     try:
-        row = connection.execute(
-            "SELECT ngd FROM curie_ngd WHERE curie = ?",
-            (curie,),
-        ).fetchone()
+        row = connection.execute("SELECT ngd FROM curie_ngd WHERE curie = ?", (curie,)).fetchone()
     except sqlite3.Error:
         return None
 
@@ -124,7 +116,8 @@ def get_ngd_neighbors(
                 if not math.isfinite(ngd_score) or ngd_score <= 0.0:
                     continue
                 neighbors[str(neighbor)] = ngd_score
-        except (TypeError, ValueError, json.JSONDecodeError):
+        except Exception as e:
+            reporter.warning("An error occurred while selecting NGD: %s", e)
             neighbors = {}
 
     _NGD_NEIGHBOR_CACHE[curie] = neighbors
@@ -145,7 +138,7 @@ def get_ngd_score(
     if curie_a == curie_b:
         return None
 
-    neighbors = get_ngd_neighbors(ctx, curie_a)
+    neighbors = get_ngd_neighbors(ctx.ngd_db_file, ctx.reporter, curie_a)
     if neighbors:
         score = neighbors.get(curie_b)
         if score is not None:
@@ -153,7 +146,7 @@ def get_ngd_score(
 
     # The DB is expected to be symmetric, but this fallback is cheap insurance
     # for partial rows or future DB variants.
-    reverse_neighbors = get_ngd_neighbors(ctx, curie_b)
+    reverse_neighbors = get_ngd_neighbors(ctx.ngd_db_file, ctx.reporter, curie_b)
     if reverse_neighbors:
         assert curie_a # Because PyCharm cannot infer that it cannot be null here
         score = reverse_neighbors.get(curie_a)
@@ -176,8 +169,8 @@ def get_ngd_publications(
     curie_b: CURIE | None,
 ) -> list[str] | None:
     """Return PMID intersection from the same CURIE-to-PMID source as NGD."""
-    pmids_a = get_curie_pmids(ctx, curie_a)
-    pmids_b = get_curie_pmids(ctx, curie_b)
+    pmids_a = get_curie_pmids(ctx.curie_to_pmids_db_file, ctx.reporter, curie_a)
+    pmids_b = get_curie_pmids(ctx.curie_to_pmids_db_file, ctx.reporter, curie_b)
     if pmids_a is None or pmids_b is None:
         return None
     shared_pmids = pmids_a & pmids_b

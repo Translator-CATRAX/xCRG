@@ -1,11 +1,12 @@
-import json
 import sqlite3
 from collections import OrderedDict
+from pathlib import Path
+from typing import cast
 
 from translator_tom import CURIE
 
-from .context import RunContext
-
+from .memory import U32_View
+from .reporting import Reporter
 
 _PMID_CACHE_MAX_ROWS = 512
 _PMID_CONNECTIONS = {}
@@ -13,47 +14,29 @@ _PMID_WARNING_EMITTED = False
 _PMID_CACHE = OrderedDict()
 
 
-def normalize_pmid(pmid: object | None) -> str | None:
-    """Normalize DB PMID values to the numeric string used for intersections."""
-    if pmid is None:
-        return None
-    value = str(pmid).strip()
-    if not value:
-        return None
-    if value.upper().startswith("PMID:"):
-        value = value.split(":", 1)[1]
-    return value
-
-
-def get_pmid_connection(ctx: RunContext) -> sqlite3.Connection | None:
+def get_pmid_connection(db_file: Path | None, reporter: Reporter) -> sqlite3.Connection | None:
     """Return a cached read-only CURIE-to-PMID SQLite connection."""
     global _PMID_WARNING_EMITTED
 
-    db_path = ctx.curie_to_pmids_db_file
-    if db_path is None:
+    if db_file is None:
         if not _PMID_WARNING_EMITTED:
-            ctx.reporter.warning(
-                "xCRG curie_to_pmids DB path is not configured; NGD PMID support is disabled."
-            )
+            reporter.warning("xCRG curie_to_pmids DB path is not configured; NGD PMID support is disabled.")
             _PMID_WARNING_EMITTED = True
         return None
 
-    cache_key = db_path.as_posix()
+    cache_key = db_file.as_posix()
     if cache_key in _PMID_CONNECTIONS:
         return _PMID_CONNECTIONS[cache_key]
 
-    if not db_path.exists():
+    if not db_file.exists():
         if not _PMID_WARNING_EMITTED:
-            ctx.reporter.warning(
-                "xCRG curie_to_pmids DB not found at %s; NGD PMID support is disabled.",
-                db_path,
-            )
+            reporter.warning("xCRG curie_to_pmids DB not found at %s; NGD PMID support is disabled.", db_file)
             _PMID_WARNING_EMITTED = True
         return None
 
     try:
         connection = sqlite3.connect(
-            f"file:{db_path.as_posix()}?mode=ro",
+            f"file:{db_file.as_posix()}?mode=ro",
             uri=True,
             check_same_thread=False,
         )
@@ -61,48 +44,38 @@ def get_pmid_connection(ctx: RunContext) -> sqlite3.Connection | None:
         return connection
     except sqlite3.Error as exc:
         if not _PMID_WARNING_EMITTED:
-            ctx.reporter.warning(
+            reporter.warning(
                 "Failed to open xCRG curie_to_pmids DB at %s; NGD PMID support is disabled: %s",
-                db_path,
+                db_file,
                 exc,
             )
             _PMID_WARNING_EMITTED = True
         return None
 
 
-def get_curie_pmids(ctx: RunContext, curie: CURIE | None) -> set[str] | None:
+def get_curie_pmids(db_file: Path | None, reporter: Reporter, curie: CURIE | None) -> set[str] | None:
     """Return normalized PMID identifiers for one CURIE from curie_to_pmids."""
     if not curie:
         return None
 
-    cache_key = (ctx.config.curie_to_pmids_db_path, curie)
+    cache_key = (db_file, curie)
     if cache_key in _PMID_CACHE:
         _PMID_CACHE.move_to_end(cache_key)
         return _PMID_CACHE[cache_key]
 
-    connection = get_pmid_connection(ctx)
+    connection = get_pmid_connection(db_file, reporter)
     if connection is None:
         return None
 
+    pmids = set[str]()
     try:
-        row = connection.execute(
-            "SELECT pmids FROM curie_to_pmids WHERE curie = ?",
-            (curie,),
-        ).fetchone()
-    except sqlite3.Error:
-        pmids = set()
-    else:
-        if row is None:
-            pmids = set()
-        else:
-            try:
-                pmids = set()
-                for pmid in json.loads(row[0]):
-                    normalized_pmid = normalize_pmid(pmid)
-                    if normalized_pmid:
-                        pmids.add(normalized_pmid)
-            except (TypeError, ValueError, json.JSONDecodeError):
-                pmids = set()
+        row = connection.execute("SELECT pmids FROM curie_to_pmids WHERE curie = ?", (curie,)).fetchone()
+        data = cast(bytes, row[0])
+        u32s = U32_View(data, byte_order = "little")
+        for u32 in u32s:
+            pmids.add(str(u32))
+    except Exception as e:
+        reporter.warning("An error occurred while selecting PMIDs: %s", e)
 
     _PMID_CACHE[cache_key] = pmids
     _PMID_CACHE.move_to_end(cache_key)
