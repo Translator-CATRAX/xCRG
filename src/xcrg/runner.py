@@ -68,8 +68,6 @@ from .utilities import (
 # We can put tracer in a separate module if we wind up using it elsewhere.
 tracer = trace.get_tracer("xcrg")
 
-# Remember if we cleared the cache
-_cache_cleared = False
 
 def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
     """Build a response query graph that can bind direct and TF-mediated results."""
@@ -905,11 +903,6 @@ async def async_run_xcrg(
             config = config,
             reporter = reporter
         )
-
-        global _cache_cleared
-        if config.cache_clear_on_start and not _cache_cleared:
-            _cache_cleared = True
-            ctx.clear_cache()
 
         response: Response
         if validate_query(query) == "inferred":

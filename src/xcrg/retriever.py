@@ -1,4 +1,11 @@
+from __future__ import annotations
+
+import asyncio
+import sqlite3
+import uuid
 from copy import deepcopy
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
 
@@ -25,7 +32,113 @@ from .constants import (
 )
 from .context import RunContext
 from .models import Message_Statistics
+from .reporting import Reporter
 from .utilities import format_json_for_log, make_stable_id
+
+
+# TODO: Import datetime.UTC in Python 3.11+
+UTC = timezone.utc
+
+# The expires_at value when TTL is not set
+NO_TTL = 2**63 - 1
+
+_CACHE_DB_FILENAME = "retriever_cache.db"
+_CACHE_LOCK = asyncio.Lock()
+_CACHE: Retriever_Cache | None = None
+
+
+@dataclass
+class Retriever_Cache:
+    reporter         : Reporter
+    cache_dir        : Path
+    connection       : sqlite3.Connection = field(init = False)
+    ttl              : timedelta | None   = field(default = None)
+    cleanup_interval : timedelta          = field(default = timedelta(days = 1))
+    next_cleanup     : datetime           = field(init = False)
+
+    def __post_init__(self):
+        self.connection = sqlite3.connect(
+            database = self.cache_dir / _CACHE_DB_FILENAME,
+            check_same_thread = False
+            # TODO Python 3.12+: autocommit = False,
+        )
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS Cache_Entry (
+                filename   TEXT PRIMARY KEY,
+                expires_at INTEGER NOT NULL
+            )
+        """)
+        self.connection.commit()
+        self.next_cleanup = datetime.now(UTC) + self.cleanup_interval
+
+    def remove_all_files(self):
+        try:
+            self.reporter.debug("Removing all cache files: %s", self.cache_dir)
+            self.connection.execute("DELETE FROM Cache_Entry")
+            self.connection.commit()
+            for pattern in ("*.json", "*.tmp"):
+                for file in self.cache_dir.glob(pattern):
+                    file.unlink()
+                    self.reporter.debug("Removed cache file: %s", file)
+            self.reporter.debug("All cache files removed OK")
+        except Exception as e:
+            self.reporter.warning("Failed to clear cache: %s", e)
+
+    def remove_expired_files(self):
+        try:
+            self.next_cleanup = datetime.now(UTC) + self.cleanup_interval
+            self.reporter.debug("Removing expired cache files: %s", self.cache_dir)
+            rows = self.connection.execute("""
+                DELETE FROM Cache_Entry
+                WHERE expires_at <= UNIXEPOCH()
+                RETURNING key
+            """).fetchall()
+            self.connection.commit()
+            for (filename,) in rows:
+                file = self.cache_dir / filename
+                if not file.exists():
+                    self.reporter.warning("Skipping missing cache file: %s", file)
+                    continue
+                file.unlink()
+                self.reporter.debug("Removed cache file: %s", file)
+        except Exception as e:
+            self.reporter.warning("Failed to remove expired cache files: %s", e)
+
+    def write_file(self, filename: str, payload: str):
+        file = self.cache_dir / filename
+        try:
+            ttl = self.ttl and self.ttl.seconds or NO_TTL
+            self.connection.execute("""
+                INSERT INTO Cache_Entry (filename, expires_at)
+                VALUES (?, ?)
+                ON CONFLICT (filename) DO UPDATE SET
+                    expires_at = Excluded.expires_at
+            """, (filename, ttl))
+            self.connection.commit()
+            tmp_file = self.cache_dir / f"{uuid.uuid4()}.tmp"
+            with open(tmp_file, "w", encoding = "utf-8") as f:
+                f.write(payload)
+                f.flush()
+            tmp_file.replace(file) # ought to be atomic
+            self.reporter.debug("Wrote cache file: %s", file)
+            if self.next_cleanup <= datetime.now(UTC):
+                self.remove_expired_files()
+        except Exception as e:
+            self.reporter.warning("Failed to write cache file %s: %s", file, e)
+
+    def read_file(self, filename: str) -> str | None:
+        file = self.cache_dir / filename
+        try:
+            row = self.connection.execute("SELECT * FROM Cache_Entry WHERE filename = ?", (filename,)).fetchone()
+            if not row: return None
+            (filename, expires_at) = row
+            if not file.exists(): return None
+            if expires_at <= datetime.now(UTC).timestamp(): return None
+            with open(file, "r", encoding = "utf-8") as f:
+                return f.read()
+        except Exception as e:
+            self.reporter.warning("Failed to read cache file %s: %s", file, e)
+            return None
 
 
 def _result_has_edge_predicate(
@@ -175,15 +288,19 @@ def _filter_inferred_response(ctx: RunContext, response: Response) -> Response:
     )
 
 
-async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> tuple[int, Response]:
+async def _get_trapi_response_from_retriever(
+    ctx: RunContext,
+    cache: Retriever_Cache | None,
+    query: Query
+) -> tuple[int, Response]:
     """Make HTTP query to Retriever and return HTTP status code + TRAPI Response"""
 
     # Try and return a cached TRAPI Response if appropriate options are set
-    cache_filename: Path | None = None
-    if ctx.use_cache:
-        cache_filename: Path = Path(make_stable_id("retriever_trapi_response", query) + ".json")
-        if not query.bypass_cache and (text := ctx.read_cache_file(cache_filename)):
-            ctx.reporter.info(f"Returning cached Retriever TRAPI response: {cache_filename}")
+    cache_filename: str | None = None
+    if cache:
+        cache_filename: str = make_stable_id("retriever_trapi_response", query) + ".json"
+        if not query.bypass_cache and (text := cache.read_file(cache_filename)):
+            ctx.reporter.info(f"Returning cached TRAPI response: {cache_filename}")
             return 200, Response.from_json(text)
 
     # TODO: We need to clarify the correct behavior for timeout
@@ -204,9 +321,9 @@ async def _get_trapi_response_from_retriever(ctx: RunContext, query: Query) -> t
             raise
 
         # Write HTTP response to cache if appropriate options are set
-        if cache_filename:
-            ctx.reporter.debug(f"Writing HTTP response to cache file: {cache_filename}")
-            ctx.write_cache_file(cache_filename, http_response.text)
+        if cache and cache_filename:
+            ctx.reporter.debug(f"Writing TRAPI Response to cache file: {cache_filename}")
+            cache.write_file(cache_filename, http_response.text)
 
         return http_response.status_code, Response.from_dict(http_response.json())
 
@@ -219,13 +336,21 @@ async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
         format_json_for_log(query.message.query_graph),
     )
 
+    # Initialize cache singleton to manage TRAPI Responses from Retriever
+    global _CACHE
+    async with _CACHE_LOCK:
+        if not _CACHE and (cache_dir := ctx.get_cache_dir()):
+            _CACHE = Retriever_Cache(ctx.reporter, cache_dir, ctx.config.cache_ttl)
+            if _CACHE and ctx.config.cache_clear_on_start:
+                _CACHE.remove_all_files()
+
     # TODO: xCRG Retriever parameters: {"tiers": [0], "timeout": 210}
     #  I do not think these parameters are being used like this (at least anymore)
     # reporter.debug(
     #     "xCRG Retriever parameters: %s",
     #     format_json_for_log(query.parameters),
     # )
-    http_status_code, response = await _get_trapi_response_from_retriever(ctx, query)
+    http_status_code, response = await _get_trapi_response_from_retriever(ctx, _CACHE, query)
 
     message = response.message
     if not message:
