@@ -106,7 +106,7 @@ def get_ngd_neighbors(
     else:
         try:
             neighbors = {}
-            for neighbor, score in json.loads(row[0]):
+            for neighbor, score, _ in json.loads(row[0]):
                 try:
                     ngd_score = float(score)
                 except (TypeError, ValueError):
