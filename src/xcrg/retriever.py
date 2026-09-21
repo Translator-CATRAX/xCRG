@@ -39,11 +39,13 @@ from .utilities import format_json_for_log, make_stable_id
 # TODO: Import datetime.UTC in Python 3.11+
 UTC = timezone.utc
 
-# The expires_at value when TTL is not set
-NO_TTL = 2**63 - 1
+# The expires_at value when TTL is not set.
+# The value needs to be implausible, but also not extreme.
+# This is because systems like Windows can have hard limits on their datetime data structures.
+NO_TTL = timedelta(weeks = 52 * 100)
 
 _CACHE_DB_FILENAME = "retriever_cache.db"
-_CACHE_LOCK = asyncio.Lock()
+_CACHE_LOCK = asyncio.Lock() # Avoid race conditions with asyncio
 _CACHE: Retriever_Cache | None = None
 
 
@@ -71,6 +73,16 @@ class Retriever_Cache:
         self.connection.commit()
         self.next_cleanup = datetime.now(UTC) + self.cleanup_interval
 
+    def get_entries(self) -> list[tuple[Path, datetime]]:
+        entries = list[tuple[Path, datetime]]()
+        try:
+            rows = self.connection.execute("SELECT * FROM Cache_Entry").fetchall()
+            for (filename, expires_at) in rows:
+                entries.append((self.cache_dir / filename, datetime.fromtimestamp(expires_at, UTC)))
+        except Exception as e:
+            self.reporter.warning("Failed to get entries: %s", e)
+        return entries
+
     def remove_all_files(self):
         try:
             self.reporter.debug("Removing all cache files: %s", self.cache_dir)
@@ -91,7 +103,7 @@ class Retriever_Cache:
             rows = self.connection.execute("""
                 DELETE FROM Cache_Entry
                 WHERE expires_at <= UNIXEPOCH()
-                RETURNING key
+                RETURNING filename
             """).fetchall()
             self.connection.commit()
             for (filename,) in rows:
@@ -107,13 +119,13 @@ class Retriever_Cache:
     def write_file(self, filename: str, payload: str):
         file = self.cache_dir / filename
         try:
-            ttl = self.ttl and self.ttl.seconds or NO_TTL
+            expires_at = datetime.now(UTC) + (self.ttl or NO_TTL)
             self.connection.execute("""
                 INSERT INTO Cache_Entry (filename, expires_at)
                 VALUES (?, ?)
                 ON CONFLICT (filename) DO UPDATE SET
-                    expires_at = Excluded.expires_at
-            """, (filename, ttl))
+                    expires_at = EXCLUDED.expires_at
+            """, (filename, expires_at.timestamp()))
             self.connection.commit()
             tmp_file = self.cache_dir / f"{uuid.uuid4()}.tmp"
             with open(tmp_file, "w", encoding = "utf-8") as f:
@@ -121,8 +133,6 @@ class Retriever_Cache:
                 f.flush()
             tmp_file.replace(file) # ought to be atomic
             self.reporter.debug("Wrote cache file: %s", file)
-            if self.next_cleanup <= datetime.now(UTC):
-                self.remove_expired_files()
         except Exception as e:
             self.reporter.warning("Failed to write cache file %s: %s", file, e)
 
@@ -139,7 +149,9 @@ class Retriever_Cache:
         except Exception as e:
             self.reporter.warning("Failed to read cache file %s: %s", file, e)
             return None
-
+        finally:
+            if self.next_cleanup <= datetime.now(UTC):
+                self.remove_expired_files()
 
 def _result_has_edge_predicate(
     result: Result,
