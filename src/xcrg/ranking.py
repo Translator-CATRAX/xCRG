@@ -45,7 +45,6 @@ class Result_Summary:
     num_xcrg_nodes         : int
     num_xcrg_edges         : int
     xcrg_qualified_stmts   : list[QualifiedStatement]
-    ngd_score              : float | None
 
 
 class Evidence_Category(Enum):
@@ -206,7 +205,7 @@ def create_result_summary(
         statement = get_qualified_stmt(attributes)
         xcrg_qualified_stmts.append(statement)
 
-    ngd_score = get_ngd_score(
+    result.ngd_score = get_ngd_score(
         ctx,
         result.node_bindings[ctx.subject_qid][0].id,
         result.node_bindings[ctx.object_qid][0].id
@@ -224,7 +223,6 @@ def create_result_summary(
         num_xcrg_nodes = num_xcrg_nodes,
         num_xcrg_edges = num_xcrg_edges,
         xcrg_qualified_stmts = xcrg_qualified_stmts,
-        ngd_score = ngd_score
     )
 
 
@@ -294,7 +292,7 @@ class Custom_Ranker(Ranker):
         # TODO: specificity
 
         # Reward results with an NGD score
-        if ngd_score := summary.ngd_score:
+        if ngd_score := summary.result.ngd_score:
             total_score += ngd_score * self.scoring_params.ngd_score_factor
 
         # Penalize results with no direct connections
@@ -387,7 +385,7 @@ class RRF_Ranker(Ranker):
         self.rank_summaries(summaries, ranks, lambda x: x.num_direct_edges)
         self.rank_summaries(summaries, ranks, lambda x: x.num_xcrg_nodes)
         self.rank_summaries(summaries, ranks, lambda x: x.num_xcrg_edges)
-        self.rank_summaries(summaries, ranks, lambda x: x.ngd_score or 0)
+        self.rank_summaries(summaries, ranks, lambda x: x.result.ngd_score or 0)
         self.rank_summaries(summaries, ranks, lambda x: ranker.calculate_score_for_result(x))
         self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.direct_qualified_stmts, Evidence_Category.NUM_PUBLICATIONS))
         self.rank_summaries(summaries, ranks, lambda x: self.score_stmts(x.direct_qualified_stmts, Evidence_Category.NUM_STUDIES))
@@ -446,7 +444,7 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
                 "num_xcrg_nodes": x.num_xcrg_nodes,
                 "num_xcrg_edges": x.num_xcrg_edges,
                 "xcrg_qualified_stmts": x.xcrg_qualified_stmts,
-                "ngd_score": x.ngd_score,
+                "ngd_score": x.result.ngd_score,
             }
             for i, x in enumerate(ranked_summaries, start = 1)
         ],
