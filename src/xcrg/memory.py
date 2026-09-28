@@ -1,10 +1,10 @@
 from array import array
 from mmap import mmap
-from typing import Literal, Union
+from typing import Literal
 
 Byte_Order = Literal["big", "little"]
 # TODO: Import "typing.Buffer" in Python 3.12
-Buffer = Union[bytes, bytearray, memoryview, array, mmap]
+Buffer = bytes | bytearray | memoryview | array | mmap
 
 
 class U32_View:

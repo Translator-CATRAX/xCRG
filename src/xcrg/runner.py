@@ -6,8 +6,9 @@ import asyncio
 import json
 import logging
 import uuid
+from collections.abc import Coroutine
 from copy import deepcopy
-from typing import Coroutine, cast
+from typing import cast
 
 from opentelemetry import trace
 from translator_tom import (
@@ -17,7 +18,6 @@ from translator_tom import (
     AuxGraphID,
     AuxiliaryGraph,
     AuxiliaryGraphsDict,
-    BaseQueryGraph,
     Edge,
     EdgeBinding,
     EdgeID,
@@ -40,8 +40,8 @@ from translator_tom import (
 )
 
 from . import DebugLevel, biolink, ngd, ranking, retriever, trapi
-from .constants import TF_QNODE_ID, DIRECT_QEDGE_ID
 from .config import XCRGConfig
+from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID
 from .context import RunContext
 from .models import (
     DIRECTION_TEMPLATES,
@@ -51,19 +51,11 @@ from .models import (
     Message_Statistics,
     Template_Summary,
 )
-from .queries import (
-    Direction,
-    build_one_hop_query,
-    build_two_hop_query
-)
+from .queries import Direction, build_one_hop_query, build_two_hop_query
 from .reporting import LogReporter, Reporter, StubReporter
-from .utilities import (
-    chunk_values,
-    make_stable_id,
-    XCRGResult
-)
+from .utilities import XCRGResult, chunk_values, make_stable_id
 
-
+DEFAULT_REPORTER = LogReporter()
 # Defer to the parent application to instantiate global opentelemetry provider.
 # We can put tracer in a separate module if we wind up using it elsewhere.
 tracer = trace.get_tracer("xcrg")
@@ -72,17 +64,17 @@ tracer = trace.get_tracer("xcrg")
 def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
     """Build a response query graph that can bind direct and TF-mediated results."""
     query = build_one_hop_query(ctx)
-    qgraph = cast(QueryGraph, query.message.query_graph)
+    assert (qgraph := query.message.query_graph)
     qgraph.nodes[TF_QNODE_ID] = QNode(
         ids = ctx.tf_list,
         categories = ["biolink:Gene"]
     )
-    qgraph.edges["e0"] = QEdge(
+    qgraph.edges_dict["e0"] = QEdge(
         subject = ctx.subject_qid,
         predicates = ["biolink:affects"],
         object = TF_QNODE_ID
     )
-    qgraph.edges["e1"] = QEdge(
+    qgraph.edges_dict["e1"] = QEdge(
         subject = TF_QNODE_ID,
         predicates = ["biolink:affects"],
         object = ctx.object_qid
@@ -107,7 +99,7 @@ def merge_filtered_responses(
 
         if kg_graph := message.knowledge_graph:
             merge_retriever_nodes(nodes, kg_graph.nodes)
-            merge_retriever_edges(edges, kg_graph.edges)
+            merge_retriever_edges(edges, kg_graph.edges_dict)
 
         aux_graph.update(message.auxiliary_graphs_dict)
 
@@ -133,7 +125,7 @@ def merge_filtered_responses(
             query_graph = query_graph,
             knowledge_graph = KnowledgeGraph(nodes = nodes, edges = edges),
             results = results,
-            auxiliary_graphs = aux_graph
+            auxiliary_graphs = aux_graph or None
         )
     )
 
@@ -166,7 +158,7 @@ def metadata_weight(entity: Edge | Node | None) -> int:
             weight += len(e.attributes_list)
             weight += len(e.qualifiers_list)
         case Node() as n:
-            weight += len(n.attributes)
+            weight += len(n.attributes_list)
             weight += len(n.categories)
             if n.name:
                 weight += 1
@@ -175,19 +167,12 @@ def metadata_weight(entity: Edge | Node | None) -> int:
 
 def query_qualifiers_to_edge_qualifiers(qedge: QEdge) -> list[Qualifier]:
     """Convert the first QEdge qualifier set into KG edge qualifiers."""
-    qualifier_constraints = qedge.qualifier_constraints_list
-    if not qualifier_constraints:
-        return []
-
-    qualifiers = qualifier_constraints[0].qualifier_set
-
+    qualifier_constraints = qedge.constraints
+    if not qualifier_constraints: return []
     return [
-        Qualifier(
-            qualifier_type_id = qualifier.qualifier_type_id,
-            qualifier_value = qualifier.qualifier_value
-        )
-        for qualifier in qualifiers
-        # if qualifier.qualifier_type_id and qualifier.qualifier_value
+        Qualifier(qualifier_type_id = type_id, qualifier_value = value)
+        for qualifier in qualifier_constraints.qualifiers_list
+        for type_id, value in qualifier.items()
     ]
 
 
@@ -215,7 +200,9 @@ def make_xcrg_inferred_edge(
         subject = subject_id,
         predicate = predicate,
         object = object_id,
-        qualifiers = query_qualifiers_to_edge_qualifiers(original_qedge),
+        qualifiers = query_qualifiers_to_edge_qualifiers(original_qedge) or None,
+        knowledge_level = "prediction",
+        agent_type = "computational_model",
         attributes = [
             Attribute(
                 attribute_type_id = "biolink:knowledge_level",
@@ -241,16 +228,13 @@ def make_xcrg_inferred_edge(
         ]
     )
 
-    if not edge.qualifiers:
-        edge.qualifiers = None
-
     return edge_id, edge
 
 
 def copy_query_bound_node(
     qnode_id: QNodeID,
     node_id: CURIE | None,
-    original_qgraph: BaseQueryGraph,
+    original_qgraph: QueryGraph,
     retriever_nodes: dict[CURIE, Node],
     final_nodes: dict[CURIE, Node],
 ) -> None:
@@ -468,11 +452,8 @@ def node_is_present_for_evidence(
 def add_direct_evidence(final_result: XCRGResult, bindings: list[EdgeBinding]) -> None:
     """Attach direct one-hop KG edge bindings to a final result."""
     for binding in bindings:
-        edge_id = binding.id
-        if edge_id in final_result.xcrg_direct_binding_ids:
-            continue
-        final_result.xcrg_direct_binding_ids.add(edge_id)
-        final_result.xcrg_direct_bindings.append(binding)
+        for edge_id in binding.ids:
+            final_result.xcrg_direct_binding_ids.add(edge_id)
 
 
 def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]) -> None:
@@ -486,7 +467,7 @@ def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]
 def finalize_clean_result_analyses(
     ctx: RunContext,
     final_result: XCRGResult,
-    original_qgraph: BaseQueryGraph,
+    original_qgraph: QueryGraph,
     retriever_nodes: dict[CURIE, Node],
     retriever_edges: dict[EdgeID, Edge],
     retriever_auxiliary_graphs: AuxiliaryGraphsDict,
@@ -498,7 +479,7 @@ def finalize_clean_result_analyses(
 ) -> None:
     """Build final Retriever/xCRG analyses after evidence grouping."""
     source_qnode = original_qedge.subject
-    source_id = final_result.node_bindings[source_qnode][0].id
+    source_id = final_result.node_bindings[source_qnode].ids[0]
     copy_query_bound_node(
         source_qnode,
         source_id,
@@ -508,7 +489,7 @@ def finalize_clean_result_analyses(
     )
 
     target_qnode = original_qedge.object
-    target_id = final_result.node_bindings[target_qnode][0].id
+    target_id = final_result.node_bindings[target_qnode].ids[0]
     copy_query_bound_node(
         target_qnode,
         target_id,
@@ -517,12 +498,10 @@ def finalize_clean_result_analyses(
         kg_nodes,
     )
 
-    xcrg_bindings = list[EdgeBinding]()
+    xcrg_bindings = list[EdgeID]()
 
-    direct_bindings = final_result.xcrg_direct_bindings
-    for binding in direct_bindings:
-        copied_binding = deepcopy(binding)
-        edge_id = copied_binding.id
+    direct_bindings = final_result.xcrg_direct_binding_ids
+    for edge_id in direct_bindings:
         if copy_retriever_edge_and_nodes(
             edge_id,
             retriever_edges,
@@ -532,7 +511,7 @@ def finalize_clean_result_analyses(
             retriever_auxiliary_graphs,
             auxiliary_graphs,
         ):
-            xcrg_bindings.append(copied_binding)
+            xcrg_bindings.append(edge_id)
 
     support_edges = final_result.xcrg_support_edge_ids
     copied_support_edges = [
@@ -559,10 +538,7 @@ def finalize_clean_result_analyses(
             },
         )
 
-        auxiliary_graphs[support_graph_id] = AuxiliaryGraph(
-            edges = copied_support_edges,
-            attributes = [],
-        )
+        auxiliary_graphs[support_graph_id] = AuxiliaryGraph(edges = copied_support_edges)
 
         trapi.copy_node(source_id, retriever_nodes, kg_nodes)
         trapi.copy_node(target_id, retriever_nodes, kg_nodes)
@@ -576,13 +552,13 @@ def finalize_clean_result_analyses(
         )
 
         kg_edges[inferred_edge_id] = inferred_edge
-        xcrg_bindings.append(EdgeBinding(id = inferred_edge_id, attributes = []))
+        xcrg_bindings.append(inferred_edge_id)
 
     if xcrg_bindings:
         analysis = Analysis(
             resource_id = ctx.config.resource_id,
             edge_bindings = {
-                original_qedge_id: xcrg_bindings,
+                original_qedge_id: EdgeBinding(ids = xcrg_bindings)
             }
         )
         ngd.add_ngd_analysis_support_graph(
@@ -625,16 +601,17 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
             new_result = new_results[key]
         else:
             new_result = XCRGResult(node_bindings = {
-                ctx.subject_qid: [NodeBinding(id = subject_id, attributes = [])],
-                ctx.object_qid:  [NodeBinding(id = object_id,  attributes = [])]
+                ctx.subject_qid: NodeBinding(ids = [subject_id]),
+                ctx.object_qid: NodeBinding(ids = [object_id])
             })
             new_results[key] = new_result
 
         if trapi.is_two_hop_result(old_result):
             path_edge_ids: list[str] = [
-                binding.id
+                edge_id
                 for qedge_id in ("e0", "e1")
                 for binding in trapi.get_edge_bindings(old_result, qedge_id)
+                for edge_id in binding.ids
             ]
             if path_edge_ids:
                 add_support_path_edges(new_result, path_edge_ids)
@@ -652,10 +629,10 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
             result,
             new_qgraph,
             old_kgraph.nodes,
-            old_kgraph.edges,
+            old_kgraph.edges_dict,
             old_aux_graphs,
             new_kgraph.nodes,
-            new_kgraph.edges,
+            new_kgraph.edges_dict,
             new_aux_graphs,
             ctx.query_edge_id,
             ctx.query_edge
@@ -764,12 +741,9 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
         templates[0][0],
         templates[0][1],
     ).message.query_graph
+    assert qgraph
 
-    merged_inferred = merge_filtered_responses(
-        ctx,
-        filtered_responses,
-        cast(QueryGraph, qgraph)
-    )
+    merged_inferred = merge_filtered_responses(ctx, filtered_responses, qgraph)
 
     merged = merge_filtered_responses(
         ctx,
@@ -790,8 +764,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
 def validate_query(query: Query) -> KnowledgeType:
     """Raise an Error if the given query fails to adhere to a valid xCRG query shape."""
     qgraph = query.message.query_graph
-    if not isinstance(qgraph, QueryGraph):
-        raise ValueError("xCRG query requires a non-pathfinder query graph.")
+    if not qgraph: raise ValueError("xCRG query requires a query graph.")
 
     _, qedge = trapi.get_single_query_edge(qgraph)
 
@@ -868,7 +841,7 @@ def is_xcrg_mvp2_query(query: dict | Query) -> bool: # TODO: is_valid_query
 async def async_run_xcrg(
     message: Query | dict | str,
     config: XCRGConfig,
-    logger: logging.Logger | Reporter | None = LogReporter(),
+    logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
 ) -> dict:
     """Run xCRG and return a complete TRAPI response."""
@@ -917,7 +890,7 @@ async def async_run_xcrg(
 def run_xcrg(
     message: Query | dict | str,
     config: XCRGConfig,
-    logger: logging.Logger | Reporter | None = LogReporter(),
+    logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
 ) -> dict:
     """Synchronous wrapper for callers that are not already running an event loop."""

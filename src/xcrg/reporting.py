@@ -4,14 +4,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import IntEnum
 
-
 # The default logger for the LogReporter
 _LOGGER = logging.getLogger(__name__)
 
 
 class Message:
     """Marker class for messages reported by the xCRG module."""
-    pass
 
 
 class LogLevel(IntEnum):

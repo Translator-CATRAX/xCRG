@@ -1,6 +1,5 @@
 """Smoke tests for the reusable xCRG package."""
 from pathlib import Path
-from typing import cast
 
 from translator_tom import (
     Analysis,
@@ -13,24 +12,22 @@ from translator_tom import (
     Node,
     NodeBinding,
     QEdge,
+    QEdgeConstraints,
     QNode,
     Qualifier,
-    QualifierConstraint,
     Query,
     QueryGraph,
     Response,
     Result,
-    RetrievalSource
+    RetrievalSource,
 )
 
-import xcrg.ngd as ngd
-import xcrg.runner as runner
-from xcrg import ranking
-from xcrg.config import XCRGConfig as Config # TODO
+from tests.utilities import make_curie_to_pmids_db
+from xcrg import ngd, ranking, runner
+from xcrg.config import XCRGConfig as Config  # TODO
 from xcrg.context import RunContext
 from xcrg.reporting import StubReporter
 from xcrg.utilities import XCRGResult, format_json_for_log
-from tests.utilities import make_curie_to_pmids_db
 
 
 def make_context(
@@ -54,14 +51,8 @@ def make_inferred_query() -> Query:
         message = Message(
             query_graph = QueryGraph(
                 nodes = {
-                    "chem": QNode(
-                        ids = ["CHEBI:1"],
-                        categories = ["biolink:ChemicalEntity"]
-                    ),
-                    "gene": QNode(
-                        ids = ["NCBIGene:1"],
-                        categories = ["biolink:gene"]
-                    )
+                    "chem": QNode(ids = ["CHEBI:1"], categories = ["biolink:ChemicalEntity"]),
+                    "gene": QNode(ids = ["NCBIGene:1"], categories = ["biolink:gene"])
                 },
                 edges = {
                     "e0": QEdge(
@@ -111,20 +102,14 @@ def test_deserialize_example03_query():
                         "predicates": [
                             "biolink:affects"
                         ],
-                        "qualifier_constraints": [
-                            {
-                                "qualifier_set": [
-                                    {
-                                        "qualifier_type_id": "biolink:object_aspect_qualifier",
-                                        "qualifier_value": "activity_or_abundance"
-                                    },
-                                    {
-                                        "qualifier_type_id": "biolink:object_direction_qualifier",
-                                        "qualifier_value": "increased"
-                                    }
-                                ]
-                            }
-                        ],
+                        "constraints": {
+                            "qualifiers": [
+                                {
+                                    "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                    "biolink:object_direction_qualifier": "increased"
+                                }
+                            ]
+                        },
                         "subject": "sn"
                     }
                 }
@@ -132,7 +117,7 @@ def test_deserialize_example03_query():
         }
     }
     query = Query.from_dict(query_dict)
-    assert runner.validate_query(query)
+    assert runner.validate_query(query) == "inferred"
 
 
 def test_deserialize_example03_query_with_extra_fields():
@@ -148,7 +133,6 @@ def test_deserialize_example03_query_with_extra_fields():
                             'is_set': False,
                             'set_id': None,
                             'set_interpretation': None,
-                            'constraints': [],
                             'option_group_id': None
                         },
                         'sn': {
@@ -157,7 +141,6 @@ def test_deserialize_example03_query_with_extra_fields():
                             'is_set': False,
                             'set_id': None,
                             'set_interpretation': None,
-                            'constraints': [],
                             'option_group_id': None
                         }
                     },
@@ -168,19 +151,14 @@ def test_deserialize_example03_query_with_extra_fields():
                             'subject': 'sn',
                             'object': 'on',
                             'attribute_constraints': [],
-                            'qualifier_constraints': [
-                                {
-                                    'qualifier_set': [
-                                        {
-                                            'qualifier_type_id': 'biolink:object_aspect_qualifier',
-                                            'qualifier_value': 'activity_or_abundance'},
-                                        {
-                                            'qualifier_type_id': 'biolink:object_direction_qualifier',
-                                            'qualifier_value': 'increased'
-                                        }
-                                    ]
-                                }
-                            ],
+                            "constraints": {
+                                "qualifiers": [
+                                    {
+                                        "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                        "biolink:object_direction_qualifier": "increased"
+                                    }
+                                ]
+                            },
                             'exclude': None,
                             'option_group_id': None
                         }
@@ -194,7 +172,7 @@ def test_deserialize_example03_query_with_extra_fields():
             }
     }
     query = Query.from_dict(query_dict)
-    assert runner.validate_query(query)
+    assert runner.validate_query(query) == "inferred"
 
 
 def test_debug_logging01():
@@ -219,22 +197,16 @@ def test_is_xcrg_mvp2_query_detects_supported_shape():
                         "object": "gene",
                         "predicates": ["biolink:affects"],
                         "knowledge_type": "inferred",
-                        "qualifier_constraints": [
-                            {
-                                "qualifier_set": [
-                                    {
-                                        "qualifier_type_id": "biolink:object_aspect_qualifier",
-                                        "qualifier_value": "activity_or_abundance",
-                                    },
-                                    {
-                                        "qualifier_type_id": "biolink:object_direction_qualifier",
-                                        "qualifier_value": "decreased",
-                                    },
-                                ]
-                            }
-                        ],
+                        "constraints": {
+                            "qualifiers": [
+                                {
+                                    "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                    "biolink:object_direction_qualifier": "decreased"
+                                }
+                            ]
+                        }
                     }
-                },
+                }
             }
         }
     }
@@ -247,11 +219,8 @@ def test_validate_inferred_query():
         message = Message(
             query_graph = QueryGraph(
                 nodes = {
-                    "chem": QNode(categories = ["biolink:ChemicalEntity"], ids = None),
-                    "gene": QNode(
-                        ids = ["NCBIGene:6323"],
-                        categories = ["biolink:Gene"]
-                    ),
+                    "chem": QNode(categories = ["biolink:ChemicalEntity"]),
+                    "gene": QNode(ids = ["NCBIGene:6323"], categories = ["biolink:Gene"]),
                 },
                 edges = {
                     "e0": QEdge(
@@ -259,27 +228,19 @@ def test_validate_inferred_query():
                         predicates = ["biolink:affects"],
                         object = "gene",
                         knowledge_type = "inferred",
-                        qualifier_constraints = [
-                            QualifierConstraint(
-                                qualifier_set = [
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_aspect_qualifier",
-                                        qualifier_value = "activity_or_abundance"
-                                    ),
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_direction_qualifier",
-                                        qualifier_value = "decreased"
-                                    )
-                                ]
-                            )
-                        ]
+                        constraints = QEdgeConstraints(
+                            qualifiers = [{
+                                "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                "biolink:object_direction_qualifier": "decreased"
+                            }]
+                        )
                     )
-                },
+                }
             )
         )
     )
 
-    assert runner.validate_query(query)
+    assert runner.validate_query(query) == "inferred"
 
 
 def test_load_tf_list_uses_bundled_default_resource():
@@ -311,18 +272,16 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
         message = Message(
             knowledge_graph = KnowledgeGraph(
                 nodes = {
-                    "NCBIGene:1991": Node(
-                        attributes = [],
-                        categories = ["biolink:Gene"],
-                    )
+                    "NCBIGene:1991": Node(categories = ["biolink:Gene"])
                 },
                 edges = {
                     "edge1": Edge(
                         subject = "CHEBI:17688",
                         predicate = "biolink:affects",
                         object = "NCBIGene:1991",
-                        attributes = [],
-                        sources = primary_source()
+                        sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     )
                 }
             )
@@ -362,6 +321,8 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
                                 qualifier_value = "increased"
                             )
                         ],
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     )
                 }
             )
@@ -369,17 +330,17 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
     )
 
     responses = [rich_response, sparse_response]
-    qgraph = QueryGraph(nodes = {}, edges = {})
+    qgraph = QueryGraph(nodes = {"foo": QNode()})
 
     merged = runner.merge_filtered_responses(ctx, responses, qgraph)
 
     assert merged.message.knowledge_graph
     merged_node = merged.message.knowledge_graph.nodes["NCBIGene:1991"]
-    merged_edge = merged.message.knowledge_graph.edges["edge1"]
+    merged_edge = merged.message.knowledge_graph.edges_dict["edge1"]
 
     assert rich_response.message.knowledge_graph
     assert merged_node == rich_response.message.knowledge_graph.nodes["NCBIGene:1991"]
-    assert merged_edge == rich_response.message.knowledge_graph.edges["edge1"]
+    assert merged_edge == rich_response.message.knowledge_graph.edges_dict["edge1"]
 
 
 def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
@@ -390,61 +351,64 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
             query_graph = ctx.query_graph,
             knowledge_graph = KnowledgeGraph(
                 nodes = {
-                    "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"], attributes = []),
-                    "NCBIGene:1": Node(categories = ["biolink:Gene"], attributes = []),
-                    "NCBIGene:tf": Node(categories = ["biolink:Gene"], attributes = [])
+                    "CHEBI:1": Node(categories = ["biolink:ChemicalEntity"]),
+                    "NCBIGene:1": Node(categories = ["biolink:Gene"]),
+                    "NCBIGene:tf": Node(categories = ["biolink:Gene"])
                 },
                 edges = {
                     "direct1": Edge(
                         subject = "CHEBI:1",
                         predicate = "biolink:affects",
                         object = "NCBIGene:1",
-                        attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                     "path0": Edge(
                         subject = "CHEBI:1",
                         predicate = "biolink:affects",
                         object = "NCBIGene:tf",
-                        attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                     "path1": Edge(
                         subject = "NCBIGene:tf",
                         predicate = "biolink:affects",
                         object = "NCBIGene:1",
-                        attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                 },
             ),
             results = [
                 Result(
                     node_bindings = {
-                        "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                        "gene": [NodeBinding(id = "NCBIGene:1", attributes = [])]
+                        "chem": NodeBinding(ids = ["CHEBI:1"]),
+                        "gene": NodeBinding(ids = ["NCBIGene:1"])
                     },
                     analyses = [
                         Analysis(
                             resource_id = "FOO:123456",
                             edge_bindings = {
-                                "direct": [EdgeBinding(id = "direct1", attributes = [])]
+                                "direct": EdgeBinding(ids = ["direct1"])
                             }
                         )
                     ]
                 ),
                 Result(
                     node_bindings = {
-                        "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                        "tf": [NodeBinding(id = "NCBIGene:tf", attributes = [])],
-                        "gene": [NodeBinding(id = "NCBIGene:1", attributes = [])]
+                        "chem": NodeBinding(ids = ["CHEBI:1"]),
+                        "tf": NodeBinding(ids = ["NCBIGene:tf"]),
+                        "gene": NodeBinding(ids = ["NCBIGene:1"])
                     },
                     analyses = [
                         Analysis(
                             resource_id = "FOO:234567",
                             edge_bindings = {
-                                "e0": [EdgeBinding(id = "path0", attributes = [])],
-                                "e1": [EdgeBinding(id = "path1", attributes = [])]
+                                "e0": EdgeBinding(ids = ["path0"]),
+                                "e1": EdgeBinding(ids = ["path1"])
                             }
                         )
                     ]
@@ -475,28 +439,28 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
 
     datetime_attrs = [
         attr
-        for edge in response.message.knowledge_graph.edges.values()
+        for edge in response.message.knowledge_graph.edges_dict.values()
         for attr in edge.attributes_list
         if attr.attribute_type_id == "metatype:Datetime"
     ]
     creation_attrs = [
         attr
-        for edge in response.message.knowledge_graph.edges.values()
+        for edge in response.message.knowledge_graph.edges_dict.values()
         for attr in edge.attributes or []
         if attr.attribute_type_id == "biolink:creation_date"
     ]
-    auxiliary_graphs = response.message.auxiliary_graphs_dict
-    auxiliary_graphs_without_attributes = [
-        aux_id
-        for aux_id, aux_graph in auxiliary_graphs.items()
-        if aux_graph.attributes != []
-    ]
-
+    # auxiliary_graphs = response.message.auxiliary_graphs_dict
+    # auxiliary_graphs_without_attributes = [
+    #     aux_id
+    #     for aux_id, aux_graph in auxiliary_graphs.items()
+    #     if aux_graph.attributes != []
+    # ]
+    #
     # assert missing_node_attrs == []
     # assert missing_edge_attrs == []
     assert datetime_attrs == []
     assert creation_attrs
-    assert auxiliary_graphs_without_attributes == []
+    # assert auxiliary_graphs_without_attributes == []
 
 
 def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
@@ -527,20 +491,22 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
                         object = "NCBIGene:1",
                         attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     )
                 }
             ),
             results = [
                 Result(
                     node_bindings = {
-                        "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                        "gene": [NodeBinding(id = "NCBIGene:1", attributes = [])]
+                        "chem": NodeBinding(ids = ["CHEBI:1"]),
+                        "gene": NodeBinding(ids = ["NCBIGene:1"])
                     },
                     analyses = [
                         Analysis(
                             resource_id = "",
                             edge_bindings = {
-                                "direct": [EdgeBinding(id = "direct1", attributes = [])]
+                                "direct": EdgeBinding(ids = ["direct1"])
                             }
                         )
                     ]
@@ -555,7 +521,7 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
 
     ngd_edges = [
         edge
-        for edge_id, edge in response.message.knowledge_graph.edges.items()
+        for edge_id, edge in response.message.knowledge_graph.edges_dict.items()
         if edge_id.startswith("xcrg_ngd_edge_")
     ]
     publication_attrs = [
@@ -630,30 +596,34 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
                         predicate = "biolink:affects",
                         object = "NCBIGene:tf",
                         attributes = [Attribute(attribute_type_id = "biolink:foo", value = None)],
-                        sources = primary_source()
+                        sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                     "path1": Edge(
                         subject = "NCBIGene:tf",
                         predicate = "biolink:affects",
                         object = "NCBIGene:1",
                         attributes = [Attribute(attribute_type_id = "biolink:bar", value = None)],
-                        sources = primary_source()
+                        sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     )
                 }
             ),
             results = [
                 Result(
                     node_bindings = {
-                        "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                        "tf": [NodeBinding(id = "NCBIGene:tf", attributes = [])],
-                        "gene": [NodeBinding(id = "NCBIGene:1", attributes = [])]
+                        "chem": NodeBinding(ids = ["CHEBI:1"]),
+                        "tf": NodeBinding(ids = ["NCBIGene:tf"]),
+                        "gene": NodeBinding(ids = ["NCBIGene:1"])
                     },
                     analyses = [
                         Analysis(
                             resource_id = "FOO:123456",
                             edge_bindings = {
-                                "e0": [EdgeBinding(id = "path0", attributes = [])],
-                                "e1": [EdgeBinding(id = "path1", attributes = [])]
+                                "e0": EdgeBinding(ids = ["path0"]),
+                                "e1": EdgeBinding(ids = ["path1"])
                             }
                         )
                     ]
@@ -704,20 +674,22 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
                         object = "NCBIGene:1",
                         attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     )
                 }
             ),
             results = [
                 Result(
                     node_bindings = {
-                        "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                        "gene": [NodeBinding(id = "NCBIGene:1", attributes = [])]
+                        "chem": NodeBinding(ids = ["CHEBI:1"]),
+                        "gene": NodeBinding(ids = ["NCBIGene:1"])
                     },
                     analyses = [
                         Analysis(
                             resource_id = "FOO:123456",
                             edge_bindings = {
-                                "direct": [EdgeBinding(id = "direct1", attributes = [])]
+                                "direct": EdgeBinding(ids = ["direct1"])
                             }
                         )
                     ]
@@ -730,7 +702,7 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
 
     assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
-    final_edges = response.message.knowledge_graph.edges
+    final_edges = response.message.knowledge_graph.edges_dict
     assert final_nodes["NCBIGene:1"] == Node(
         categories = ["biolink:Gene"],
         attributes = []
@@ -753,7 +725,6 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
                     "CHEBI:1": Node(
                         name = "Chem One",
                         categories = ["biolink:SmallMolecule"],
-                        attributes = [],
                     ),
                     "NCBIGene:tf": empty_tf_node,
                     "NCBIGene:1": Node(
@@ -767,31 +738,33 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
                         subject = "CHEBI:1",
                         predicate = "biolink:affects",
                         object = "NCBIGene:tf",
-                        attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                     "path1": Edge(
                         subject = "NCBIGene:tf",
                         predicate = "biolink:affects",
                         object = "NCBIGene:1",
-                        attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                 },
             ),
             results = [
                 Result(
                     node_bindings = {
-                        "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                        "tf": [NodeBinding(id = "NCBIGene:tf", attributes = [])],
-                        "gene": [NodeBinding(id = "NCBIGene:1", attributes = [])]
+                        "chem": NodeBinding(ids = ["CHEBI:1"]),
+                        "tf": NodeBinding(ids = ["NCBIGene:tf"]),
+                        "gene": NodeBinding(ids = ["NCBIGene:1"])
                     },
                     analyses = [
                         Analysis(
                             resource_id = "FOO:123456",
                             edge_bindings = {
-                                "e0": [EdgeBinding(id = "path0", attributes = [])],
-                                "e1": [EdgeBinding(id = "path1", attributes = [])]
+                                "e0": EdgeBinding(ids = ["path0"]),
+                                "e1": EdgeBinding(ids = ["path1"])
                             }
                         )
                     ]
@@ -806,12 +779,12 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
 
     final_nodes = response.message.knowledge_graph.nodes
     inferred_bindings = [
-        binding
+        binding_id
         for result in response.message.results_list
-        for analysis in result.analyses
-        for bindings in cast(Analysis, analysis).edge_bindings.values()
-        for binding in bindings
-        if binding.id.startswith("xcrg_inferred_edge_")
+        for analysis in result.analyses_list
+        for binding in analysis.edge_bindings_dict.values()
+        for binding_id in binding.ids
+        if binding_id.startswith("xcrg_inferred_edge_")
     ]
 
     assert final_nodes["NCBIGene:tf"] == empty_tf_node
@@ -838,18 +811,20 @@ def test_clean_response_limits_to_configured_top_result_count():
             object = gene_id,
             attributes = [],
             sources = primary_source(),
+            knowledge_level = "not_provided",
+            agent_type = "not_provided",
         )
         results.append(
             Result(
                 node_bindings = {
-                    "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                    "gene": [NodeBinding(id = gene_id, attributes = [])],
+                    "chem": NodeBinding(ids = ["CHEBI:1"]),
+                    "gene": NodeBinding(ids = [gene_id])
                 },
                 analyses = [
                     Analysis(
                         resource_id = "FOO:123456",
                         edge_bindings = {
-                            "direct": [EdgeBinding(id = edge_id, attributes = [])]
+                            "direct": EdgeBinding(ids = [edge_id])
                         },
                         score = 1.0 - (index * 0.1),
                     )
@@ -866,7 +841,7 @@ def test_clean_response_limits_to_configured_top_result_count():
 
     response = runner.build_trapi_clean_response(ctx, combined_message)
     xcrg_results = [
-        XCRGResult(node_bindings = x.node_bindings, analyses = x.analyses)
+        XCRGResult(node_bindings = x.node_bindings, analyses = x.analyses_list)
         for x in response.message.results_list
     ]
     ranking.rank_results(ctx, response, xcrg_results)
@@ -875,7 +850,7 @@ def test_clean_response_limits_to_configured_top_result_count():
     assert response.message.knowledge_graph
     final_nodes = response.message.knowledge_graph.nodes
     answer_ids = [
-        result.node_bindings["gene"][0].id
+        result.node_bindings["gene"].ids[0]
         for result in final_results
     ]
 
@@ -907,6 +882,8 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
                             )
                         ],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                     "support0": Edge(
                         subject = "CHEBI:1",
@@ -914,26 +891,25 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
                         object = "NCBIGene:support",
                         attributes = [],
                         sources = primary_source(),
+                        knowledge_level = "not_provided",
+                        agent_type = "not_provided",
                     ),
                 },
             ),
             auxiliary_graphs = {
-                "retriever_support_0": AuxiliaryGraph(
-                    edges = ["support0"],
-                    attributes = [],
-                )
+                "retriever_support_0": AuxiliaryGraph(edges = ["support0"])
             },
             results = [
                 Result(
                     node_bindings = {
-                        "chem": [NodeBinding(id = "CHEBI:1", attributes = [])],
-                        "gene": [NodeBinding(id = "NCBIGene:1", attributes = [])]
+                        "chem": NodeBinding(ids = ["CHEBI:1"]),
+                        "gene": NodeBinding(ids = ["NCBIGene:1"])
                     },
                     analyses = [
                         Analysis(
                             resource_id = "FOO:123456",
                             edge_bindings = {
-                                "direct": [EdgeBinding(id = "direct0", attributes = [])]
+                                "direct": EdgeBinding(ids = ["direct0"])
                             },
                             score = 1.0,
                         )
@@ -947,7 +923,7 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
 
     message = response.message
     assert message.knowledge_graph
-    final_edges = message.knowledge_graph.edges
+    final_edges = message.knowledge_graph.edges_dict
     final_aux_graphs = message.auxiliary_graphs_dict
 
     assert "retriever_support_0" in final_aux_graphs

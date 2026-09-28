@@ -4,18 +4,16 @@ from copy import deepcopy
 
 from translator_tom import (
     CURIE,
-    AuxiliaryGraphsDict,
-    KnowledgeGraph,
     Message,
     QEdge,
+    QEdgeConstraints,
     QNode,
-    Qualifier,
-    QualifierConstraint,
     Query,
     QueryGraph,
+    QueryParameters,
 )
 
-from .constants import TF_QNODE_ID, DIRECT_QEDGE_ID
+from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID
 from .context import RunContext
 from .models import Direction
 
@@ -40,51 +38,33 @@ def build_two_hop_query(
                         subject = ctx.subject_qid,
                         object = TF_QNODE_ID,
                         predicates = ["biolink:affects"],
-                        qualifier_constraints = [
-                            QualifierConstraint(
-                                qualifier_set = [
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_aspect_qualifier",
-                                        qualifier_value = "activity_or_abundance",
-                                    ),
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_direction_qualifier",
-                                        qualifier_value = first_direction.value,
-                                    ),
-                                ]
-                            )
-                        ],
+                        constraints = QEdgeConstraints(
+                            qualifiers = [{
+                                "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                "biolink:object_direction_qualifier": first_direction.value
+                            }]
+                        )
                     ),
-                    "e1": QEdge (
+                    "e1": QEdge(
                         subject = TF_QNODE_ID,
                         object = ctx.object_qid,
                         predicates = ["biolink:affects"],
-                        qualifier_constraints = [
-                            QualifierConstraint(
-                                qualifier_set = [
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_aspect_qualifier",
-                                        qualifier_value = "activity_or_abundance",
-                                    ),
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_direction_qualifier",
-                                        qualifier_value = second_direction.value,
-                                    ),
-                                ]
-                            )
-                        ],
-                    ),
-                },
-            ),
-            knowledge_graph = KnowledgeGraph.new(),
-            results = [],
-            auxiliary_graphs = AuxiliaryGraphsDict(),
+                        constraints = QEdgeConstraints(
+                            qualifiers = [{
+                                "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                "biolink:object_direction_qualifier": second_direction.value
+                            }]
+                        )
+                    )
+                }
+            )
         ),
-        bypass_cache = ctx.query.bypass_cache,
+        parameters = QueryParameters(
+            bypass_cache = ctx.query.get_parameters().bypass_cache
+            # TODO: timeout = config.timeout
+            # TODO: tiers = ctx.query.get_parameters().tiers or config.normalized_tiers()
+        ),
         submitter = ctx.query.submitter or ctx.config.resource_id
-        # TODO: Query.timeout will become available in TRAPI 2.0
-        # two_hop_query.timeout = two_hop_query.timeout or config.timeout
-        # TODO: q.tiers = q.tiers or config.normalized_tiers()
     )
 
 
@@ -103,11 +83,12 @@ def build_one_hop_query(ctx: RunContext) -> Query:
                 edges = {
                     DIRECT_QEDGE_ID: direct_edge
                 }
-            ),
-            knowledge_graph = KnowledgeGraph.new(),
-            results = [],
-            auxiliary_graphs = AuxiliaryGraphsDict(),
+            )
         ),
-        bypass_cache = ctx.query.bypass_cache,
+        parameters = QueryParameters(
+            bypass_cache = ctx.query.get_parameters().bypass_cache
+            # TODO: timeout = config.timeout
+            # TODO: tiers = ctx.query.get_parameters().tiers or config.normalized_tiers()
+        ),
         submitter = ctx.query.submitter
     )

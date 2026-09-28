@@ -15,7 +15,7 @@ dependencies = [
     "bmt>=1.4.6",
     "httpx~=0.28",
     "opentelemetry-api>=1.17.0", # RTX is currently pinned to 1.17.0
-    "translator_tom==1.2.1",
+    "translator_tom>=2.0.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -32,8 +32,8 @@ dev = [
     "pyright==1.1.411",
     "pytest==9.1.1",
     "pytest-xdist==3.8.0",
-    "ruff==0.15.22",
-    "ty==0.0.63"
+    "ruff==0.16.9",
+    "ty==0.0.84"
 ]
 
 [project.urls]
@@ -54,5 +54,8 @@ testpaths = ["tests"]
 
 [tool.ruff.lint]
 ignore = [
-    "E701" # multiple-statements-on-one-line-colon
+    "BLE001", # blind-except
+    "E701",   # multiple-statements-on-one-line-colon
+    "RUF018", # assignment-in-assert (We do this a lot to help the type-checker)
+    "TRY002", # raise-vanilla-class
 ]

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from functools import cached_property
 from importlib import resources
 from pathlib import Path
@@ -16,15 +16,17 @@ from translator_tom import (
     QNodeID,
     Query,
     QueryGraph,
-    TOMBase
+    TOMBase,
 )
 
 from . import trapi
-from .config import DebugLevel, XCRGConfig as Config # TODO
+from .config import DebugLevel  # TODO
+from .config import XCRGConfig as Config
 from .constants import DEFAULT_TF_FILE, TP53_CURIE
 from .debugging import DebugContext
 from .reporting import Reporter
 from .utilities import path_or_none
+
 
 @dataclass
 class RunContext:
@@ -176,9 +178,8 @@ class RunContext:
                 self.reporter.debug(f"Loading transcription factors from file: {tf_file}")
                 with tf_file.open(encoding = "utf-8") as f:
                     return json.load(f).get("tf")
-            except Exception:
-                pass
-            self.reporter.warning(f"Transcription factors could not be loaded from file: {tf_file}")
+            except Exception as e:
+                self.reporter.warning(f"Transcription factors failed to load from file \"{tf_file}\": {e}")
             return None
 
         def try_loading_default_tf_file() -> list[CURIE] | None:
@@ -187,9 +188,8 @@ class RunContext:
                 self.reporter.debug(f"Loading transcription factors from default file: {DEFAULT_TF_FILE}")
                 with tf_file.open(encoding = "utf-8") as f:
                     return json.load(f).get("tf")
-            except Exception:
-                pass
-            self.reporter.warning(f"Transcription factors could not be loaded from file: {DEFAULT_TF_FILE}")
+            except Exception as e:
+                self.reporter.warning(f"Transcription factors failed to load from file \"{DEFAULT_TF_FILE}\": {e}")
             return None
 
         tf_list = try_loading_config_tf_file()

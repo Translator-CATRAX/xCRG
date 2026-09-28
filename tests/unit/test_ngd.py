@@ -1,8 +1,8 @@
 from pathlib import Path
 
+from tests.utilities import make_ngd_db_file
 from xcrg.ngd import get_ngd_neighbors
 from xcrg.reporting import StubReporter
-from tests.utilities import make_ngd_db_file
 
 
 def test_ngd(tmp_path: Path):

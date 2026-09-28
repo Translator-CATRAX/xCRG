@@ -25,7 +25,6 @@ from .pmid import get_curie_pmids
 from .reporting import Reporter
 from .utilities import make_stable_id
 
-
 NGD_CACHE_MAX_ROWS = 256
 MAX_NGD_PUBLICATIONS = 30
 NGD_VALUE_URL = "https://arax.ncats.io/api/rtx/v1/ui/#/PubmedMeshNgd"
@@ -198,6 +197,8 @@ def make_xcrg_ngd_edge(
         subject = subject_id,
         predicate = "biolink:occurs_together_in_literature_with",
         object = object_id,
+        knowledge_level = "statistical_association",
+        agent_type = "automated_agent",
         attributes = [
             Attribute(
                 attribute_source = ctx.config.resource_id,

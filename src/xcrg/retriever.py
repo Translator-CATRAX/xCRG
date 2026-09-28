@@ -10,31 +10,24 @@ from pathlib import Path
 from typing import cast
 
 import httpx
-
 from translator_tom import (
-    Analysis,
     AuxiliaryGraphsDict,
     Edge,
     EdgeID,
     KnowledgeGraph,
-    Query,
     QNodeID,
+    Query,
     QueryGraph,
     Response,
     Result,
 )
 
 from . import trapi
-from .constants import (
-    DIRECT_QEDGE_ID,
-    TF_QNODE_ID,
-    TP53_CURIE
-)
+from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID, TP53_CURIE
 from .context import RunContext
 from .models import Message_Statistics
 from .reporting import Reporter
 from .utilities import format_json_for_log, make_stable_id
-
 
 # TODO: Import datetime.UTC in Python 3.11+
 UTC = timezone.utc
@@ -159,16 +152,13 @@ def _result_has_edge_predicate(
     predicate: str
 ) -> bool:
     """Return True when any bound knowledge graph edge has the given predicate."""
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis):
-            continue
-        for bindings in analysis.edge_bindings.values():
-            for binding in bindings or []:
-                edge = edges.get(binding.id)
-                if not edge:
-                    continue
-                if edge.predicate == predicate:
-                    return True
+    for analysis in result.analyses_list:
+        for binding in analysis.edge_bindings_dict.values():
+            edge = edges.get(binding.ids[0])
+            if not edge:
+                continue
+            if edge.predicate == predicate:
+                return True
     return False
 
 
@@ -184,16 +174,14 @@ def _result_preserves_direct_direction(
     if not source_id or not target_id:
         return False
 
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis):
-            continue
+    for analysis in result.analyses_list:
         edge_bindings = analysis.edge_bindings or {}
-        direct_bindings = edge_bindings.get(DIRECT_QEDGE_ID) or []
-        if not direct_bindings:
-            return False
 
-        for binding in direct_bindings:
-            edge = edges.get(binding.id)
+        direct_bindings = edge_bindings.get(DIRECT_QEDGE_ID)
+        if not direct_bindings: return False
+
+        for binding_id in direct_bindings.ids:
+            edge = edges.get(binding_id)
             if not edge or edge.subject != source_id or edge.object != target_id:
                 return False
 
@@ -213,22 +201,18 @@ def _result_preserves_direction(
     if not source_curie or not tf_curie or not target_curie:
         return False
 
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis): # TODO
-            continue
+    for analysis in result.analyses_list:
+        e0_bindings = analysis.edge_bindings_dict.get("e0")
+        e1_bindings = analysis.edge_bindings_dict.get("e1")
+        if not e0_bindings or not e1_bindings: return False
 
-        e0_bindings = analysis.edge_bindings.get("e0") or []
-        e1_bindings = analysis.edge_bindings.get("e1") or []
-        if not e0_bindings or not e1_bindings:
-            return False
-
-        for binding in e0_bindings:
-            edge = edges.get(binding.id)
+        for binding_id in e0_bindings.ids:
+            edge = edges.get(binding_id)
             if not edge or edge.subject != source_curie or edge.object != tf_curie:
                 return False
 
-        for binding in e1_bindings:
-            edge = edges.get(binding.id)
+        for binding_id in e1_bindings.ids:
+            edge = edges.get(binding_id)
             if not edge or edge.subject != tf_curie or edge.object != target_curie:
                 return False
 
@@ -241,7 +225,7 @@ def _filter_direct_response(ctx: RunContext, response: Response) -> Response:
 
     edges: dict[EdgeID, Edge] = {}
     if message.knowledge_graph:
-        edges = message.knowledge_graph.edges
+        edges = message.knowledge_graph.edges_dict
 
     filtered_results: list[Result] = []
     for result in message.results_list:
@@ -272,7 +256,7 @@ def _filter_inferred_response(ctx: RunContext, response: Response) -> Response:
 
     edges = dict[EdgeID, Edge]()
     if message.knowledge_graph:
-        edges = message.knowledge_graph.edges
+        edges = message.knowledge_graph.edges_dict
 
     filtered_results = []
     for result in message.results_list:
@@ -311,7 +295,7 @@ async def _get_trapi_response_from_retriever(
     cache_filename: str | None = None
     if cache:
         cache_filename: str = make_stable_id("retriever_trapi_response", query) + ".json"
-        if not query.bypass_cache and (text := cache.read_file(cache_filename)):
+        if not query.get_parameters().bypass_cache and (text := cache.read_file(cache_filename)):
             ctx.reporter.info(f"Returning cached TRAPI response: {cache_filename}")
             return 200, Response.from_json(text)
 
@@ -394,7 +378,7 @@ async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
             response.description,
         )
     if counts.result_count == 0 or response.status != "Success":
-        for entry in response.logs[:5]:
+        for entry in response.logs_list[:5]:
             ctx.reporter.info("xCRG Retriever log [%s] %s", entry.level or "INFO", entry.message)
 
     # ctx.debug_dump_json("raw_response", response)

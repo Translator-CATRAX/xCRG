@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from xcrg import XCRGConfig, DebugLevel
+from xcrg import DebugLevel, XCRGConfig
 
 
 # Configure optional test parameters; these currently only affect integration tests
@@ -10,7 +10,8 @@ def pytest_addoption(parser):
     parser.addoption(
         "--retriever_url",
         help = "The URL for the Retriever query endpoint",
-        default = "https://retriever.ci.transltr.io/query"
+        default = "https://dev.retriever.biothings.io/query" # TODO: Change back to CI after transition to TRAPI 2.0
+        # default = "https://retriever.ci.transltr.io/query"
     )
     parser.addoption(
         "--ngd_db_file",

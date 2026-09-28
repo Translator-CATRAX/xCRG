@@ -1,13 +1,12 @@
 from enum import Enum
 
-from xcrg.context import RunContext
-
 try:
     from bmt import Toolkit
 except ImportError:  # pragma: no cover - local unit env may not install worker deps.
-    Toolkit = None # ty: ignore[invalid-assignment]
+    Toolkit = None
 from translator_tom import Node
 
+from xcrg.context import RunContext
 
 _BMT_TOOLKIT = None
 _BMT_WARNING_EMITTED = False

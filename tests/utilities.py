@@ -9,17 +9,15 @@ from translator_tom import (
     CURIE,
     Message,
     QEdge,
+    QEdgeConstraints,
     QNode,
     QNodeID,
-    Qualifier,
-    QualifierConstraint,
     Query,
     QueryGraph,
     Response,
 )
 
 from xcrg import XCRGConfig, run_xcrg, trapi
-
 
 AnswerExpectation = Literal[
     "exists",
@@ -69,9 +67,9 @@ def make_curie_to_pmids_db(tmp_dir: Path, curies_to_pmids: dict[CURIE, list[int]
     db_file = tmp_dir / "curie_to_pmids.sqlite"
 
     data = list[tuple[str, bytearray]]()
-    for curie in curies_to_pmids:
+    for curie, pmids in curies_to_pmids.items():
         ba = bytearray()
-        for pmid in curies_to_pmids[curie]:
+        for pmid in pmids:
             ba.extend(pmid.to_bytes(4, byteorder = "little"))
         data.append((curie, ba))
 
@@ -101,20 +99,12 @@ def make_xcrg_query(
                         subject = "sn",
                         predicates = ["biolink:affects"],
                         object = "on",
-                        qualifier_constraints = [
-                            QualifierConstraint(
-                                qualifier_set = [
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_aspect_qualifier",
-                                        qualifier_value = "activity_or_abundance"
-                                    ),
-                                    Qualifier(
-                                        qualifier_type_id = "biolink:object_direction_qualifier",
-                                        qualifier_value = direction
-                                    )
-                                ]
-                            )
-                        ]
+                        constraints = QEdgeConstraints(
+                            qualifiers = [{
+                                "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                "biolink:object_direction_qualifier": direction
+                            }]
+                        )
                     )
                 },
                 nodes = nodes
@@ -130,7 +120,7 @@ def find_chemicals_affecting_gene(
     query_id: str | None = None
 ) -> Response:
     nodes = {
-        "sn": QNode(categories=["biolink:ChemicalEntity"], ids=None),
+        "sn": QNode(categories=["biolink:ChemicalEntity"]),
         "on": QNode(categories=["biolink:Gene"], ids=[gene_id])
     }
     query = make_xcrg_query(nodes, direction)
@@ -146,7 +136,7 @@ def find_genes_affected_by_chemical(
 ) -> Response:
     nodes = {
         "sn": QNode(categories=["biolink:ChemicalEntity"], ids=[chemical_id]),
-        "on": QNode(categories=["biolink:Gene"], ids=None)
+        "on": QNode(categories=["biolink:Gene"])
     }
     query = make_xcrg_query(nodes, direction)
     response = run_xcrg(query.to_dict(), config, query_id = query_id)
@@ -159,9 +149,9 @@ def assert_answer(response: Response, answer: XCRG_Answer):
     answer_qid = trapi.get_answer_qid(qgraph, edge.subject, edge.object)
 
     answers = [
-        binding.id
+        binding_id
         for result in response.message.results_list
-        for binding in result.node_bindings[answer_qid]
+        for binding_id in result.node_bindings[answer_qid].ids
     ]
 
     match answer.expectation:

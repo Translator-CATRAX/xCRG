@@ -1,29 +1,16 @@
-
 from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
 from enum import Enum
 from io import TextIOWrapper
 from pathlib import Path
-from typing import (
-    Callable,
-    TypeVar
-)
+from typing import TypeVar
 
-from translator_tom import (
-    Analysis,
-    EdgeBinding,
-    EdgeID,
-    NodeBinding,
-    PathfinderAnalysis,
-    QNodeID,
-    Result,
-    TOMBase
-)
-
+from translator_tom import Analysis, EdgeID, NodeBinding, QNodeID, Result, TOMBase
 
 MISSING_SORT_VALUE = float("inf")
 
@@ -69,15 +56,13 @@ class OrderedEnum(Enum):
 @dataclass
 class XCRGResult:
     # TRAPI Result properties
-    node_bindings : dict[QNodeID, list[NodeBinding]]    = field(default_factory = dict)
-    analyses      : list[Analysis | PathfinderAnalysis] = field(default_factory = list)
+    node_bindings : dict[QNodeID, NodeBinding] = field(default_factory = dict)
+    analyses      : list[Analysis]             = field(default_factory = list)
     # Custom xCRG properties
-    xcrg_direct_bindings    : list[EdgeBinding] = field(default_factory = list)
-    xcrg_direct_binding_ids : set[EdgeID]       = field(default_factory = set)
-  # xcrg_support_edges      : list[EdgeBinding] = field(default_factory = list)
-    xcrg_support_edge_ids   : set[EdgeID]       = field(default_factory = set)
-    xcrg_score              : float             = field(default = float("inf"))
-    ngd_score               : float | None      = field(default = None)
+    xcrg_direct_binding_ids : set[EdgeID]  = field(default_factory = set)
+    xcrg_support_edge_ids   : set[EdgeID]  = field(default_factory = set)
+    xcrg_score              : float        = field(default = float("inf"))
+    ngd_score               : float | None = field(default = None)
 
     def to_trapi_result(self):
         return Result(node_bindings = self.node_bindings, analyses = self.analyses)
@@ -146,16 +131,6 @@ def make_stable_id(prefix: str, payload: object) -> str:
     key = json.dumps(payload, cls=XcrgJsonEncoder, sort_keys=True)
     suffix = uuid.uuid5(uuid.NAMESPACE_URL, key).hex[:16]
     return f"{prefix}_{suffix}"
-
-
-def desc_optional(value: float | int | None) -> float:
-    """Convert optional descending values into ascending sort components."""
-    return -float(value) if value is not None else MISSING_SORT_VALUE
-
-
-def asc_optional(value: float | int | None) -> float:
-    """Convert optional ascending values into sort components."""
-    return float(value) if value is not None else MISSING_SORT_VALUE
 
 
 def format_json_for_log(value: object | TOMBase) -> str:

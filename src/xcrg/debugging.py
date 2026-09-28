@@ -5,14 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import cast
 
-from translator_tom import (
-    QEdgeID,
-    QNode,
-    Query,
-    QueryGraph,
-    Response,
-    TOMBase
-)
+from translator_tom import QEdgeID, QNode, Query, QueryGraph, Response, TOMBase
 
 from . import trapi
 from .models import Message_Statistics

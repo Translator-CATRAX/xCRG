@@ -1,12 +1,10 @@
 from copy import deepcopy
 
 from translator_tom import (
-    Analysis,
-    Biolink,
     CURIE,
+    Biolink,
     EdgeBinding,
     Node,
-    PathfinderQueryGraph,
     QEdge,
     QEdgeID,
     QNodeID,
@@ -17,14 +15,12 @@ from translator_tom import (
 from xcrg.utilities import XCRGResult
 
 
-def get_single_query_edge(qgraph: QueryGraph | PathfinderQueryGraph | None) -> tuple[QEdgeID, QEdge]:
+def get_single_query_edge(qgraph: QueryGraph | None) -> tuple[QEdgeID, QEdge]:
     """Return the single query edge for xCRG queries."""
     if qgraph is None:
         raise ValueError("Query graph is required.")
-    if isinstance(qgraph, PathfinderQueryGraph):
-        raise ValueError("PathfinderQueryGraph is not supported.")
     qedges = qgraph.edges
-    if len(qedges) != 1:
+    if not qedges:
         raise ValueError("xCRG queries are currently required to have only one query edge.")
     qedge_id = next(iter(qedges))
     return qedge_id, qedges[qedge_id]
@@ -32,13 +28,12 @@ def get_single_query_edge(qgraph: QueryGraph | PathfinderQueryGraph | None) -> t
 
 def get_qualifier_value(edge: QEdge, qualifier_type_id: Biolink.Qualifier) -> str | None:
     """Return a qualifier value from the first qualifier set, if present."""
-    qualifier_constraints = edge.qualifier_constraints_list
-    if not qualifier_constraints:
-        return None
-    qualifier_set = qualifier_constraints[0].qualifier_set
-    for qualifier in qualifier_set:
-        if qualifier.qualifier_type_id == qualifier_type_id:
-            return qualifier.qualifier_value
+    constraints = edge.constraints
+    if not constraints: return None
+    for qualifier in constraints.qualifiers_list:
+        for type_id, value in qualifier.items():
+            if type_id == qualifier_type_id:
+                return value
     return None
 
 
@@ -56,11 +51,10 @@ def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
     """Return copied edge bindings for a qedge across all analyses."""
     bindings = list[EdgeBinding]()
     seen = set()
-    for analysis in result.analyses:
-        if not isinstance(analysis, Analysis):
-            continue
-        for binding in analysis.edge_bindings.get(qedge_id) or []:
-            edge_id = binding.id
+    for analysis in result.analyses_list:
+        binding = analysis.edge_bindings_dict.get(qedge_id)
+        if not binding: continue
+        for edge_id in binding.ids:
             if edge_id in seen:
                 continue
             seen.add(edge_id)
@@ -71,18 +65,16 @@ def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
 
 def get_bound_node_curie(result: Result | XCRGResult, qid: QNodeID) -> CURIE | None:
     """Return the first node binding id for the given qnode."""
-    bindings = result.node_bindings.get(qid) or []
-    if not bindings:
-        return None
-    return bindings[0].id
+    binding = result.node_bindings.get(qid)
+    if not binding: return None
+    return binding.ids[0]
 
 
 def result_edge_binding_keys(result: Result) -> set[str]:
     """Return qedge ids bound by any analysis in the result."""
     keys = set()
-    for analysis in result.analyses:
-        if isinstance(analysis, Analysis):
-            keys.update(analysis.edge_bindings.keys())
+    for analysis in result.analyses_list:
+        keys.update(analysis.edge_bindings_dict.keys())
     return keys
 
 
@@ -93,7 +85,8 @@ def is_two_hop_result(result: Result) -> bool:
 
 
 def is_two_hop_query(qgraph: QueryGraph) -> bool:
-    return "e0" in qgraph.edges and "e1" in qgraph.edges # TODO: hardcoded
+    edges = qgraph.edges_dict
+    return "e0" in edges and "e1" in edges # TODO: hardcoded
 
 
 def get_answer_qid(
@@ -103,7 +96,6 @@ def get_answer_qid(
 ) -> QNodeID:
     """Return the unpinned endpoint qnode whose bindings are the answer list."""
     for qid in (subject_qid, object_qid):
-        if qnode := query_graph.nodes.get(qid):
-            if not qnode.ids:
-                return qid
+        if (qnode := query_graph.nodes.get(qid)) and not qnode.ids:
+            return qid
     return object_qid

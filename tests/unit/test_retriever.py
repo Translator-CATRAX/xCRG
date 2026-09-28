@@ -4,6 +4,7 @@ from pathlib import Path
 from xcrg.reporting import StubReporter
 from xcrg.retriever import Retriever_Cache
 
+
 def test_basic_cache_behavior(tmp_path):
     cache = Retriever_Cache(StubReporter(), tmp_path, ttl = timedelta(weeks = 1))
     file = Path(tmp_path / "foo.json")

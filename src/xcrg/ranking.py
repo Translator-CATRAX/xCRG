@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable, cast
 
 from translator_tom import (
-    Attribute,
     CURIE,
+    Attribute,
     Message,
     QNodeID,
-    QueryGraph,
     Response,
 )
 
@@ -168,7 +167,7 @@ def create_result_summary(
 
     attributes: list[Attribute] = []
     if answer_node:
-        attributes = answer_node.attributes
+        attributes = answer_node.attributes_list
 
     values: list[int] = [0]
     for attribute in attributes:
@@ -178,7 +177,7 @@ def create_result_summary(
         raw_values = raw_value if isinstance(raw_value, list) else [raw_value]
         for value in raw_values:
             try:
-                values.append(int(value)) # TODO
+                values.append(int(str(value))) # TODO
             except (TypeError, ValueError):
                 continue
     information_content: int = max(values)
@@ -188,27 +187,27 @@ def create_result_summary(
     xcrg_nodes = set[CURIE]()
     num_xcrg_edges = len(result.xcrg_support_edge_ids)
     for binding in result.xcrg_direct_binding_ids:
-        edge = kgraph.edges[binding]
+        edge = kgraph.edges_dict[binding]
         xcrg_nodes.add(edge.subject)
         xcrg_nodes.add(edge.object)
     num_xcrg_nodes = len(xcrg_nodes)
 
     direct_qualified_stmts = list[QualifiedStatement]()
     for edge_id in result.xcrg_direct_binding_ids:
-        attributes = kgraph.edges[edge_id].attributes_list
+        attributes = kgraph.edges_dict[edge_id].attributes_list
         statement = get_qualified_stmt(attributes)
         direct_qualified_stmts.append(statement)
 
     xcrg_qualified_stmts = list[QualifiedStatement]()
     for edge_id in result.xcrg_support_edge_ids:
-        attributes = kgraph.edges[edge_id].attributes_list
+        attributes = kgraph.edges_dict[edge_id].attributes_list
         statement = get_qualified_stmt(attributes)
         xcrg_qualified_stmts.append(statement)
 
     result.ngd_score = get_ngd_score(
         ctx,
-        result.node_bindings[ctx.subject_qid][0].id,
-        result.node_bindings[ctx.object_qid][0].id
+        result.node_bindings[ctx.subject_qid].ids[0],
+        result.node_bindings[ctx.object_qid].ids[0]
     )
 
     return Result_Summary(
@@ -405,7 +404,7 @@ class RRF_Ranker(Ranker):
 
 def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult]) -> list[XCRGResult]:
     """Score, sort, rank, and limit results in the response."""
-    qgraph = cast(QueryGraph, response.message.query_graph)
+    assert (qgraph := response.message.query_graph)
 
     answer_qid = ctx.get_answer_qid()
 

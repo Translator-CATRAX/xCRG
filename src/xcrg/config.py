@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import Sequence
 
 from .debugging import DebugLevel
 
@@ -25,7 +25,7 @@ class XCRGConfig:
     resource_id            : str                     = "infores:arax"
     scoring_method         : str                     = "xcrg-result-filtering-v2" # TODO: StrEnum?
     max_results            : int                     = 500
-    trapi_schema_version   : str                     = "1.6.0"
+    trapi_schema_version   : str                     = "2.0.0"
     biolink_version        : str                     = "4.3.2"
     cache_dir              : Path | None             = None
     cache_ttl              : timedelta | None        = None

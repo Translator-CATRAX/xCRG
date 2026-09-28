@@ -1,9 +1,9 @@
 from pathlib import Path
 
+from tests.utilities import make_curie_to_pmids_db
 from xcrg.config import XCRGConfig
 from xcrg.pmid import get_curie_pmids
 from xcrg.reporting import StubReporter
-from tests.utilities import make_curie_to_pmids_db
 
 
 def test_pmids(tmp_path: Path, config: XCRGConfig):

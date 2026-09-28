@@ -60,7 +60,7 @@ class Message_Statistics:
         return Message_Statistics(
             result_count = len(message.results_list),
             node_count = len(knowledge_graph.nodes),
-            edge_count = len(knowledge_graph.edges),
+            edge_count = len(knowledge_graph.edges_dict),
         )
 
 
