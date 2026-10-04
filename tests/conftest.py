@@ -36,9 +36,12 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope = "session")
-def config(request) -> XCRGConfig:
-    project_dir = Path(__file__).parent.parent # TODO: Fragile...
+def project_dir() -> Path:
+    return Path(__file__).parent.parent # This is a little fragile
 
+
+@pytest.fixture(scope = "session")
+def config(request, project_dir) -> XCRGConfig:
     ngd_db_file: Path | None = None
     if file := request.config.getoption("--ngd_db_file"):
         ngd_db_file = Path(file)
