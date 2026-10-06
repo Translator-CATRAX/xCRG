@@ -2,7 +2,7 @@ import json
 import math
 import sqlite3
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -218,7 +218,7 @@ def make_xcrg_ngd_edge(
                 attribute_source = ctx.config.resource_id,
                 attribute_type_id = "biolink:creation_date",
                 original_attribute_name = "defined_datetime",
-                value = datetime.now(timezone.utc).isoformat(),
+                value = datetime.now(UTC).isoformat(),
             ),
             Attribute(
                 attribute_source = ctx.config.resource_id,

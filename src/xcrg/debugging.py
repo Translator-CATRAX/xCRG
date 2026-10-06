@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
@@ -57,7 +57,7 @@ class DebugContext:
             case str():        level = DebugLevel(debug_level)
             case None:         level = DebugLevel.NONE
 
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
         qnodes = cast(QueryGraph, query.message.query_graph).nodes
         edge_id, edge = trapi.get_single_query_edge(query.message.query_graph)
         direction = trapi.get_qualifier_value(edge, "biolink:object_direction_qualifier")
@@ -120,7 +120,7 @@ class DebugContext:
             self.artifacts.append({
                 "label": label,
                 "path": readable_path.relative_to(self.run_dir),
-                "written_at": datetime.now(timezone.utc),
+                "written_at": datetime.now(UTC),
                 "summary": summary,
             })
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from xcrg.reporting import StubReporter
@@ -53,7 +53,7 @@ def test_write_collisions_extend_expiration(tmp_path):
     cache.write_file("foo.json", "")
 
     # We will use a 1-minute buffer for checks
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     files = cache.get_entries()
     assert len(files) == 1

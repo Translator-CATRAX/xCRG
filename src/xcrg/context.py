@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import cached_property
 from importlib import resources
 from pathlib import Path
@@ -56,7 +56,7 @@ class RunContext:
     query_edge_id : QEdgeID = field(init = False)
     query_edge    : QEdge   = field(init = False)
 
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.now(UTC)
 
     def __post_init__(self):
         self.query_edge_id, self.query_edge = trapi.get_single_query_edge(self.query.message.query_graph)
@@ -150,7 +150,7 @@ class RunContext:
 
     def elapsed_time(self) -> timedelta:
         """The amount of time that has progressed in the run."""
-        return datetime.now(timezone.utc) - self.start_time
+        return datetime.now(UTC) - self.start_time
 
     def debug_dump_json(
         self,

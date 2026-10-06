@@ -106,7 +106,6 @@ def partition(items: list[T], predicate: Callable[[T], bool]) -> tuple[list[T], 
     return passed, failed
 
 
-# TODO: Reintroduce when we move to Python 3.11 in October
 # def throw(exception: Exception) -> Never:
 #     raise exception
 #

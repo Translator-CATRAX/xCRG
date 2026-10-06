@@ -5,7 +5,7 @@ import sqlite3
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
@@ -28,9 +28,6 @@ from .context import RunContext
 from .models import Message_Statistics
 from .reporting import Reporter
 from .utilities import format_json_for_log, make_stable_id
-
-# TODO: Import datetime.UTC in Python 3.11+
-UTC = timezone.utc
 
 # The expires_at value when TTL is not set.
 # The value needs to be implausible, but also not extreme.

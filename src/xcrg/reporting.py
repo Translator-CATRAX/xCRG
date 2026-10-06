@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import IntEnum
 
 # The default logger for the LogReporter
@@ -26,7 +26,7 @@ class LogMessage(Message):
     level : LogLevel
     msg   : str
     args  : tuple[object, ...] = field(default_factory = tuple)
-    time  : datetime           = field(default = datetime.now(timezone.utc))
+    time  : datetime           = field(default = datetime.now(UTC))
 
 
 # @dataclass
