@@ -14,7 +14,7 @@ def pytest_addoption(parser):
         # default = "https://retriever.ci.transltr.io/query"
     )
     parser.addoption(
-        "--ngd_db_file",
+        "--curie_ngd_db_file",
         help = "The path to the NGD database file"
     )
     parser.addoption(
@@ -43,7 +43,7 @@ def project_dir() -> Path:
 @pytest.fixture(scope = "session")
 def config(request, project_dir) -> XCRGConfig:
     ngd_db_file: Path | None = None
-    if file := request.config.getoption("--ngd_db_file"):
+    if file := request.config.getoption("--curie_ngd_db_file"):
         ngd_db_file = Path(file)
 
     curie_to_pmids_db_file: Path | None = None
