@@ -12,9 +12,9 @@ authors = [
     { name = "Translator CATRAX" }
 ]
 dependencies = [
-    "bmt>=1.4.6",
+    "bmt>=1.4.8", # Match min. RTX pin
     "httpx~=0.28",
-    "opentelemetry-api>=1.17.0", # RTX is currently pinned to 1.17.0
+    "opentelemetry-api>=1.17.0", # Match min. RTX pin
     "translator_tom>=2.0.0",
 ]
 classifiers = [
@@ -28,10 +28,10 @@ classifiers = [
 dev = [
     "opentelemetry-sdk==1.44.0",
     "optuna==4.9.0",
-    "pyright==1.1.411",
+    "pyright==1.1.414",
     "pytest==9.1.1",
     "pytest-xdist==3.8.0",
-    "ruff==0.16.9",
+    "ruff==0.16.10",
     "ty==0.0.84"
 ]
 
