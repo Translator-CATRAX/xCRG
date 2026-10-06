@@ -301,10 +301,7 @@ def add_ngd_analysis_support_graph(
             "edge": ngd_edge_id,
         },
     )
-    auxiliary_graphs[support_graph_id] = AuxiliaryGraph(
-        edges = [ngd_edge_id],
-        attributes = []
-    )
+    auxiliary_graphs[support_graph_id] = AuxiliaryGraph(edges = [ngd_edge_id])
 
     if not analysis.support_graphs:
         analysis.support_graphs = []
