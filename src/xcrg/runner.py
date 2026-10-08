@@ -1207,8 +1207,8 @@ def sort_xcrg_combined_results(
         )
         return (
             descending_optional(specificity),
-            descending_optional(information_content),
             ascending_optional(ngd_score),
+            descending_optional(information_content),
             answer_id,
             result.get("_xcrg_original_index", 0),
         )
@@ -1233,8 +1233,8 @@ def sort_xcrg_combined_results(
             tf_degrees.get(tf_id, 0),
             tf_id,
             descending_optional(specificity),
-            descending_optional(information_content),
             ascending_optional(ngd_score),
+            descending_optional(information_content),
             answer_id,
             result.get("_xcrg_original_index", 0),
         )
