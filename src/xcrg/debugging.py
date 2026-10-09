@@ -9,10 +9,10 @@ from translator_tom import QEdgeID, QNode, Query, QueryGraph, Response, TOMBase
 
 from . import trapi
 from .models import Message_Statistics
-from .utilities import OrderedEnum, serialize_json_to_file
+from .utilities import Ordered_Enum, serialize_json_to_file
 
 
-class DebugLevel(OrderedEnum):
+class Debug_Level(Ordered_Enum):
     """The debug level represents how much data will be saved during xCRG runs."""
     value: str
 
@@ -25,9 +25,9 @@ class DebugLevel(OrderedEnum):
 
 
 @dataclass(frozen = True)
-class DebugContext:
+class Debug_Context:
     """Assorted data for debugging xCRG runner."""
-    level: DebugLevel
+    level: Debug_Level
     query_id: str
     created_at: datetime
     run_name: str
@@ -43,19 +43,19 @@ class DebugContext:
     @staticmethod
     def new(
         debug_dir: Path,
-        debug_level: DebugLevel | str | None,
+        debug_level: Debug_Level | str | None,
         run_name: str | None,
         query_id: str,
         query: Query
-    ) -> DebugContext:
+    ) -> Debug_Context:
         """Create human-readable debug path metadata for one xCRG query."""
         debug_dir.mkdir(exist_ok = True)
 
-        level: DebugLevel
+        level: Debug_Level
         match debug_level:
-            case DebugLevel(): level = debug_level
-            case str():        level = DebugLevel(debug_level)
-            case None:         level = DebugLevel.NONE
+            case Debug_Level(): level = debug_level
+            case str():        level = Debug_Level(debug_level)
+            case None:         level = Debug_Level.NONE
 
         created_at = datetime.now(UTC)
         qnodes = cast(QueryGraph, query.message.query_graph).nodes
@@ -70,7 +70,7 @@ class DebugContext:
             f"{source_label}_to_{target_label}_{direction_label}"
         )
 
-        return DebugContext(
+        return Debug_Context(
             level = level,
             query_id = query_id,
             created_at = created_at,
@@ -96,7 +96,7 @@ class DebugContext:
         except Exception as exc:
             raise Exception(f"Failed to write xCRG debug manifest: {exc}")
 
-    def dump_json(self, label: str, payload: object | TOMBase, level: DebugLevel) -> None:
+    def dump_json(self, label: str, payload: object | TOMBase, level: Debug_Level) -> None:
         """Best-effort debug JSON dump for inferred xCRG runs."""
         try:
             if level > self.level:

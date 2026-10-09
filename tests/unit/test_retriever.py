@@ -1,12 +1,12 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from xcrg.reporting import StubReporter
+from xcrg.reporting import Stub_Reporter
 from xcrg.retriever import Retriever_Cache
 
 
 def test_basic_cache_behavior(tmp_path):
-    cache = Retriever_Cache(StubReporter(), tmp_path, ttl = timedelta(weeks = 1))
+    cache = Retriever_Cache(Stub_Reporter(), tmp_path, ttl = timedelta(weeks = 1))
     file = Path(tmp_path / "foo.json")
     content = "{'foo': 'bar'}"
 
@@ -18,7 +18,7 @@ def test_basic_cache_behavior(tmp_path):
     assert cache.read_file("foo.json") == content
 
 def test_remove_all_files(tmp_path):
-    cache = Retriever_Cache(StubReporter(), tmp_path)
+    cache = Retriever_Cache(Stub_Reporter(), tmp_path)
 
     cache.write_file("foo.json", "")
     assert (tmp_path / "foo.json").exists()
@@ -36,7 +36,7 @@ def test_remove_all_files(tmp_path):
 
 def test_remove_expired_files(tmp_path):
     cache = Retriever_Cache(
-        StubReporter(),
+        Stub_Reporter(),
         tmp_path,
         # Files are going to expire immediately
         ttl = timedelta(seconds = -1),
@@ -49,7 +49,7 @@ def test_remove_expired_files(tmp_path):
     assert not (tmp_path / "foo.json").exists()
 
 def test_write_collisions_extend_expiration(tmp_path):
-    cache = Retriever_Cache(StubReporter(), tmp_path, ttl = timedelta(weeks = 1))
+    cache = Retriever_Cache(Stub_Reporter(), tmp_path, ttl = timedelta(weeks = 1))
     cache.write_file("foo.json", "")
 
     # We will use a 1-minute buffer for checks
@@ -61,7 +61,7 @@ def test_write_collisions_extend_expiration(tmp_path):
 
     cache.connection.close()
 
-    cache = Retriever_Cache(StubReporter(), tmp_path, ttl = timedelta(weeks = 2))
+    cache = Retriever_Cache(Stub_Reporter(), tmp_path, ttl = timedelta(weeks = 2))
     cache.write_file("foo.json", "")
 
     files = cache.get_entries()

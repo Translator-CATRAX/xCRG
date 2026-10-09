@@ -12,7 +12,7 @@ from translator_tom import (
     Result,
 )
 
-from xcrg.utilities import XCRGResult
+from xcrg.utilities import XCRG_Result
 
 
 def get_single_query_edge(qgraph: QueryGraph | None) -> tuple[QEdgeID, QEdge]:
@@ -63,7 +63,7 @@ def get_edge_bindings(result: Result, qedge_id: QEdgeID) -> list[EdgeBinding]:
     return bindings
 
 
-def get_bound_node_curie(result: Result | XCRGResult, qid: QNodeID) -> CURIE | None:
+def get_bound_node_curie(result: Result | XCRG_Result, qid: QNodeID) -> CURIE | None:
     """Return the first node binding id for the given qnode."""
     binding = result.node_bindings.get(qid)
     if not binding: return None

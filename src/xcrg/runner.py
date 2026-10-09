@@ -39,10 +39,10 @@ from translator_tom import (
     RetrievalSource,
 )
 
-from . import DebugLevel, biolink, ngd, ranking, retriever, trapi
+from . import Debug_Level, biolink, ngd, ranking, retriever, trapi
 from .config import XCRGConfig
 from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID
-from .context import RunContext
+from .context import Run_Context
 from .models import (
     DIRECTION_TEMPLATES,
     Batch_Summary,
@@ -52,16 +52,16 @@ from .models import (
     Template_Summary,
 )
 from .queries import Direction, build_one_hop_query, build_two_hop_query
-from .reporting import LogReporter, Reporter, StubReporter
-from .utilities import XCRGResult, chunk_values, make_stable_id
+from .reporting import Log_Reporter, Reporter, Stub_Reporter
+from .utilities import XCRG_Result, chunk_values, make_stable_id
 
-DEFAULT_REPORTER = LogReporter()
+DEFAULT_REPORTER = Log_Reporter()
 # Defer to the parent application to instantiate global opentelemetry provider.
 # We can put tracer in a separate module if we wind up using it elsewhere.
 tracer = trace.get_tracer("xcrg")
 
 
-def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
+def build_combined_query_graph(ctx: Run_Context) -> QueryGraph:
     """Build a response query graph that can bind direct and TF-mediated results."""
     query = build_one_hop_query(ctx)
     assert (qgraph := query.message.query_graph)
@@ -83,7 +83,7 @@ def build_combined_query_graph(ctx: RunContext) -> QueryGraph:
 
 
 def merge_filtered_responses(
-    ctx: RunContext,
+    ctx: Run_Context,
     responses: list[Response],
     query_graph: QueryGraph
 ) -> Response:
@@ -177,7 +177,7 @@ def query_qualifiers_to_edge_qualifiers(qedge: QEdge) -> list[Qualifier]:
 
 
 def make_xcrg_inferred_edge(
-    ctx: RunContext,
+    ctx: Run_Context,
     subject_id: CURIE,
     object_id: CURIE,
     original_qedge: QEdge,
@@ -449,14 +449,14 @@ def node_is_present_for_evidence(
     return node_id in retriever_nodes
 
 
-def add_direct_evidence(final_result: XCRGResult, bindings: list[EdgeBinding]) -> None:
+def add_direct_evidence(final_result: XCRG_Result, bindings: list[EdgeBinding]) -> None:
     """Attach direct one-hop KG edge bindings to a final result."""
     for binding in bindings:
         for edge_id in binding.ids:
             final_result.xcrg_direct_binding_ids.add(edge_id)
 
 
-def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]) -> None:
+def add_support_path_edges(final_result: XCRG_Result, path_edge_ids: list[EdgeID]) -> None:
     """Collect unique TF-mediated path edges for the final predicted edge."""
     for edge_id in path_edge_ids:
         if edge_id in final_result.xcrg_support_edge_ids:
@@ -465,8 +465,8 @@ def add_support_path_edges(final_result: XCRGResult, path_edge_ids: list[EdgeID]
 
 
 def finalize_clean_result_analyses(
-    ctx: RunContext,
-    final_result: XCRGResult,
+    ctx: Run_Context,
+    final_result: XCRG_Result,
     original_qgraph: QueryGraph,
     retriever_nodes: dict[CURIE, Node],
     retriever_edges: dict[EdgeID, Edge],
@@ -577,7 +577,7 @@ def finalize_clean_result_analyses(
         final_result.analyses = []
 
 
-def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Response:
+def build_trapi_clean_response(ctx: Run_Context, old_response: Response) -> Response:
     """Convert debug-shaped direct+2-hop results into one-hop TRAPI results."""
     old_kgraph = old_response.message.knowledge_graph or KnowledgeGraph.new()
     old_aux_graphs = old_response.message.auxiliary_graphs_dict
@@ -586,7 +586,7 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
     new_kgraph = KnowledgeGraph.new()
     new_aux_graphs = AuxiliaryGraphsDict()
 
-    new_results = dict[tuple[CURIE, CURIE], XCRGResult]()
+    new_results = dict[tuple[CURIE, CURIE], XCRG_Result]()
 
     for old_result in old_response.message.results_list:
         subject_id = trapi.get_bound_node_curie(old_result, ctx.subject_qid)
@@ -596,11 +596,11 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
 
         key = (subject_id, object_id)
 
-        new_result: XCRGResult
+        new_result: XCRG_Result
         if key in new_results:
             new_result = new_results[key]
         else:
-            new_result = XCRGResult(node_bindings = {
+            new_result = XCRG_Result(node_bindings = {
                 ctx.subject_qid: NodeBinding(ids = [subject_id]),
                 ctx.object_qid: NodeBinding(ids = [object_id])
             })
@@ -660,14 +660,14 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
     )
 
 
-async def run_direct_lookup(ctx: RunContext) -> Response:
+async def run_direct_lookup(ctx: Run_Context) -> Response:
     """Run a direct (one-hop) xCRG lookup."""
     return await retriever.run_sync_lookup(ctx, ctx.query)
 
 
-async def run_inferred_lookup(ctx: RunContext) -> Response:
+async def run_inferred_lookup(ctx: Run_Context) -> Response:
     """Run phase-one TF-mediated inferred xCRG lookup."""
-    ctx.debug_dump_json("original_inferred_query", ctx.query, level = DebugLevel.BASIC)
+    ctx.debug_dump_json("original_inferred_query", ctx.query, level = Debug_Level.BASIC)
 
     one_hop_query = build_one_hop_query(ctx)
     ctx.debug_dump_json("direct_lookup_query", one_hop_query)
@@ -756,7 +756,7 @@ async def run_inferred_lookup(ctx: RunContext) -> Response:
     debug_summary.merged_response = Message_Statistics.get_from(final_response)
 
     ctx.debug_dump_json("inferred_debug_summary", debug_summary)
-    ctx.debug_dump_json("final_response", final_response, level = DebugLevel.BASIC)
+    ctx.debug_dump_json("final_response", final_response, level = Debug_Level.BASIC)
 
     return final_response
 
@@ -852,13 +852,13 @@ async def async_run_xcrg(
         # TODO: Remove this block when RTX is refactored to use xcrg.Reporter
         #  We cannot use reporter.critical or reporter.fatal while doing this
         if logger and logger.__class__.__name__ == "ARAXXCRGLogger":
-            logger = LogReporter(cast(logging.Logger, logger))
+            logger = Log_Reporter(cast(logging.Logger, logger))
 
         reporter: Reporter
         match logger:
             case Reporter():       reporter = logger
-            case logging.Logger(): reporter = LogReporter(logger)
-            case _:                reporter = StubReporter()
+            case logging.Logger(): reporter = Log_Reporter(logger)
+            case _:                reporter = Stub_Reporter()
 
         query: Query
         match message:
@@ -870,7 +870,7 @@ async def async_run_xcrg(
         # query.timeout = query.timeout or config.timeout
         query.submitter = query.submitter or config.resource_id
 
-        ctx = RunContext.new(
+        ctx = Run_Context.new(
             query_id = query_id,
             query = query,
             config = config,

@@ -6,7 +6,7 @@ except ImportError:  # pragma: no cover - local unit env may not install worker 
     Toolkit = None
 from translator_tom import Node
 
-from xcrg.context import RunContext
+from xcrg.context import Run_Context
 
 _BMT_TOOLKIT = None
 _BMT_WARNING_EMITTED = False
@@ -60,7 +60,7 @@ class Knowledge_Level(Enum):
 
 
 # TODO: Should we just expect that the user has installed the bmt library?
-def get_bmt_toolkit(ctx: RunContext):
+def get_bmt_toolkit(ctx: Run_Context):
     """Return a cached Biolink Toolkit instance when the dependency is available."""
     global _BMT_TOOLKIT, _BMT_WARNING_EMITTED
     if Toolkit is None:
@@ -111,7 +111,7 @@ def get_valid_aspect_qualifiers() -> frozenset[str]:
     return _VALID_ASPECT_QUALIFIERS
 
 
-def get_category_specificity(ctx: RunContext, category: str) -> int:
+def get_category_specificity(ctx: Run_Context, category: str) -> int:
     """Return a Biolink specificity heuristic based on non-mixin ancestor count."""
     bmt_toolkit = get_bmt_toolkit(ctx)
     if bmt_toolkit:
@@ -135,7 +135,7 @@ def get_category_specificity(ctx: RunContext, category: str) -> int:
     return FALLBACK_CATEGORY_DEPTH.get(category, 0)
 
 
-def is_chemical_category(ctx: RunContext, category: str) -> bool:
+def is_chemical_category(ctx: Run_Context, category: str) -> bool:
     """Return True when a category is ChemicalEntity or a chemical descendant."""
     if category == "biolink:ChemicalEntity" or category in FALLBACK_CATEGORY_DEPTH:
         return True
@@ -158,7 +158,7 @@ def is_chemical_category(ctx: RunContext, category: str) -> bool:
         return False
 
 
-def get_node_category_specificity(ctx: RunContext, node: Node | None) -> int:
+def get_node_category_specificity(ctx: Run_Context, node: Node | None) -> int:
     """Return the most specific chemical category score attached to a KG node."""
     if node is None:
         return 0

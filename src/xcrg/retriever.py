@@ -22,7 +22,7 @@ from translator_tom import (
 
 from . import trapi
 from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID, TP53_CURIE
-from .context import RunContext
+from .context import Run_Context
 from .models import Message_Statistics
 from .reporting import Reporter
 from .utilities import format_json_for_log, make_stable_id
@@ -214,7 +214,7 @@ def _result_preserves_direction(
     return True
 
 
-def _filter_direct_response(ctx: RunContext, response: Response) -> Response:
+def _filter_direct_response(ctx: Run_Context, response: Response) -> Response:
     """Filter subclass and wrong-direction results from a direct Retriever response."""
     message = response.message
 
@@ -241,7 +241,7 @@ def _filter_direct_response(ctx: RunContext, response: Response) -> Response:
     )
 
 
-def _filter_inferred_response(ctx: RunContext, response: Response) -> Response:
+def _filter_inferred_response(ctx: Run_Context, response: Response) -> Response:
     """Filter subclass and wrong-direction results from a two-hop Retriever response."""
     message = response.message
 
@@ -272,7 +272,7 @@ def _filter_inferred_response(ctx: RunContext, response: Response) -> Response:
 
 
 async def _get_trapi_response_from_retriever(
-    ctx: RunContext,
+    ctx: Run_Context,
     cache: Retriever_Cache | None,
     query: Query
 ) -> tuple[int, Response]:
@@ -311,7 +311,7 @@ async def _get_trapi_response_from_retriever(
         return http_response.status_code, Response.from_dict(http_response.json())
 
 
-async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
+async def run_sync_lookup(ctx: Run_Context, query: Query) -> Response:
     """Run a sync Retriever lookup and return its TRAPI response."""
     ctx.reporter.info("Sending xCRG lookup query to %s", ctx.config.retriever_url)
     ctx.reporter.debug(

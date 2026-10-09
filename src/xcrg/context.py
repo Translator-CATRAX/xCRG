@@ -20,16 +20,16 @@ from translator_tom import (
 )
 
 from . import trapi
-from .config import DebugLevel  # TODO
+from .config import Debug_Level  # TODO
 from .config import XCRGConfig as Config
 from .constants import DEFAULT_TF_FILE, TP53_CURIE
-from .debugging import DebugContext
+from .debugging import Debug_Context
 from .reporting import Reporter
 from .utilities import path_or_none
 
 
 @dataclass
-class RunContext:
+class Run_Context:
     """
     A RunContext maintains and provides convenient access to state
     for a particular query request through the xCRG runner.
@@ -51,7 +51,7 @@ class RunContext:
     query     : Query
     config    : Config
     reporter  : Reporter
-    debug_ctx : DebugContext | None = None
+    debug_ctx : Debug_Context | None = None
 
     query_edge_id : QEdgeID = field(init = False)
     query_edge    : QEdge   = field(init = False)
@@ -126,11 +126,11 @@ class RunContext:
         query: Query,
         config: Config,
         reporter: Reporter,
-    ) -> RunContext:
+    ) -> Run_Context:
         """Instantiate a new RunContext."""
-        debug_ctx: DebugContext | None = None
+        debug_ctx: Debug_Context | None = None
         if debug_dir := path_or_none(config.debug_dir):
-            debug_ctx = DebugContext.new(
+            debug_ctx = Debug_Context.new(
                 debug_dir = debug_dir,
                 debug_level = config.debug_level,
                 run_name = config.debug_run_name,
@@ -140,7 +140,7 @@ class RunContext:
         else:
             reporter.info("debug_dir does not exist; debugger will not be used for this run.")
 
-        return RunContext(
+        return Run_Context(
             query_id = query_id,
             query = query,
             config = config,
@@ -156,7 +156,7 @@ class RunContext:
         self,
         label: str,
         payload: object | TOMBase,
-        level: DebugLevel = DebugLevel.ALL
+        level: Debug_Level = Debug_Level.ALL
     ) -> None:
         if not (debug := self.debug_ctx): return
         try:

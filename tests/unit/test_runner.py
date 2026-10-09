@@ -25,24 +25,24 @@ from translator_tom import (
 from tests.utilities import make_curie_to_pmids_db
 from xcrg import ngd, ranking, runner
 from xcrg.config import XCRGConfig as Config  # TODO
-from xcrg.context import RunContext
-from xcrg.reporting import StubReporter
-from xcrg.utilities import XCRGResult, format_json_for_log
+from xcrg.context import Run_Context
+from xcrg.reporting import Stub_Reporter
+from xcrg.utilities import XCRG_Result, format_json_for_log
 
 
 def make_context(
     query: Query | None = None,
     config: Config | None = None,
-) -> RunContext:
+) -> Run_Context:
     """Create a fake xCRG runner context."""
-    return RunContext.new(
+    return Run_Context.new(
         query_id = "foo",
         query = query or make_inferred_query(),
         config = config or Config(
             retriever_url = "https://example.org/query",
             ngd_db_path = None,
         ),
-        reporter = StubReporter()
+        reporter = Stub_Reporter()
     )
 
 
@@ -841,7 +841,7 @@ def test_clean_response_limits_to_configured_top_result_count():
 
     response = runner.build_trapi_clean_response(ctx, combined_message)
     xcrg_results = [
-        XCRGResult(node_bindings = x.node_bindings, analyses = x.analyses_list)
+        XCRG_Result(node_bindings = x.node_bindings, analyses = x.analyses_list)
         for x in response.message.results_list
     ]
     ranking.rank_results(ctx, response, xcrg_results)

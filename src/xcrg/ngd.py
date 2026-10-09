@@ -20,7 +20,7 @@ from translator_tom import (
 )
 
 from . import trapi
-from .context import RunContext
+from .context import Run_Context
 from .pmid import get_curie_pmids
 from .reporting import Reporter
 from .utilities import make_stable_id
@@ -127,7 +127,7 @@ def get_ngd_neighbors(
 
 
 def get_ngd_score(
-    ctx: RunContext,
+    ctx: Run_Context,
     curie_a: CURIE | None,
     curie_b: CURIE | None,
 ) -> float | None:
@@ -163,7 +163,7 @@ def pmid_sort_key(pmid: str) -> tuple[int, str]:
 
 
 def get_ngd_publications(
-    ctx: RunContext,
+    ctx: Run_Context,
     curie_a: CURIE | None,
     curie_b: CURIE | None,
 ) -> list[str] | None:
@@ -178,7 +178,7 @@ def get_ngd_publications(
 
 
 def make_xcrg_ngd_edge(
-    ctx: RunContext,
+    ctx: Run_Context,
     subject_id: CURIE,
     object_id: CURIE,
     ngd_score: float | str,
@@ -262,7 +262,7 @@ def make_xcrg_ngd_edge(
 
 
 def add_ngd_analysis_support_graph(
-    ctx: RunContext,
+    ctx: Run_Context,
     analysis: Analysis,
     ngd_score: float | None,
     kg_edges: dict[EdgeID, Edge],

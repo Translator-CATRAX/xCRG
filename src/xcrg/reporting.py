@@ -12,7 +12,7 @@ class Message:
     """Marker class for messages reported by the xCRG module."""
 
 
-class LogLevel(IntEnum):
+class Log_Level(IntEnum):
     DEBUG    = logging.DEBUG
     INFO     = logging.INFO
     WARNING  = logging.WARNING
@@ -22,8 +22,8 @@ class LogLevel(IntEnum):
 
 
 @dataclass
-class LogMessage(Message):
-    level : LogLevel
+class Log_Message(Message):
+    level : Log_Level
     msg   : str
     args  : tuple[object, ...] = field(default_factory = tuple)
     time  : datetime           = field(default = datetime.now(UTC))
@@ -42,42 +42,42 @@ class Reporter(ABC):
         ...
 
     def debug(self, msg: str, *args: object):
-        self.handle_message(LogMessage(LogLevel.DEBUG, msg, args))
+        self.handle_message(Log_Message(Log_Level.DEBUG, msg, args))
 
     def info(self, msg: str, *args: object):
-        self.handle_message(LogMessage(LogLevel.INFO, msg, args))
+        self.handle_message(Log_Message(Log_Level.INFO, msg, args))
 
     def warning(self, msg: str, *args: object):
-        self.handle_message(LogMessage(LogLevel.WARNING, msg, args))
+        self.handle_message(Log_Message(Log_Level.WARNING, msg, args))
 
     def error(self, msg: str, *args: object):
-        self.handle_message(LogMessage(LogLevel.ERROR, msg, args))
+        self.handle_message(Log_Message(Log_Level.ERROR, msg, args))
 
     def critical(self, msg: str, *args: object):
-        self.handle_message(LogMessage(LogLevel.CRITICAL, msg, args))
+        self.handle_message(Log_Message(Log_Level.CRITICAL, msg, args))
 
     def fatal(self, msg: str, *args: object):
-        self.handle_message(LogMessage(LogLevel.FATAL, msg, args))
+        self.handle_message(Log_Message(Log_Level.FATAL, msg, args))
 
 
-class StubReporter(Reporter):
+class Stub_Reporter(Reporter):
     """A reporter that does nothing with messages."""
     def handle_message(self, message: Message) -> None:
         pass
 
 
 @dataclass
-class LogReporter(Reporter):
+class Log_Reporter(Reporter):
     """A reporter that wraps the standard logging.Logger class."""
     logger: logging.Logger = field(default = _LOGGER)
 
     def handle_message(self, message: Message) -> None:
         match message:
-            case LogMessage() as log:
+            case Log_Message() as log:
                 match log.level:
-                    case LogLevel.DEBUG:    self.logger.debug(log.msg, *log.args)
-                    case LogLevel.INFO:     self.logger.info(log.msg, *log.args)
-                    case LogLevel.WARNING:  self.logger.warning(log.msg, *log.args)
-                    case LogLevel.ERROR:    self.logger.error(log.msg, *log.args)
-                    case LogLevel.CRITICAL: self.logger.critical(log.msg, *log.args)
-                    case LogLevel.FATAL:    self.logger.fatal(log.msg, *log.args)
+                    case Log_Level.DEBUG:    self.logger.debug(log.msg, *log.args)
+                    case Log_Level.INFO:     self.logger.info(log.msg, *log.args)
+                    case Log_Level.WARNING:  self.logger.warning(log.msg, *log.args)
+                    case Log_Level.ERROR:    self.logger.error(log.msg, *log.args)
+                    case Log_Level.CRITICAL: self.logger.critical(log.msg, *log.args)
+                    case Log_Level.FATAL:    self.logger.fatal(log.msg, *log.args)

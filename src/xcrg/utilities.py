@@ -17,7 +17,7 @@ MISSING_SORT_VALUE = float("inf")
 T = TypeVar("T")
 
 
-class OrderedEnum(Enum):
+class Ordered_Enum(Enum):
     """Base class for Enums with an ordinal field that represents declaration order."""
     ordinal: int
 
@@ -29,23 +29,23 @@ class OrderedEnum(Enum):
 
     # __eq__ already taken care of by Enum class
 
-    def __lt__(self, other: OrderedEnum) -> bool:
-        if not isinstance(other, OrderedEnum):
+    def __lt__(self, other: Ordered_Enum) -> bool:
+        if not isinstance(other, Ordered_Enum):
             return NotImplemented
         return self.ordinal < other.ordinal
 
-    def __le__(self, other: OrderedEnum) -> bool:
-        if not isinstance(other, OrderedEnum):
+    def __le__(self, other: Ordered_Enum) -> bool:
+        if not isinstance(other, Ordered_Enum):
             return NotImplemented
         return self.ordinal <= other.ordinal
 
-    def __gt__(self, other: OrderedEnum) -> bool:
-        if not isinstance(other, OrderedEnum):
+    def __gt__(self, other: Ordered_Enum) -> bool:
+        if not isinstance(other, Ordered_Enum):
             return NotImplemented
         return self.ordinal > other.ordinal
 
-    def __ge__(self, other: OrderedEnum) -> bool:
-        if not isinstance(other, OrderedEnum):
+    def __ge__(self, other: Ordered_Enum) -> bool:
+        if not isinstance(other, Ordered_Enum):
             return NotImplemented
         return self.ordinal >= other.ordinal
 
@@ -54,7 +54,7 @@ class OrderedEnum(Enum):
 #  This class is effectively a TRAPI Result + additional custom properties
 #  The original code would push + pop these xcrg properties
 @dataclass
-class XCRGResult:
+class XCRG_Result:
     # TRAPI Result properties
     node_bindings : dict[QNodeID, NodeBinding] = field(default_factory = dict)
     analyses      : list[Analysis]             = field(default_factory = list)
@@ -68,7 +68,7 @@ class XCRGResult:
         return Result(node_bindings = self.node_bindings, analyses = self.analyses)
 
 
-class XcrgJsonEncoder(json.JSONEncoder):
+class XCRG_JSON_Encoder(json.JSONEncoder):
     """Custom JSON encoder to handle special cases with serializing classes."""
     def default(self, o):
         if isinstance(o, datetime):
@@ -127,7 +127,7 @@ def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
 
 def make_stable_id(prefix: str, payload: object) -> str:
     """Return a deterministic compact id for generated KG/support entries."""
-    key = json.dumps(payload, cls=XcrgJsonEncoder, sort_keys=True)
+    key = json.dumps(payload, cls=XCRG_JSON_Encoder, sort_keys=True)
     suffix = uuid.uuid5(uuid.NAMESPACE_URL, key).hex[:16]
     return f"{prefix}_{suffix}"
 
@@ -142,4 +142,4 @@ def format_json_for_log(value: object | TOMBase) -> str:
 
 
 def serialize_json_to_file(obj: object, file: TextIOWrapper):
-    json.dump(obj, file, cls = XcrgJsonEncoder, indent = 4)
+    json.dump(obj, file, cls = XCRG_JSON_Encoder, indent = 4)

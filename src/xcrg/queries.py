@@ -14,12 +14,12 @@ from translator_tom import (
 )
 
 from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID
-from .context import RunContext
+from .context import Run_Context
 from .models import Direction
 
 
 def build_two_hop_query(
-    ctx: RunContext,
+    ctx: Run_Context,
     tf_list: list[CURIE],
     first_direction: Direction,
     second_direction: Direction
@@ -68,7 +68,7 @@ def build_two_hop_query(
     )
 
 
-def build_one_hop_query(ctx: RunContext) -> Query:
+def build_one_hop_query(ctx: Run_Context) -> Query:
     """Build the direct one-hop query that accompanies inferred xCRG mode."""
     direct_edge = deepcopy(ctx.query_edge)
     direct_edge.knowledge_type = None

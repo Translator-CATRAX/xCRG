@@ -14,15 +14,15 @@ from translator_tom import (
     Response,
 )
 
-from . import DebugLevel, biolink, trapi
+from . import Debug_Level, biolink, trapi
 from .biolink import Agent_Type, Knowledge_Level
-from .context import RunContext
+from .context import Run_Context
 from .ngd import get_ngd_score
-from .utilities import XCRGResult, as_type
+from .utilities import XCRG_Result, as_type
 
 
 @dataclass(frozen = True, slots = False)
-class QualifiedStatement:
+class Qualified_Statement:
     num_publications : int
     num_studies      : int
     evidence_count   : int
@@ -33,17 +33,17 @@ class QualifiedStatement:
 
 @dataclass(slots = False)
 class Result_Summary:
-    result                 : XCRGResult # The original result
+    result                 : XCRG_Result # The original result
     curie                  : CURIE
     name                   : str
     score                  : float # The final score of the result
     specificity            : int
     information_content    : int
     num_direct_edges       : int
-    direct_qualified_stmts : list[QualifiedStatement]
+    direct_qualified_stmts : list[Qualified_Statement]
     num_xcrg_nodes         : int
     num_xcrg_edges         : int
-    xcrg_qualified_stmts   : list[QualifiedStatement]
+    xcrg_qualified_stmts   : list[Qualified_Statement]
     ngd_score              : float | int | None
 
 
@@ -108,7 +108,7 @@ DEFAULT_SCORING_PARAMS = Scoring_Params(
 )
 
 
-def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
+def get_qualified_stmt(attributes: list[Attribute]) -> Qualified_Statement:
     num_publications = 0
     num_studies = 0
     evidence_count = 0
@@ -135,7 +135,7 @@ def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
             case "biolink:has_confidence_score":
                 confidence_score = as_type(attribute.value, float)
 
-    return QualifiedStatement(
+    return Qualified_Statement(
         num_publications = num_publications,
         num_studies = num_studies,
         evidence_count = evidence_count,
@@ -146,9 +146,9 @@ def get_qualified_stmt(attributes: list[Attribute]) -> QualifiedStatement:
 
 
 def create_result_summary(
-    ctx: RunContext,
+    ctx: Run_Context,
     message: Message,
-    result: XCRGResult,
+    result: XCRG_Result,
     answer_qid: QNodeID,
     use_category_specificity: bool,
 ) -> Result_Summary:
@@ -193,13 +193,13 @@ def create_result_summary(
         xcrg_nodes.add(edge.object)
     num_xcrg_nodes = len(xcrg_nodes)
 
-    direct_qualified_stmts = list[QualifiedStatement]()
+    direct_qualified_stmts = list[Qualified_Statement]()
     for edge_id in result.xcrg_direct_binding_ids:
         attributes = kgraph.edges_dict[edge_id].attributes_list
         statement = get_qualified_stmt(attributes)
         direct_qualified_stmts.append(statement)
 
-    xcrg_qualified_stmts = list[QualifiedStatement]()
+    xcrg_qualified_stmts = list[Qualified_Statement]()
     for edge_id in result.xcrg_support_edge_ids:
         attributes = kgraph.edges_dict[edge_id].attributes_list
         statement = get_qualified_stmt(attributes)
@@ -241,7 +241,7 @@ class Ranker(ABC):
 class Custom_Ranker(Ranker):
     """Ranker that implements a custom strategy."""
 
-    def score_qualified_stmt(self, stmt: QualifiedStatement) -> float:
+    def score_qualified_stmt(self, stmt: Qualified_Statement) -> float:
         score: float = 0
 
         agent_factor = 1
@@ -333,7 +333,7 @@ class RRF_Ranker(Ranker):
             i = j
         return ranks
 
-    def score_stmts(self, statements: list[QualifiedStatement], category: Evidence_Category):
+    def score_stmts(self, statements: list[Qualified_Statement], category: Evidence_Category):
         total_score: float = 0
 
         for stmt in statements:
@@ -404,7 +404,7 @@ class RRF_Ranker(Ranker):
         return sorted(summaries.values(), key = lambda x: x.score, reverse = True)
 
 
-def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult]) -> list[XCRGResult]:
+def rank_results(ctx: Run_Context, response: Response, results: list[XCRG_Result]) -> list[XCRG_Result]:
     """Score, sort, rank, and limit results in the response."""
     assert (qgraph := response.message.query_graph)
 
@@ -449,7 +449,7 @@ def rank_results(ctx: RunContext, response: Response, results: list[XCRGResult])
             }
             for i, x in enumerate(ranked_summaries, start = 1)
         ],
-        level = DebugLevel.BASIC
+        level = Debug_Level.BASIC
     )
 
     final_results = [x.result for x in ranked_summaries]

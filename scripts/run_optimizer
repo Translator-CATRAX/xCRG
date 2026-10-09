@@ -15,7 +15,7 @@ from xcrg.biolink import Agent_Type, Knowledge_Level
 from xcrg.ranking import (
     Count_Category,
     Evidence_Category,
-    QualifiedStatement, RRF_Ranker, Ranker, Result_Summary,
+    Qualified_Statement, RRF_Ranker, Ranker, Result_Summary,
     Scoring_Params, Custom_Ranker
 )
 
@@ -67,11 +67,11 @@ def make_objective(project_dir: Path):
             del result["rank"]
             summary = Result_Summary(**result)
             summary.direct_qualified_stmts = [
-                QualifiedStatement(**x)
+                Qualified_Statement(**x)
                 for x in summary.direct_qualified_stmts
             ]
             summary.xcrg_qualified_stmts = [
-                QualifiedStatement(**x)
+                Qualified_Statement(**x)
                 for x in summary.xcrg_qualified_stmts
             ]
             test_id_to_summaries.setdefault(test_id, []).append(summary)
