@@ -1,5 +1,25 @@
 #!/usr/bin/env bash
 # Run linter + type checks on the codebase
 
-ruff check
-ty check
+SCRIPT_FILE="$0"
+SCRIPTS_DIR="$(dirname "$SCRIPT_FILE")"
+PROJECT_DIR="$SCRIPTS_DIR/.."
+
+# The paths that will be passed to checkers
+declare -a PATHS
+
+# Include the standard directories
+PATHS+=("$PROJECT_DIR/src")
+PATHS+=("$PROJECT_DIR/tests")
+
+# Additionally, include scripts with python shebang
+while read -r SCRIPT_FILE; do
+    if head -n1 "$SCRIPT_FILE" | grep -q "python"; then
+        PATHS+=("$SCRIPT_FILE")
+    fi
+done < <(find "$SCRIPTS_DIR" -type f)
+
+# printf "%s\n" "${PATHS[@]}"
+
+ruff check "${PATHS[@]}"
+ty check "${PATHS[@]}"

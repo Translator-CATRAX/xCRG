@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from translator_tom import (
     CURIE,
@@ -21,7 +21,7 @@ class Batch_Summary:
     # "raw_response": trapi.get_message_statistics(response),
 
 
-class Direction(Enum):
+class Direction(StrEnum):
     INCREASED = "increased"
     DECREASED = "decreased"
 

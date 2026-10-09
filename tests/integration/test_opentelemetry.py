@@ -1,6 +1,4 @@
 """Smoke test OpenTelemetry"""
-import uuid
-
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -8,11 +6,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-import xcrg
-from tests.utilities import find_chemicals_affecting_gene
+from xcrg.config import XCRGConfig
+from xcrg.dev import Query_Args, find_chemicals_affecting_gene
+from xcrg.models import Direction
 
 
-def test_opentelemetry_is_working(config: xcrg.XCRGConfig):
+def test_opentelemetry_is_working(config: XCRGConfig):
     exporter = InMemorySpanExporter()
 
     provider = TracerProvider()
@@ -22,13 +21,8 @@ def test_opentelemetry_is_working(config: xcrg.XCRGConfig):
 
     trace.set_tracer_provider(provider)
 
-    query_id = uuid.uuid4().hex
-    assert find_chemicals_affecting_gene(
-        config,
-        "decreased",
-        "NCBIGene:5742", # PTGS1
-        query_id = query_id
-    )
+    args = Query_Args(Direction.DECREASED, "NCBIGene:5742", )  # PTGS1
+    assert find_chemicals_affecting_gene(config, args)
 
     spans = exporter.get_finished_spans()
     assert len(spans) == 1
@@ -36,4 +30,4 @@ def test_opentelemetry_is_working(config: xcrg.XCRGConfig):
     span = spans[0]
     assert span.name == "run_query"
     assert (attributes := span.attributes)
-    assert attributes["query_id"] == query_id
+    assert attributes["query_id"] == args.query_id

@@ -60,8 +60,7 @@ def get_ranked_results(response: Response) -> dict[CURIE, RankedResult]:
     )
     results = dict[CURIE, RankedResult]()
     for rank, result in enumerate(response.message.results_list, start = 1):
-        qnode = result.node_bindings[answer_qid][0]
-        curie = qnode.id
+        curie = result.node_bindings[answer_qid].ids[0]
         name = kgraph.nodes[curie].name or "???"
         results[curie] = RankedResult(rank, curie, name, result)
     return results

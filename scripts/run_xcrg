@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""Run a simple xCRG query and return the TRAPI response."""
+
+import sys
+from argparse import (
+    ArgumentDefaultsHelpFormatter,
+    ArgumentParser,
+    Namespace,
+    RawDescriptionHelpFormatter
+)
+from _collections_abc import Callable
+from pathlib import Path
+from textwrap import dedent
+from typing import Never
+
+import httpx
+from translator_tom import Response
+
+import xcrg
+from xcrg.dev import (
+    Query_Args,
+    find_chemicals_affecting_gene,
+    find_genes_affected_by_chemical
+)
+from xcrg.models import Direction
+
+
+SCRIPT_FILE = Path(sys.argv[0])
+PROJECT_DIR = SCRIPT_FILE / ".."
+
+ARAX_URLS_BY_MATURITY = {
+    "development": "https://arax.ci.transltr.io",
+    "staging":     "https://arax.ci.transltr.io",
+    "testing":     "https://arax.test.transltr.io",
+    "production":  "https://arax.transltr.io",
+}
+
+RETRIEVER_URLS_BY_MATURITY = {
+    # TODO: This needs to be fixed after migration to TRAPI 2.0
+    "development": "https://dev.retriever.biothings.io",
+    # TODO: "development": "https://retriever.ci.transltr.io",
+    "staging":     "https://retriever.ci.transltr.io",
+    "testing":     "https://retriever.test.transltr.io",
+    "production":  "https://retriever.transltr.io",
+}
+
+Query_Function = Callable[[xcrg.XCRGConfig, Query_Args, xcrg.Reporter | None], Response]
+
+QUERY_FUNCTIONS_BY_NAME: dict[str, Query_Function] = {
+    "find_genes_affected_by_chemical": find_genes_affected_by_chemical,
+    "find_chemicals": find_chemicals_affecting_gene,
+}
+
+
+def die(msg: str, *args: object, exit_code: int = 1) -> Never:
+    print(msg % args, file = sys.stderr)
+    sys.exit(exit_code)
+
+
+def parse_args() -> Namespace:
+    # Insanity to get multiple formatters working with argparse
+    class Formatter(ArgumentDefaultsHelpFormatter, RawDescriptionHelpFormatter): pass
+
+    parser = ArgumentParser(
+        prog = SCRIPT_FILE.name,
+        description = "Run a simple xCRG query and return the TRAPI response",
+        usage = "%(prog)s <options> <query>",
+        epilog = dedent("""
+        Queries:
+            find_genes_affected_by {increasing,decreasing} <chemical>
+            find_chemicals         {increasing,decreasing} <gene>
+        
+        Examples:
+            ./run_xcrg find_genes_affected_by increasing aspirin
+            ./run_xcrg --maturity staging find_chemicals decreasing NCBIGene:5742
+        """),
+        formatter_class = Formatter,
+    )
+
+    parser.add_argument(
+        "--knowledge_type",
+        help = "The knowledge type of the query",
+        choices = ["lookup", "inferred"],
+        default = "inferred",
+    )
+
+    parser.add_argument(
+        "--maturity",
+        help = "The maturity of environment for requests to ARAX, Retriever, etc.",
+        choices = ["development", "staging", "testing", "production"],
+        default = "development",
+    )
+
+    parser.add_argument(
+        "query",
+        nargs = "+",
+    )
+
+    return parser.parse_args()
+
+
+def parse_query(query: list[str]) -> tuple[Query_Function, Direction, str]:
+    args = iter(query)
+
+    query_fn: Query_Function
+    match (it := next(args, None)):
+        case "find_genes_affected_by_chemical": query_fn = find_genes_affected_by_chemical
+        case "find_chemicals": query_fn = find_chemicals_affecting_gene
+        case _: die("Invalid query type: %s", it)
+
+    direction: Direction
+    match (it := next(args, None)):
+        case "increasing": direction = Direction.INCREASED
+        case "decreasing": direction = Direction.DECREASED
+        case _: die("Invalid query direction: %s", it)
+
+    if not (chem_gene := next(args, None)):
+        die("Query chemical/gene is required: ", chem_gene)
+
+    return query_fn, direction, chem_gene
+
+
+def get_canonical_id(arax_url: str, candidate: str) -> str:
+    """Call ARAX and get the canonical identifier for the candidate string."""
+    with httpx.Client() as http_client:
+        try:
+            http_response = http_client.post(
+                url = f"{arax_url}/entity",
+                json = { "format": "slim", "terms": [candidate] }
+            )
+        except Exception as e:
+            die("An error occurred while calling synonym lookup: %s", e)
+        if http_response.status_code != 200:
+            die("Synonym lookup was unsuccessful: HTTP %s", http_response.status_code)
+        response = http_response.json()
+        if not response or not response[candidate]:
+            die("No results from synonym lookup for chemical/gene: %s", candidate)
+        return response[candidate]["id"]["identifier"]
+
+
+def main():
+    args = parse_args()
+
+    retriever_url = RETRIEVER_URLS_BY_MATURITY[args.maturity] + "/query"
+    arax_url = ARAX_URLS_BY_MATURITY[args.maturity] + "/api/arax/v1.4" # TODO
+    knowledge_type = args.knowledge_type
+    query_fn, direction, chem_gene = parse_query(args.query)
+    canonical_chem_gene_id = get_canonical_id(arax_url, chem_gene)
+
+    config = xcrg.XCRGConfig(
+        retriever_url = retriever_url
+    )
+    query_args = Query_Args(direction, canonical_chem_gene_id, knowledge_type)
+
+    response = query_fn(config, query_args, None)
+    response_json = response.to_json(as_str = True)
+    print(response_json)
+
+if __name__ == "__main__":
+    main()

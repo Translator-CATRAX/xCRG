@@ -55,6 +55,7 @@ testpaths = ["tests"]
 ignore = [
     "BLE001", # blind-except
     "E701",   # multiple-statements-on-one-line-colon
+    "I001",   # unsorted-imports
     "RUF018", # assignment-in-assert (We do this a lot to help the type-checker)
     "TRY002", # raise-vanilla-class
 ]

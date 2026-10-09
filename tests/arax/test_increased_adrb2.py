@@ -5,18 +5,17 @@ import pytest
 from translator_tom import Response
 
 import xcrg
-from tests.utilities import (
-    XCRG_Answer,
-    assert_answer,
-    find_chemicals_affecting_gene,
-)
+from tests.utilities import XCRG_Answer, assert_answer
+from xcrg.dev import Query_Args, find_chemicals_affecting_gene
+from xcrg.models import Direction
 
 TEST_NAME = "arax_test_increased_adrb2"
 
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
-    return find_chemicals_affecting_gene(config, "increased", "NCBIGene:154") # ADRB2
+    args = Query_Args(Direction.INCREASED, "NCBIGene:154") # ADRB2
+    return find_chemicals_affecting_gene(config, args)
 
 @pytest.mark.xdist_group(name = TEST_NAME)
 @pytest.mark.parametrize(

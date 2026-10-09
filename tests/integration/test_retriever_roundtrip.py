@@ -2,17 +2,15 @@
 import pytest
 from translator_tom import Response
 
-import xcrg
-from tests.utilities import (
-    XCRG_Answer,
-    assert_answer,
-    find_chemicals_affecting_gene,
-)
+from tests.utilities import XCRG_Answer, assert_answer
+from xcrg.config import XCRGConfig
+from xcrg.dev import Query_Args, find_chemicals_affecting_gene
+from xcrg.models import Direction
 
 
 @pytest.fixture(scope = "session")
-def response(config: xcrg.XCRGConfig) -> Response:
-    return find_chemicals_affecting_gene(config, "decreased", "NCBIGene:5742") # PTGS1
+def response(config: XCRGConfig) -> Response:
+    return find_chemicals_affecting_gene(config, Query_Args(Direction.DECREASED, "NCBIGene:5742")) # PTGS1
 
 
 # This test can be performed locally *without* the db files.

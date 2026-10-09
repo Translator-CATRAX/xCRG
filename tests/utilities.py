@@ -7,17 +7,11 @@ from typing import Literal, cast
 
 from translator_tom import (
     CURIE,
-    Message,
-    QEdge,
-    QEdgeConstraints,
-    QNode,
-    QNodeID,
-    Query,
     QueryGraph,
     Response,
 )
 
-from xcrg import XCRGConfig, run_xcrg, trapi
+from xcrg import trapi
 
 AnswerExpectation = Literal[
     "exists",
@@ -84,63 +78,6 @@ def make_curie_to_pmids_db(tmp_dir: Path, curies_to_pmids: dict[CURIE, list[int]
         db.commit()
 
     return db_file
-
-
-def make_xcrg_query(
-    nodes: dict[QNodeID, QNode],
-    direction: Literal["increased", "decreased"]
-) -> Query:
-    return Query(
-        message = Message(
-            query_graph = QueryGraph(
-                edges = {
-                    "t_edge": QEdge(
-                        knowledge_type = "inferred",
-                        subject = "sn",
-                        predicates = ["biolink:affects"],
-                        object = "on",
-                        constraints = QEdgeConstraints(
-                            qualifiers = [{
-                                "biolink:object_aspect_qualifier": "activity_or_abundance",
-                                "biolink:object_direction_qualifier": direction
-                            }]
-                        )
-                    )
-                },
-                nodes = nodes
-            )
-        )
-    )
-
-
-def find_chemicals_affecting_gene(
-    config: XCRGConfig,
-    direction: Literal["increased", "decreased"],
-    gene_id: CURIE,
-    query_id: str | None = None
-) -> Response:
-    nodes = {
-        "sn": QNode(categories=["biolink:ChemicalEntity"]),
-        "on": QNode(categories=["biolink:Gene"], ids=[gene_id])
-    }
-    query = make_xcrg_query(nodes, direction)
-    response = run_xcrg(query.to_dict(), config, query_id = query_id)
-    return Response.from_dict(response)
-
-
-def find_genes_affected_by_chemical(
-    config: XCRGConfig,
-    direction: Literal["increased", "decreased"],
-    chemical_id: CURIE,
-    query_id: str | None = None
-) -> Response:
-    nodes = {
-        "sn": QNode(categories=["biolink:ChemicalEntity"], ids=[chemical_id]),
-        "on": QNode(categories=["biolink:Gene"])
-    }
-    query = make_xcrg_query(nodes, direction)
-    response = run_xcrg(query.to_dict(), config, query_id = query_id)
-    return Response.from_dict(response)
 
 
 def assert_answer(response: Response, answer: XCRG_Answer):

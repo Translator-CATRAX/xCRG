@@ -5,11 +5,9 @@ import pytest
 from translator_tom import Response
 
 import xcrg
-from tests.utilities import (
-    XCRG_Answer,
-    assert_answer,
-    find_genes_affected_by_chemical,
-)
+from tests.utilities import XCRG_Answer, assert_answer
+from xcrg.dev import Query_Args, find_genes_affected_by_chemical
+from xcrg.models import Direction
 
 TEST_NAME = "arax_test_increased_potassium_ion"
 
@@ -18,7 +16,8 @@ TEST_NAME = "arax_test_increased_potassium_ion"
 @pytest.fixture(scope = "module")
 def response(config: xcrg.XCRGConfig) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
-    return find_genes_affected_by_chemical(config, "increased", "CHEBI:29103") # Potassium ion
+    args = Query_Args(Direction.INCREASED, "CHEBI:29103") # Potassium ion
+    return find_genes_affected_by_chemical(config, args)
 
 @pytest.mark.xdist_group(name = TEST_NAME)
 @pytest.mark.parametrize(
