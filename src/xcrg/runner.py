@@ -125,7 +125,7 @@ def merge_filtered_responses(
             query_graph = query_graph,
             knowledge_graph = KnowledgeGraph(nodes = nodes, edges = edges),
             results = results,
-            auxiliary_graphs = aux_graph or None
+            auxiliary_graphs = aux_graph or None # cannot be empty in TRAPI 2.0
         )
     )
 
@@ -655,7 +655,7 @@ def build_trapi_clean_response(ctx: RunContext, old_response: Response) -> Respo
             query_graph = new_qgraph,
             knowledge_graph = new_kgraph,
             results = final_results,
-            auxiliary_graphs = new_aux_graphs
+            auxiliary_graphs = new_aux_graphs or None # cannot be empty in TRAPI 2.0
         )
     )
 

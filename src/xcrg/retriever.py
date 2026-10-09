@@ -11,10 +11,8 @@ from typing import cast
 
 import httpx
 from translator_tom import (
-    AuxiliaryGraphsDict,
     Edge,
     EdgeID,
-    KnowledgeGraph,
     QNodeID,
     Query,
     QueryGraph,
@@ -234,10 +232,6 @@ def _filter_direct_response(ctx: RunContext, response: Response) -> Response:
 
     filtered_message = deepcopy(message)
     filtered_message.results = filtered_results
-    if not filtered_message.knowledge_graph:
-        filtered_message.knowledge_graph = KnowledgeGraph.new()
-    if not filtered_message.auxiliary_graphs:
-        filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
 
     # Stamp response with version information if upstream omitted it
     return Response(
@@ -268,10 +262,6 @@ def _filter_inferred_response(ctx: RunContext, response: Response) -> Response:
 
     filtered_message = deepcopy(message)
     filtered_message.results = filtered_results
-    if not filtered_message.knowledge_graph:
-        filtered_message.knowledge_graph = KnowledgeGraph.new()
-    if not filtered_message.auxiliary_graphs:
-        filtered_message.auxiliary_graphs = AuxiliaryGraphsDict()
 
     # Stamp response with version information if upstream omitted it
     return Response(
@@ -348,13 +338,6 @@ async def run_sync_lookup(ctx: RunContext, query: Query) -> Response:
     message = response.message
     if not message:
         raise ValueError("Retriever response did not contain a TRAPI message.")
-
-    if not message.knowledge_graph:
-        message.knowledge_graph = KnowledgeGraph.new()
-    if not message.results:
-        message.results = list[Result]()
-    if not message.auxiliary_graphs:
-        message.auxiliary_graphs = AuxiliaryGraphsDict()
 
     counts = Message_Statistics.get_from(response)
 
