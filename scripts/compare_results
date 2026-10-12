@@ -1,0 +1,259 @@
+#! /usr/bin/env python3
+"""Print an analysis comparing result datasets from ARAX, NCATS, etc."""
+
+import json
+import os
+import sys
+from argparse import (
+    ArgumentDefaultsHelpFormatter,
+    ArgumentParser,
+    Namespace,
+    RawDescriptionHelpFormatter
+)
+from dataclasses import dataclass
+from pathlib import Path
+from textwrap import dedent
+from typing import Never
+
+from translator_tom import CURIE
+
+
+SCRIPT_FILE = Path(sys.argv[0])
+
+
+@dataclass(frozen = True)
+class Result:
+    rank  : int
+    curie : CURIE
+    name  : str
+
+
+@dataclass(frozen = True)
+class Comparison:
+    curie : CURIE
+    name  : str
+    rank1 : str
+    rank2 : str
+    delta : str
+
+
+def die(msg: str, *args: object, exit_code: int = 1) -> Never:
+    print(msg % args, file = sys.stderr)
+    sys.exit(exit_code)
+
+
+def parse_args() -> Namespace:
+    # Insanity to get multiple formatters working with argparse
+    class Formatter(ArgumentDefaultsHelpFormatter, RawDescriptionHelpFormatter): pass
+
+    parser = ArgumentParser(
+        prog = SCRIPT_FILE.name,
+        description = "Compare xCRG results from different datasets.",
+        usage = "%(prog)s <options> <file1> <file2>",
+        epilog = dedent(f"""
+        Examples:
+            ./{SCRIPT_FILE.name} arax.json ncats.json
+        """),
+        formatter_class = Formatter,
+    )
+
+    parser.add_argument(
+        "--limit",
+        help = "The maximum number of results to compare.",
+        default = 500,
+    )
+
+    # parser.add_argument(
+    #     "--output_format",
+    #     help = "The desired way to format the output.",
+    #     choices = ["table", "csv", "tsv", "json"],
+    #     default = "table",
+    # )
+
+    parser.add_argument("file1")
+    parser.add_argument("file2")
+
+    return parser.parse_args()
+
+
+def parse_trapi_results(data: dict) -> list[Result] | None:
+    """Parse TRAPI 2.0 Response to normalized results."""
+    try:
+        message = data["message"]
+
+        qgraph = message["query_graph"]
+        kgraph = message["knowledge_graph"]
+
+        qedge_id = next(iter(qgraph["edges"])) # Get sole edge in query
+
+        sn = qgraph["edges"][qedge_id]["subject"]
+        on = qgraph["edges"][qedge_id]["object"]
+
+        # We need to figure out if subject or object is the result candidate
+        key: str
+        if qgraph["nodes"][sn].get("ids", []):
+            key = on # Subject is defined; so results are objects
+        else:
+            key = sn # Object otherwise
+
+        results = list[Result]()
+        for i, result in enumerate(message["results"]):
+            curie = result["node_bindings"][key]["ids"][0]
+            results.append(Result(
+                rank = i + 1,
+                curie = curie,
+                name = kgraph["nodes"][curie]["name"]
+            ))
+
+        return results
+    except Exception as _:
+        return None
+
+
+def parse_ncats_results(data: dict) -> list[Result] | None:
+    """Parse NCATS results to normalized results."""
+    try:
+        # NCATS results are not guaranteed to be sorted...
+        # TODO: index 0 in score components is guaranteed?
+        sort_key = lambda x: x["scoreComponents"][0]["normalized_score"]
+        data_results = sorted(data["results"], key = sort_key, reverse = True)
+
+        # We need to figure out if subject or object is the result candidate
+        key = str
+        # HACK: We will check if multiple result.subjects match
+        if data_results[0]["subject"] == data_results[1]["subject"]:
+            key = "object" # Object is unique
+        else:
+            key = "subject" # Subject is unique
+
+        results = list[Result]()
+        for i, result in enumerate(data_results):
+            results.append(Result(
+                rank = i + 1,
+                curie = result[key],
+                name = result["drug_name"]
+            ))
+
+        return results
+    except Exception as _:
+        return None
+
+
+def parse_results(file: Path) -> list[Result]:
+    if not file.exists(): die("File does not exist: %s", file)
+
+    try:
+        data: dict
+        with open(file, 'r', encoding = 'utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        die("File is not valid JSON: %s\n%s", file, e)
+
+    if results := parse_trapi_results(data):
+        return results
+    if results := parse_ncats_results(data):
+        return results
+    die("Results could not be parsed from the file: %s", file)
+
+
+def make_comparisons(a: list[Result], b: list[Result]) -> list[Comparison]:
+    results_a = {x.curie: x for x in a}
+    results_b = {x.curie: x for x in b}
+
+    comparisons = list[Comparison]()
+    for curie, result_b in results_b.items():
+        rank_a = delta_str = delta_pct_str = "---"
+
+        if result_a := results_a.get(curie):
+            rank_a = str(result_a.rank)
+            delta = result_a.rank - result_b.rank
+            delta_pct = delta / len(results_b)
+            match delta:
+                case x if x > 0:
+                    delta_str = f"+{x}"
+                    delta_pct_str = f"+{round(delta_pct * 100, 1)}%"
+                case x if x < 0:
+                    delta_str = f"{x}"
+                    delta_pct_str = f"{round(delta_pct * 100, 1)}%"
+
+        comparisons.append(Comparison(
+            curie = curie,
+            name = result_b.name,
+            rank1 = rank_a,
+            rank2 = str(result_b.rank),
+            delta = f"{delta_str:<4} ({delta_pct_str})"
+        ))
+
+    return comparisons
+
+
+def print_comparisons(comparisons: list[Comparison]):
+    w: int
+    try:
+        w = int(os.environ.get("COLUMNS") or os.get_terminal_size(sys.stderr.fileno()).columns or 80)
+    except Exception as _:
+        w = 80
+
+    length_of_rank1 = 6 # "Rank 1"
+    length_of_rank2 = 6 # "Rank 2"
+
+    length_of_longest_curie = max(len(x.curie) for x in comparisons)
+    length_of_longest_name  = max(len(x.name) for x in comparisons)
+    length_of_longest_delta = 18 # TODO: max(len(x.delta) for x in comparisons)
+
+    # Name is longest field, and will get truncated based on other fields
+    max_name_length  = w
+    max_name_length -= length_of_longest_curie
+    max_name_length -= length_of_rank1
+    max_name_length -= length_of_rank2
+    max_name_length -= length_of_longest_delta
+    max_name_length  = min(length_of_longest_name, max_name_length)
+
+    header  = f"{'Curie':<{length_of_longest_curie}} "
+    header += f"{'Name':<{max_name_length}} "
+    header += f"{'Rank 1':<{length_of_rank1}} "
+    header += f"{'Rank 2':<{length_of_rank2}} Delta"
+
+    try:
+        print("-" * w)
+        print(header)
+        print("-" * w)
+
+        for c in comparisons:
+            name: str = c.name
+            if len(c.name) > max_name_length:
+                name = name[0:max_name_length - 3] + "..."
+
+            line  = f"{c.curie:<{length_of_longest_curie}} "
+            line += f"{name:<{max_name_length}} "
+            line += f"{c.rank1:<{length_of_rank1}} "
+            line += f"{c.rank2:<{length_of_rank2}} "
+            line += f"{c.delta}"
+            print(line)
+
+            sys.stdout.flush()
+    except BrokenPipeError:
+        # Insanity to support piping this script into utilities like "head"
+        # Drain stdout to avoid another BrokenPipeError at shutdown
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+
+
+def main():
+    args = parse_args()
+
+    n = args.limit
+
+    a = parse_results(Path(args.file1))
+    a = a[0:n]
+
+    b = parse_results(Path(args.file2))
+    b = b[0:n]
+
+    comparisons = make_comparisons(a, b)
+
+    print_comparisons(comparisons)
+
+
+if __name__ == "__main__":
+    main()
