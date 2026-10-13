@@ -46,11 +46,6 @@ RETRIEVER_URLS_BY_MATURITY = {
 
 Query_Function = Callable[[xcrg.XCRGConfig, Query_Args, xcrg.Reporter | None], Response]
 
-QUERY_FUNCTIONS_BY_NAME: dict[str, Query_Function] = {
-    "find_genes_affected_by_chemical": find_genes_affected_by_chemical,
-    "find_chemicals": find_chemicals_affecting_gene,
-}
-
 
 def die(msg: str, *args: object, exit_code: int = 1) -> Never:
     print(msg % args, file = sys.stderr)
@@ -104,15 +99,15 @@ def parse_query(query: list[str]) -> tuple[Query_Function, Direction, str]:
 
     query_fn: Query_Function
     match (it := next(args, None)):
-        case "find_genes_affected_by_chemical": query_fn = find_genes_affected_by_chemical
-        case "find_chemicals": query_fn = find_chemicals_affecting_gene
-        case _: die("Invalid query type: %s", it)
+        case "find_genes_affected_by": query_fn = find_genes_affected_by_chemical
+        case "find_chemicals":         query_fn = find_chemicals_affecting_gene
+        case _:                        die("Invalid query type: %s", it)
 
     direction: Direction
     match (it := next(args, None)):
         case "increasing": direction = Direction.INCREASED
         case "decreasing": direction = Direction.DECREASED
-        case _: die("Invalid query direction: %s", it)
+        case _:            die("Invalid query direction: %s", it)
 
     if not (chem_gene := next(args, None)):
         die("Query chemical/gene is required: ", chem_gene)
