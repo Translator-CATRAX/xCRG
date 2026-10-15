@@ -17,6 +17,7 @@ from translator_tom import (
 from . import Debug_Level, biolink, trapi
 from .biolink import Agent_Type, Knowledge_Level
 from .context import Run_Context
+from .models import Progress_Key, Progress_Tracker
 from .ngd import get_ngd_score
 from .utilities import XCRG_Result, as_type
 
@@ -233,7 +234,11 @@ class Ranker(ABC):
     scoring_params: Scoring_Params = field(default = DEFAULT_SCORING_PARAMS)
 
     @abstractmethod
-    def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
+    def rank_results(
+        self,
+        summaries: dict[CURIE, Result_Summary],
+        progress: Progress_Tracker | None
+    ) -> list[Result_Summary]:
         """Score, sort, and rank results in the response."""
         ...
 
@@ -302,10 +307,18 @@ class Custom_Ranker(Ranker):
 
         return total_score
 
-    def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
+    def rank_results(
+        self,
+        summaries: dict[CURIE, Result_Summary],
+        progress: Progress_Tracker | None
+    ) -> list[Result_Summary]:
+        progress = progress or Progress_Tracker.make_noop_tracker()
+
         summaries: list[Result_Summary] = list(summaries.values())
         for summary in summaries:
             summary.score = self.calculate_score_for_result(summary)
+            progress.increment_and_notify_upstream()
+
         return sorted(summaries, key = lambda x: x.score, reverse = True)
 
 
@@ -376,7 +389,13 @@ class RRF_Ranker(Ranker):
 
         return total_score
 
-    def rank_results(self, summaries: dict[CURIE, Result_Summary]) -> list[Result_Summary]:
+    def rank_results(
+        self,
+        summaries: dict[CURIE, Result_Summary],
+        progress: Progress_Tracker | None # TODO
+    ) -> list[Result_Summary]:
+        progress = progress or Progress_Tracker.make_noop_tracker()
+
         ranks = dict[CURIE, list[float]]()
 
         ranker = Custom_Ranker(scoring_params = self.scoring_params)
@@ -400,6 +419,7 @@ class RRF_Ranker(Ranker):
         for curie, summary in summaries.items():
             for rank in ranks[curie]:
                 summary.score += 1.0 / (rank + k)
+            progress.increment_and_notify_upstream()
 
         return sorted(summaries.values(), key = lambda x: x.score, reverse = True)
 
@@ -428,7 +448,10 @@ def rank_results(ctx: Run_Context, response: Response, results: list[XCRG_Result
     ranker = Custom_Ranker()
     # ranker = RRF_Ranker()
 
-    ranked_summaries = ranker.rank_results(summaries)
+    progress = ctx.get_progress_tracker(Progress_Key.RANKING)
+    progress.max_value = len(summaries)
+
+    ranked_summaries = ranker.rank_results(summaries, progress)
 
     ctx.debug_dump_json(
         label = "xcrg_scored_results",
@@ -454,5 +477,7 @@ def rank_results(ctx: Run_Context, response: Response, results: list[XCRG_Result
 
     final_results = [x.result for x in ranked_summaries]
     final_results = final_results[0:ctx.num_max_results]
+
+    progress.finish_and_notify_upstream()
 
     return final_results

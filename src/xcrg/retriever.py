@@ -23,7 +23,7 @@ from translator_tom import (
 from . import trapi
 from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID, TP53_CURIE
 from .context import Run_Context
-from .models import Message_Statistics
+from .models import Message_Statistics, Progress_Tracker
 from .reporting import Reporter
 from .utilities import format_json_for_log, make_stable_id
 
@@ -271,8 +271,30 @@ def _filter_inferred_response(ctx: Run_Context, response: Response) -> Response:
     )
 
 
+async def process_http_response(response: httpx.Response, progress: Progress_Tracker) -> str:
+    """Assemble and track progress for a streaming HTTP response."""
+    total_bytes = int(response.headers["Content-Length"])
+    progress.max_value = total_bytes
+
+    data = bytearray(total_bytes)
+    offset = 0
+
+    async for chunk in response.aiter_bytes():
+        start  = offset
+        end    = start + len(chunk)
+        offset = end
+
+        data[start:end] = chunk
+
+        progress.current_value = response.num_bytes_downloaded
+        progress.notify_upstream()
+
+    return data.decode("utf-8")
+
+
 async def _get_trapi_response_from_retriever(
     ctx: Run_Context,
+    progress: Progress_Tracker,
     cache: Retriever_Cache | None,
     query: Query
 ) -> tuple[int, Response]:
@@ -284,6 +306,7 @@ async def _get_trapi_response_from_retriever(
         cache_filename: str = make_stable_id("retriever_trapi_response", query) + ".json"
         if not query.get_parameters().bypass_cache and (text := cache.read_file(cache_filename)):
             ctx.reporter.info(f"Returning cached TRAPI response: {cache_filename}")
+            progress.finish_and_notify_upstream()
             return 200, Response.from_json(text)
 
     # TODO: We need to clarify the correct behavior for timeout
@@ -291,27 +314,33 @@ async def _get_trapi_response_from_retriever(
     timeout = httpx.Timeout(timeout = ctx.timeout)
 
     async with httpx.AsyncClient(timeout = timeout) as client:
-        try:
-            http_response = await client.post(ctx.config.retriever_url, json = query.to_dict())
-            http_response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            ctx.reporter.error(
-                "xCRG Retriever HTTP error %s from %s: %s",
-                exc.response.status_code,
-                ctx.config.retriever_url,
-                exc.response.text[:2000],
-            )
-            raise
+        http_response_status_code: int
+        http_response_text: str
+
+        async with client.stream("POST", ctx.config.retriever_url, json = query.to_dict()) as http_response:
+            http_response_status_code = http_response.status_code
+            http_response_text = await process_http_response(http_response, progress)
+
+            if http_response.is_error:
+                ctx.reporter.error(
+                    "xCRG Retriever HTTP error %s from %s: %s",
+                    http_response_status_code,
+                    ctx.config.retriever_url,
+                    http_response_text[:2000],
+                )
+                http_response.raise_for_status()
+
 
         # Write HTTP response to cache if appropriate options are set
         if cache and cache_filename:
             ctx.reporter.debug(f"Writing TRAPI Response to cache file: {cache_filename}")
-            cache.write_file(cache_filename, http_response.text)
+            cache.write_file(cache_filename, http_response_text)
 
-        return http_response.status_code, Response.from_dict(http_response.json())
+        progress.finish_and_notify_upstream()
+        return http_response_status_code, Response.from_json(http_response_text)
 
 
-async def run_sync_lookup(ctx: Run_Context, query: Query) -> Response:
+async def run_sync_lookup(ctx: Run_Context, progress: Progress_Tracker, query: Query) -> Response:
     """Run a sync Retriever lookup and return its TRAPI response."""
     ctx.reporter.info("Sending xCRG lookup query to %s", ctx.config.retriever_url)
     ctx.reporter.debug(
@@ -333,7 +362,7 @@ async def run_sync_lookup(ctx: Run_Context, query: Query) -> Response:
     #     "xCRG Retriever parameters: %s",
     #     format_json_for_log(query.parameters),
     # )
-    http_status_code, response = await _get_trapi_response_from_retriever(ctx, _CACHE, query)
+    http_status_code, response = await _get_trapi_response_from_retriever(ctx, progress, _CACHE, query)
 
     message = response.message
     if not message:

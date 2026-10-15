@@ -233,8 +233,7 @@ def print_comparisons(comparisons: list[Comparison]):
 
             sys.stdout.flush()
     except BrokenPipeError:
-        # Insanity to support piping this script into utilities like "head"
-        # Drain stdout to avoid another BrokenPipeError at shutdown
+        # Pipe support; drain stdout to avoid another BrokenPipeError at shutdown
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
 

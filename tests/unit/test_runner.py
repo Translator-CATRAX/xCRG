@@ -23,7 +23,7 @@ from translator_tom import (
 )
 
 from tests.utilities import make_curie_to_pmids_db
-from xcrg import ngd, ranking, runner
+from xcrg import ngd, queries, ranking, runner
 from xcrg.config import XCRGConfig as Config  # TODO
 from xcrg.context import Run_Context
 from xcrg.reporting import Stub_Reporter
@@ -59,7 +59,13 @@ def make_inferred_query() -> Query:
                         subject = "chem",
                         predicates = ["biolink:affects"],
                         object = "gene",
-                        knowledge_type = "inferred"
+                        knowledge_type = "inferred",
+                        constraints = QEdgeConstraints(
+                            qualifiers = [{
+                                "biolink:object_aspect_qualifier": "activity_or_abundance",
+                                "biolink:object_direction_qualifier": "increased"
+                            }]
+                        )
                     )
                 }
             )
@@ -117,7 +123,7 @@ def test_deserialize_example03_query():
         }
     }
     query = Query.from_dict(query_dict)
-    assert runner.validate_query(query) == "inferred"
+    assert queries.is_valid_query(query)
 
 
 def test_deserialize_example03_query_with_extra_fields():
@@ -172,7 +178,7 @@ def test_deserialize_example03_query_with_extra_fields():
             }
     }
     query = Query.from_dict(query_dict)
-    assert runner.validate_query(query) == "inferred"
+    assert queries.is_valid_query(query)
 
 
 def test_debug_logging01():
@@ -240,7 +246,7 @@ def test_validate_inferred_query():
         )
     )
 
-    assert runner.validate_query(query) == "inferred"
+    assert queries.is_valid_query(query)
 
 
 def test_load_tf_list_uses_bundled_default_resource():

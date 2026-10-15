@@ -10,6 +10,7 @@ from typing import cast
 
 from translator_tom import (
     CURIE,
+    KnowledgeType,
     QEdge,
     QEdgeID,
     QNode,
@@ -24,42 +25,63 @@ from .config import Debug_Level  # TODO
 from .config import XCRGConfig as Config
 from .constants import DEFAULT_TF_FILE, TP53_CURIE
 from .debugging import Debug_Context
-from .reporting import Reporter
+from .models import (
+    DIRECTION_TEMPLATES,
+    Direction,
+    TF_Batch,
+    Progress_Key,
+    Progress_Tracker
+)
+from .reporting import Progress_Message, Reporter
 from .utilities import path_or_none
 
 
 @dataclass
 class Run_Context:
-    """
-    A RunContext maintains and provides convenient access to state
-    for a particular query request through the xCRG runner.
+    """The context maintains and provides access to state for a single query request."""
 
-    Attributes:
-        query_id  : the unique identifier for this run
-        query     : the original query submitted to the runner
-        config    : the configuration for this run
-        reporter  : the reporter for this run
-        debug_ctx : the debugging context for this run
+    query_id: str
+    """The unique identifier for this run"""
 
-        query_edge_id : a reference to the ID for the single edge in the original query
-        query_edge    : a reference to the single edge in the original query
+    query: Query
+    """The original query submitted to the runner"""
 
-        start_time : the time when the xCRG run began
-    """
+    config: Config
+    """The configuration for this run"""
 
-    query_id  : str
-    query     : Query
-    config    : Config
-    reporter  : Reporter
-    debug_ctx : Debug_Context | None = None
+    reporter: Reporter
+    """The reporter for this run"""
 
-    query_edge_id : QEdgeID = field(init = False)
-    query_edge    : QEdge   = field(init = False)
+    debug_ctx: Debug_Context | None = None
+    """The debugging context for this run"""
 
-    start_time = datetime.now(UTC)
+    # All fields below here are instantiated independently or in __post_init__
+
+    query_edge_id: QEdgeID = field(init = False)
+    """A reference to the ID for the single edge in the original query"""
+
+    query_edge: QEdge = field(init = False)
+    """A reference to the single edge in the original query"""
+
+    start_time: datetime = field(init = False, default = datetime.now(UTC))
+    """The time when the run began"""
+
+    _progress_trackers: dict[str, Progress_Tracker] = field(init = False, default_factory = dict)
+    """Various trackers for making progress visible across individual components, steps, etc."""
 
     def __post_init__(self):
         self.query_edge_id, self.query_edge = trapi.get_single_query_edge(self.query.message.query_graph)
+        # We need to plan head before the query run in order to report progress accurately.
+        # Prepare all the various progress trackers we will need for the run.
+        match self.knowledge_type:
+            case "lookup":
+                # Currently, lookup queries simply return results from Retriever
+                self._progress_trackers[Progress_Key.LOOKUP_QUERY] = Progress_Tracker(self._on_progress_update)
+            case "inferred":
+                for key in Progress_Key:
+                    self._progress_trackers[key] = Progress_Tracker(self._on_progress_update)
+                for batch in self.inferred_batches:
+                    self._progress_trackers[batch.key] = batch.progress
 
     @property
     def query_graph(self) -> QueryGraph:
@@ -84,6 +106,10 @@ class Run_Context:
     def object_qnode(self) -> QNode:
         """The object node in the original query."""
         return self.query_graph.nodes[self.object_qid]
+
+    @property
+    def knowledge_type(self) -> KnowledgeType:
+        return self.query_edge.knowledge_type or "lookup"
 
     @property
     def biolink_version(self):
@@ -152,6 +178,13 @@ class Run_Context:
         """The amount of time that has progressed in the run."""
         return datetime.now(UTC) - self.start_time
 
+    def _on_progress_update(self):
+        max_value = len(self._progress_trackers) * 100.0
+        if not max_value: return
+        current_value = sum(x.pct_done for x in self._progress_trackers.values())
+        pct_done = round(current_value / max_value * 100, 2)
+        self.reporter.handle_message(Progress_Message(pct_done))
+
     def debug_dump_json(
         self,
         label: str,
@@ -210,6 +243,33 @@ class Run_Context:
 
         return tf_list
 
+    @cached_property
+    def inferred_batches(self) -> list[TF_Batch]:
+        qualifier = trapi.get_qualifier_value(self.query_edge, "biolink:object_direction_qualifier") or ""
+        direction = Direction(qualifier.lower())
+        templates = DIRECTION_TEMPLATES[direction]
+
+        # TODO: Do this check as part of config validation
+        if self.config.tf_batch_size <= 0: raise ValueError("Batch size must be positive.")
+        # Split transcription factors into non-empty batches
+        chunk_size = self.config.tf_batch_size
+        tf_chunks: list[list[str]] = [
+            self.tf_list[i:i+chunk_size]
+            for i in range(0, len(self.tf_list), chunk_size)
+        ]
+
+        batches = list[TF_Batch]()
+        for template in templates:
+            for index, tf_ids in enumerate(tf_chunks, start = 1):
+                batches.append(TF_Batch(
+                    template = template,
+                    index = index,
+                    tf_ids = tf_ids,
+                    progress = Progress_Tracker(self._on_progress_update)
+                ))
+
+        return batches
+
     def get_answer_qid(self) -> QNodeID:
         return trapi.get_answer_qid(self.query_graph, self.subject_qid, self.object_qid)
 
@@ -217,3 +277,6 @@ class Run_Context:
         if not (cache_dir := path_or_none(self.config.cache_dir)): return None
         cache_dir.mkdir(exist_ok = True)
         return cache_dir
+
+    def get_progress_tracker(self, key: Progress_Key) -> Progress_Tracker:
+        return self._progress_trackers[key]

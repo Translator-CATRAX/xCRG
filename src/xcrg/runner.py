@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 import uuid
-from collections.abc import Coroutine
 from copy import deepcopy
 from typing import cast
 
@@ -23,7 +22,6 @@ from translator_tom import (
     EdgeID,
     FastJsonValue,
     KnowledgeGraph,
-    KnowledgeType,
     Message,
     Node,
     NodeBinding,
@@ -39,21 +37,23 @@ from translator_tom import (
     RetrievalSource,
 )
 
-from . import Debug_Level, biolink, ngd, ranking, retriever, trapi
+from . import Debug_Level, ngd, ranking, retriever, trapi
 from .config import XCRGConfig
 from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID
 from .context import Run_Context
 from .models import (
-    DIRECTION_TEMPLATES,
-    Batch_Summary,
     Debug_Summary,
+    TF_Batch_Summary,
+    DIRECTION_TEMPLATES,
     Direction_Template,
     Message_Statistics,
+    Progress_Key,
+    TF_Batch,
     Template_Summary,
 )
-from .queries import Direction, build_one_hop_query, build_two_hop_query
+from .queries import Direction, build_one_hop_query, build_two_hop_query, validate_query
 from .reporting import Log_Reporter, Reporter, Stub_Reporter
-from .utilities import XCRG_Result, chunk_values, make_stable_id
+from .utilities import XCRG_Result, make_stable_id
 
 DEFAULT_REPORTER = Log_Reporter()
 # Defer to the parent application to instantiate global opentelemetry provider.
@@ -588,6 +588,10 @@ def build_trapi_clean_response(ctx: Run_Context, old_response: Response) -> Resp
 
     new_results = dict[tuple[CURIE, CURIE], XCRG_Result]()
 
+    progress = ctx.get_progress_tracker(Progress_Key.FINALIZING)
+    # x2 because we iterate twice over the results
+    progress.max_value = len(old_response.message.results_list) * 2
+
     for old_result in old_response.message.results_list:
         subject_id = trapi.get_bound_node_curie(old_result, ctx.subject_qid)
         object_id = trapi.get_bound_node_curie(old_result, ctx.object_qid)
@@ -618,6 +622,8 @@ def build_trapi_clean_response(ctx: Run_Context, old_response: Response) -> Resp
         else:
             add_direct_evidence(new_result, trapi.get_edge_bindings(old_result, DIRECT_QEDGE_ID))
 
+        progress.increment_and_notify_upstream()
+
 
     ranked_results = ranking.rank_results(ctx, old_response, list(new_results.values()))
     total = len(ranked_results)
@@ -647,6 +653,9 @@ def build_trapi_clean_response(ctx: Run_Context, old_response: Response) -> Resp
             analysis.scoring_method = ctx.scoring_method
 
         final_results.append(result.to_trapi_result())
+        progress.increment_and_notify_upstream()
+
+    progress.finish_and_notify_upstream()
 
     return Response(
         schema_version = old_response.schema_version,
@@ -662,7 +671,8 @@ def build_trapi_clean_response(ctx: Run_Context, old_response: Response) -> Resp
 
 async def run_direct_lookup(ctx: Run_Context) -> Response:
     """Run a direct (one-hop) xCRG lookup."""
-    return await retriever.run_sync_lookup(ctx, ctx.query)
+    progress = ctx.get_progress_tracker(Progress_Key.LOOKUP_QUERY)
+    return await retriever.run_sync_lookup(ctx, progress, ctx.query)
 
 
 async def run_inferred_lookup(ctx: Run_Context) -> Response:
@@ -672,60 +682,61 @@ async def run_inferred_lookup(ctx: Run_Context) -> Response:
     one_hop_query = build_one_hop_query(ctx)
     ctx.debug_dump_json("direct_lookup_query", one_hop_query)
 
-    direct_response = await retriever.run_sync_lookup(ctx, one_hop_query)
+    progress = ctx.get_progress_tracker(Progress_Key.LOOKUP_QUERY)
+    direct_response = await retriever.run_sync_lookup(ctx, progress, one_hop_query)
     ctx.debug_dump_json("direct_filtered_response", direct_response)
 
     final_direction = trapi.get_qualifier_value(ctx.query_edge, "biolink:object_direction_qualifier") or ""
     templates = DIRECTION_TEMPLATES[Direction(final_direction.lower())] # TODO: raise better error message
 
-    tf_batches = chunk_values(ctx.tf_list, ctx.config.tf_batch_size)
     ctx.reporter.info(
         "Running inferred xCRG lookup with %s TFs across %s batches of up to %s IDs.",
         len(ctx.tf_list),
-        len(tf_batches),
+        len(ctx.inferred_batches),
         ctx.config.tf_batch_size,
     )
 
-    filtered_responses = []
     debug_summary = Debug_Summary(
         query_id = ctx.query_id,
         debug_run_dir = str(ctx.debug_ctx and ctx.debug_ctx.run_dir or ""), # TODO
         final_direction = final_direction,
         tf_count = len(ctx.tf_list),
         batch_size = ctx.config.tf_batch_size,
-        batch_count = len(tf_batches),
+        batch_count = len(ctx.inferred_batches),
         direct_response = Message_Statistics.get_from(direct_response)
     )
 
-    async def process_lookup(batch_idx: int, template: Direction_Template, tf_batch: list[CURIE]) -> tuple[Response, Batch_Summary]:
-        two_hop_query = build_two_hop_query(ctx, tf_batch, template[0], template[1])
-        ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_query", two_hop_query)
+    # Represents the task that will be performed for each batch
+    async def process_batch(batch: TF_Batch) -> tuple[Response, TF_Batch_Summary]:
+        two_hop_query = build_two_hop_query(ctx, batch.tf_ids, batch.template[0], batch.template[1])
+        ctx.debug_dump_json(f"batch_query_{batch.key}", two_hop_query)
 
-        response = await retriever.run_sync_lookup(ctx, two_hop_query)
-        ctx.debug_dump_json(f"template_{i}_batch_{batch_idx}_response", response)
+        response = await retriever.run_sync_lookup(ctx, batch.progress, two_hop_query)
+        ctx.debug_dump_json(f"batch_response_{batch.key}", response)
 
-        summary = Batch_Summary(
-            batch_index = batch_idx,
-            tf_ids = tf_batch,
-            tf_count = len(tf_batch),
+        summary = TF_Batch_Summary(
+            batch_index = batch.index,
+            tf_ids = batch.tf_ids,
+            tf_count = len(batch.tf_ids),
             response = Message_Statistics.get_from(response)
         )
 
         return response, summary
 
-    # Batches are processed using asyncio to work around response times from retriever
-    for i, template in enumerate(templates, start = 1):
-        template_summary = Template_Summary(
-            template_index = i,
-            first_direction = template[0],
-            second_direction = template[1]
-        )
+    # Send template groups one at a time to refrain from overwhelming Retriever
+    # Template groups still processes batches asynchronously to work around response times from Retriever
 
-        tasks = list[Coroutine[int, list[CURIE], tuple[Response, Batch_Summary]]]()
-        for batch_idx, tf_batch in enumerate(tf_batches, start = 1):
-            tasks.append(process_lookup(batch_idx, template, tf_batch))
+    groups = dict[Direction_Template, list[TF_Batch]]()
+    for batch in ctx.inferred_batches:
+        groups.setdefault(batch.template, []).append(batch)
 
-        results: list[tuple[Response, Batch_Summary]] = await asyncio.gather(*tasks)
+    filtered_responses = list[Response]()
+    for template, batches in groups.items():
+        # Type safety is pretty busted in this section...
+        template_summary = Template_Summary(template)
+        tasks = [process_batch(batch) for batch in batches]
+
+        results: list[tuple[Response, TF_Batch_Summary]] = await asyncio.gather(*tasks)
         for response, summary in results:
             filtered_responses.append(response)
             template_summary.batches.append(summary)
@@ -759,72 +770,6 @@ async def run_inferred_lookup(ctx: Run_Context) -> Response:
     ctx.debug_dump_json("final_response", final_response, level = Debug_Level.BASIC)
 
     return final_response
-
-
-def validate_query(query: Query) -> KnowledgeType:
-    """Raise an Error if the given query fails to adhere to a valid xCRG query shape."""
-    qgraph = query.message.query_graph
-    if not qgraph: raise ValueError("xCRG query requires a query graph.")
-
-    _, qedge = trapi.get_single_query_edge(qgraph)
-
-    if "biolink:affects" not in qedge.predicates_list:
-        raise ValueError("xCRG query requires a biolink:affects predicate.")
-
-    qnodes = qgraph.nodes
-
-    subject_qnode = qnodes.get(qedge.subject)
-    if not subject_qnode:
-        raise ValueError("xCRG query edge requires a 'subject' node reference.")
-    object_qnode = qnodes.get(qedge.object)
-    if not object_qnode:
-        raise ValueError("xCRG query edge requires an 'object' node reference.")
-
-    knowledge_type = qedge.knowledge_type or "lookup"
-
-    match knowledge_type: # default per TRAPI spec; subject to change
-        # Validate a phase-one inferred xCRG query while preserving user direction.
-        case "inferred":
-            pinned_count = sum(1 for node in [subject_qnode, object_qnode] if node.ids)
-            if pinned_count != 1:
-                raise ValueError("xCRG inferred query requires exactly one pinned endpoint node.")
-
-            if "biolink:ChemicalEntity" not in subject_qnode.categories_list:
-                raise ValueError("xCRG inferred query requires one 'ChemicalEntity' endpoint.")
-            if "biolink:Gene" not in object_qnode.categories_list:
-                raise ValueError("xCRG inferred query requires one 'Gene' endpoint.")
-
-            direction = trapi.get_qualifier_value(qedge, "biolink:object_direction_qualifier")
-            if direction not in {"increased", "decreased"}:
-                raise ValueError("xCRG inferred query direction must be 'increased' or 'decreased'.")
-
-            valid_aspects = biolink.get_valid_aspect_qualifiers()
-            aspect = trapi.get_qualifier_value(qedge, "biolink:object_aspect_qualifier")
-            if aspect not in valid_aspects:
-                raise ValueError(
-                    f"Inferred xCRG query requires an 'object_aspect_qualifier' that is a "
-                    f"descendant of {biolink.ASPECT_QUALIFIER_ROOT!r} "
-                    f"(e.g. {', '.join(sorted(valid_aspects))}); but got {aspect!r}."
-                )
-        # Validate the direct one-hop xCRG query shape.
-        case "lookup":
-            pinned_ids = [qid for qid, qnode in qnodes.items() if qnode.ids]
-            if len(pinned_ids) != 1:
-                raise ValueError("xCRG direct lookup supports exactly one pinned query node.")
-            pinned_node = qnodes[pinned_ids[0]]
-            if "biolink:Gene" not in pinned_node.categories_list:
-                raise ValueError("xCRG direct lookup requires the pinned node to be a 'Gene'.")
-
-            unbound_ids = [qid for qid, qnode in qnodes.items() if not qnode.ids]
-            if len(unbound_ids) != 1:
-                raise ValueError("xCRG direct lookup supports exactly one unbound query node.")
-            unbound_node = qnodes[unbound_ids[0]]
-            if "biolink:ChemicalEntity" not in unbound_node.categories_list:
-                raise ValueError("xCRG direct lookup requires the unbound node to be a 'ChemicalEntity'.")
-        case _:
-            raise ValueError("Invalid knowledge type; valid values are 'inferred' or 'lookup'.")
-
-    return knowledge_type
 
 
 def is_xcrg_mvp2_query(query: dict | Query) -> bool: # TODO: is_valid_query
@@ -870,6 +815,8 @@ async def async_run_xcrg(
         # query.timeout = query.timeout or config.timeout
         query.submitter = query.submitter or config.resource_id
 
+        validate_query(query)
+
         ctx = Run_Context.new(
             query_id = query_id,
             query = query,
@@ -878,7 +825,7 @@ async def async_run_xcrg(
         )
 
         response: Response
-        if validate_query(query) == "inferred":
+        if ctx.query_edge.knowledge_type == "inferred":
             response = await run_inferred_lookup(ctx)
         else:
             response = await run_direct_lookup(ctx)

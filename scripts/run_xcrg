@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run a simple xCRG query and return the TRAPI response."""
-
+import os
 import sys
 from argparse import (
     ArgumentDefaultsHelpFormatter,
@@ -17,12 +17,14 @@ import httpx
 from translator_tom import Response
 
 import xcrg
+from xcrg import Message, Stub_Reporter
 from xcrg.dev import (
     Query_Args,
     find_chemicals_affecting_gene,
     find_genes_affected_by_chemical
 )
 from xcrg.models import Direction
+from xcrg.reporting import Progress_Message
 
 
 SCRIPT_FILE = Path(sys.argv[0])
@@ -45,6 +47,16 @@ RETRIEVER_URLS_BY_MATURITY = {
 }
 
 Query_Function = Callable[[xcrg.XCRGConfig, Query_Args, xcrg.Reporter | None], Response]
+
+CLEAR_LINE = "\r\x1b[2K" # Return cursor to start-of-line, and then clear the line
+
+
+class Run_Reporter(xcrg.Reporter):
+    def handle_message(self, message: Message) -> None:
+        match message:
+            case Progress_Message(pct_done):
+                msg = f"{CLEAR_LINE}Processing xCRG query: {int(pct_done * 100)}%"
+                print(msg, file = sys.stderr, end = "")
 
 
 def die(msg: str, *args: object, exit_code: int = 1) -> Never:
@@ -84,6 +96,12 @@ def parse_args() -> Namespace:
         help = "The maturity of environment for requests to ARAX, Retriever, etc.",
         choices = ["development", "staging", "testing", "production"],
         default = "development",
+    )
+
+    parser.add_argument(
+        "-p", "--progress",
+        help = "Show progress of the query on stderr",
+        action = "store_true"
     )
 
     parser.add_argument(
@@ -146,10 +164,18 @@ def main():
         retriever_url = retriever_url
     )
     query_args = Query_Args(direction, canonical_chem_gene_id, knowledge_type)
+    reporter = Run_Reporter() if args.progress else Stub_Reporter()
 
-    response = query_fn(config, query_args, None)
+    response = query_fn(config, query_args, reporter)
     response_json = response.to_json(as_str = True)
-    print(response_json)
+
+    try:
+        print(CLEAR_LINE, file = sys.stderr, end = "")
+        print(response_json)
+    except BrokenPipeError:
+        # Pipe support; drain stdout to avoid another BrokenPipeError at shutdown
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
 
 if __name__ == "__main__":
     main()

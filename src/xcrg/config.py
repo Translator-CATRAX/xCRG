@@ -11,6 +11,7 @@ from .debugging import Debug_Level
 
 
 # TODO: XCRGConfig -> Config
+# TODO: validate config to guarantee correct settings
 @dataclass(frozen=True)
 class XCRGConfig:
     """Runtime inputs supplied by ARAX, Shepherd, or local tests."""

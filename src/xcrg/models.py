@@ -1,6 +1,7 @@
 """This module contains disparate classes and structures used throughout the library."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -10,15 +11,6 @@ from translator_tom import (
     Query,
     Response,
 )
-
-
-@dataclass
-class Batch_Summary:
-    batch_index : int
-    tf_ids      : list[CURIE]
-    tf_count    : int
-    response    : Message_Statistics
-    # "raw_response": trapi.get_message_statistics(response),
 
 
 class Direction(StrEnum):
@@ -40,6 +32,60 @@ DIRECTION_TEMPLATES: dict[Direction, tuple[Direction_Template, Direction_Templat
         (Direction.DECREASED, Direction.INCREASED)
     )
 }
+
+
+class Progress_Key(StrEnum):
+    """Keys for looking up progress trackers during the run."""
+    LOOKUP_QUERY = "LOOKUP_QUERY"
+    RANKING      = "RANKING"
+    FINALIZING   = "FINALIZING"
+
+
+@dataclass
+class Progress_Tracker:
+    notify_upstream : Callable[[], None]
+    max_value       : int = field(default = 100)
+    current_value   : int = field(default = 0, init = False)
+
+    @property
+    def pct_done(self) -> float:
+        if not self.max_value: return 0.0
+        return self.current_value / self.max_value
+
+    def increment_and_notify_upstream(self):
+        self.current_value += 1
+        self.notify_upstream()
+
+    def finish_and_notify_upstream(self):
+        self.current_value = self.max_value
+        self.notify_upstream()
+
+    @staticmethod
+    def make_noop_tracker() -> Progress_Tracker:
+        """Returns a new Progress_Tracker that with no upstream listener."""
+        return Progress_Tracker(notify_upstream = lambda: None)
+
+
+@dataclass
+class TF_Batch:
+    template   : Direction_Template
+    index      : int
+    tf_ids     : list[CURIE]
+    # statistics : Message_Statistics
+    progress   : Progress_Tracker
+
+    @property
+    def key(self) -> str:
+        """A key that uniquely identifies this batch"""
+        return f"{self.template[0]}_{self.template[1]}_{self.index}"
+
+
+@dataclass
+class TF_Batch_Summary:
+    batch_index : int
+    tf_ids      : list[str]
+    tf_count    : int
+    response    : Message_Statistics
 
 
 @dataclass
@@ -66,10 +112,8 @@ class Message_Statistics:
 
 @dataclass
 class Template_Summary:
-    template_index   : int
-    first_direction  : Direction
-    second_direction : Direction
-    batches          : list[Batch_Summary] = field(default_factory = list)
+    template : Direction_Template
+    batches  : list[TF_Batch_Summary] = field(default_factory = list)
 
 
 @dataclass

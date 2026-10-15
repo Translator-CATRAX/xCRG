@@ -6,6 +6,7 @@ from .reporting import (
     Log_Message,
     Log_Reporter,
     Message,
+    Progress_Message,
     Reporter,
     Stub_Reporter,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "Log_Message",
     "Log_Reporter",
     "Message",
+    "Progress_Message",
     "Reporter",
     "Stub_Reporter",
     "XCRGConfig",

@@ -118,13 +118,6 @@ def as_type(value: object, cls: type[T]) -> T | None:
         return None
 
 
-def chunk_values(values: list[str], chunk_size: int) -> list[list[str]]:
-    """Split values into non-empty batches."""
-    if chunk_size <= 0:
-        raise ValueError("Chunk size must be positive.")
-    return [values[i : i + chunk_size] for i in range(0, len(values), chunk_size)]
-
-
 def make_stable_id(prefix: str, payload: object) -> str:
     """Return a deterministic compact id for generated KG/support entries."""
     key = json.dumps(payload, cls=XCRG_JSON_Encoder, sort_keys=True)

@@ -111,7 +111,7 @@ def make_objective(project_dir: Path):
         passed_tests = 0
         for test in arax_tests:
             summaries = { x.curie: x for x in test_id_to_summaries[test["id"]] }
-            summaries = ranker.rank_results(summaries)
+            summaries = ranker.rank_results(summaries, None)
             answer_ids = [x.curie for x in summaries]
             answer_ids = answer_ids[0:500] # TODO
             for answer in test["answers"]:

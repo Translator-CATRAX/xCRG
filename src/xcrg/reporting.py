@@ -29,16 +29,22 @@ class Log_Message(Message):
     time  : datetime           = field(default = datetime.now(UTC))
 
 
-# @dataclass
-# class ProgressMessage(Message):
-#     pct_done: float
+@dataclass
+class Progress_Message(Message):
+    pct_done: float
 
 
 class Reporter(ABC):
     """Abstract class for xCRG reporter that informs caller about events and progress."""
+
     @abstractmethod
     def handle_message(self, message: Message) -> None:
-        """Handle a message from the xCRG module."""
+        """
+        Receive a message from the xCRG library.
+
+        Messages are currently passed to this method synchronously, and so care should be
+        exercised to ensure that expensive work is not happening here.
+        """
         ...
 
     def debug(self, msg: str, *args: object):
