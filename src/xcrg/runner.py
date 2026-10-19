@@ -772,8 +772,7 @@ async def run_inferred_lookup(ctx: Run_Context) -> Response:
     return final_response
 
 
-# TODO: Rename to "async_run_query"
-async def async_run_xcrg(
+async def async_run_query(
     message: Query | dict | str,
     config: Config,
     logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
@@ -823,8 +822,7 @@ async def async_run_xcrg(
         return response.to_dict()
 
 
-# TODO: Rename to "run_query"
-def run_xcrg(
+def run_query(
     message: Query | dict | str,
     config: Config,
     logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
@@ -832,7 +830,7 @@ def run_xcrg(
 ) -> dict:
     """Synchronous wrapper for callers that are not already running an event loop."""
     return asyncio.run(
-        async_run_xcrg(
+        async_run_query(
             message=message,
             config=config,
             logger=logger,

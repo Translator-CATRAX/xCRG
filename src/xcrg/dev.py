@@ -20,7 +20,7 @@ from translator_tom import (
 from .config import Config
 from .models import Direction
 from .reporting import Reporter
-from .runner import run_xcrg
+from .runner import run_query
 
 
 @dataclass(frozen = True)
@@ -69,7 +69,7 @@ def find_chemicals_affecting_gene(
         "on": QNode(categories=["biolink:Gene"], ids=[args.chem_gene_id])
     }
     query = make_xcrg_query(nodes, args.direction, args.knowledge_type)
-    response = run_xcrg(query.to_dict(), config, logger = reporter, query_id = args.query_id)
+    response = run_query(query.to_dict(), config, logger = reporter, query_id = args.query_id)
     return Response.from_dict(response)
 
 
@@ -83,5 +83,5 @@ def find_genes_affected_by_chemical(
         "on": QNode(categories=["biolink:Gene"])
     }
     query = make_xcrg_query(nodes, args.direction, args.knowledge_type)
-    response = run_xcrg(query.to_dict(), config, logger = reporter, query_id = args.query_id)
+    response = run_query(query.to_dict(), config, logger = reporter, query_id = args.query_id)
     return Response.from_dict(response)

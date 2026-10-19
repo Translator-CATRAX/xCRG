@@ -11,7 +11,7 @@ from .reporting import (
     Reporter,
     Stub_Reporter,
 )
-from .runner import async_run_xcrg, run_xcrg
+from .runner import async_run_query, run_query
 
 __all__ = [
     "Config",
@@ -22,9 +22,9 @@ __all__ = [
     "Progress_Message",
     "Reporter",
     "Stub_Reporter",
-    "async_run_xcrg",
+    "async_run_query",
     "is_valid_query",
-    "run_xcrg",
+    "run_query",
 ]
 
 __version__ = "0.1.0"
