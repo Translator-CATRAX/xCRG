@@ -83,10 +83,15 @@ def validate_query(query: Query):
             raise ValueError("Invalid knowledge type; valid values are 'inferred' or 'lookup'.")
 
 
-def is_valid_query(query: Query) -> bool:
+def is_valid_query(query: str | dict | Query) -> bool:
     """Return boolean result based on whether validate_query succeeds or not."""
     try:
-        validate_query(query)
+        q: Query
+        match query:
+            case str():   q = Query.from_json(query)
+            case dict():  q = Query.from_dict(query)
+            case Query(): q = query
+        validate_query(q)
         return True
     except Exception as _:
         return False

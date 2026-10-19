@@ -186,7 +186,7 @@ def test_debug_logging01():
     format_json_for_log(query)
 
 
-def test_is_xcrg_mvp2_query_detects_supported_shape():
+def test_is_valid_query_detects_supported_shape():
     query = {
         "message": {
             "query_graph": {
@@ -217,7 +217,7 @@ def test_is_xcrg_mvp2_query_detects_supported_shape():
         }
     }
 
-    assert runner.is_xcrg_mvp2_query(query)
+    assert queries.is_valid_query(query)
 
 
 def test_validate_inferred_query():

@@ -772,16 +772,6 @@ async def run_inferred_lookup(ctx: Run_Context) -> Response:
     return final_response
 
 
-def is_xcrg_mvp2_query(query: dict | Query) -> bool: # TODO: is_valid_query
-    try:
-        if isinstance(query, dict):
-            query = Query.from_dict(query)
-        validate_query(query)
-        return True
-    except Exception:
-        return False
-
-
 # TODO: Rename to "async_run_query"
 async def async_run_xcrg(
     message: Query | dict | str,

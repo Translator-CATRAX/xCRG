@@ -2,6 +2,7 @@
 
 from .config import XCRGConfig
 from .debugging import Debug_Level
+from .queries import is_valid_query
 from .reporting import (
     Log_Message,
     Log_Reporter,
@@ -10,7 +11,7 @@ from .reporting import (
     Reporter,
     Stub_Reporter,
 )
-from .runner import async_run_xcrg, is_xcrg_mvp2_query, run_xcrg
+from .runner import async_run_xcrg, run_xcrg
 
 __all__ = [
     "Debug_Level",
@@ -22,7 +23,7 @@ __all__ = [
     "Stub_Reporter",
     "XCRGConfig",
     "async_run_xcrg",
-    "is_xcrg_mvp2_query",
+    "is_valid_query",
     "run_xcrg",
 ]
 
