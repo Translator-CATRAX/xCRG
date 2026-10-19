@@ -69,7 +69,7 @@ def find_chemicals_affecting_gene(
         "on": QNode(categories=["biolink:Gene"], ids=[args.chem_gene_id])
     }
     query = make_xcrg_query(nodes, args.direction, args.knowledge_type)
-    response = run_query(query.to_dict(), config, logger = reporter, query_id = args.query_id)
+    response = run_query(query.to_dict(), config, reporter = reporter, query_id = args.query_id)
     return Response.from_dict(response)
 
 
@@ -83,5 +83,5 @@ def find_genes_affected_by_chemical(
         "on": QNode(categories=["biolink:Gene"])
     }
     query = make_xcrg_query(nodes, args.direction, args.knowledge_type)
-    response = run_query(query.to_dict(), config, logger = reporter, query_id = args.query_id)
+    response = run_query(query.to_dict(), config, reporter = reporter, query_id = args.query_id)
     return Response.from_dict(response)

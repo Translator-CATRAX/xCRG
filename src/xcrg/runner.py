@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import uuid
 from copy import deepcopy
 from typing import cast
@@ -773,9 +772,9 @@ async def run_inferred_lookup(ctx: Run_Context) -> Response:
 
 
 async def async_run_query(
-    message: Query | dict | str,
+    query: Query | dict | str,
     config: Config,
-    logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
+    reporter: Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
 ) -> dict:
     """Run xCRG and return a complete TRAPI response."""
@@ -783,34 +782,23 @@ async def async_run_query(
         query_id = query_id or uuid.uuid4().hex[:8]
         span.set_attribute("query_id", query_id)
 
-        # TODO: Remove this block when RTX is refactored to use xcrg.Reporter
-        #  We cannot use reporter.critical or reporter.fatal while doing this
-        if logger and logger.__class__.__name__ == "ARAXXCRGLogger":
-            logger = Log_Reporter(cast(logging.Logger, logger))
-
-        reporter: Reporter
-        match logger:
-            case Reporter():       reporter = logger
-            case logging.Logger(): reporter = Log_Reporter(logger)
-            case _:                reporter = Stub_Reporter()
-
-        query: Query
-        match message:
-            case Query(): query = message
-            case dict():  query = Query.from_dict(message)
-            case str():   query = Query.from_json(message)
+        _query: Query
+        match query:
+            case Query(): _query = query
+            case dict():  _query = Query.from_dict(query)
+            case str():   _query = Query.from_json(query)
 
         # TODO: Query.timeout will become available in TRAPI 2.0
         # query.timeout = query.timeout or config.timeout
-        query.submitter = query.submitter or config.resource_id
+        _query.submitter = _query.submitter or config.resource_id
 
-        validate_query(query)
+        validate_query(_query)
 
         ctx = Run_Context.new(
             query_id = query_id,
-            query = query,
+            query = _query,
             config = config,
-            reporter = reporter
+            reporter = reporter or Stub_Reporter()
         )
 
         response: Response
@@ -823,17 +811,17 @@ async def async_run_query(
 
 
 def run_query(
-    message: Query | dict | str,
+    query: Query | dict | str,
     config: Config,
-    logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
+    reporter: Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
 ) -> dict:
     """Synchronous wrapper for callers that are not already running an event loop."""
     return asyncio.run(
         async_run_query(
-            message=message,
+            query = query,
             config=config,
-            logger=logger,
+            reporter=reporter,
             query_id=query_id,
         )
     )
