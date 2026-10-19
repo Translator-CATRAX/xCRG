@@ -12,7 +12,7 @@ from xcrg.models import Direction
 TEST_NAME = "arax_test_increased_glyphosate"
 
 @pytest.fixture(scope = "module")
-def response(config: xcrg.XCRGConfig) -> Response:
+def response(config: xcrg.Config) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
     args = Query_Args(Direction.INCREASED, "CHEBI:27744") # Glyphosate
     return find_genes_affected_by_chemical(config, args)

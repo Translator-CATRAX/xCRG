@@ -3,13 +3,13 @@ import pytest
 from translator_tom import Response
 
 from tests.utilities import XCRG_Answer, assert_answer
-from xcrg.config import XCRGConfig
+from xcrg.config import Config
 from xcrg.dev import Query_Args, find_chemicals_affecting_gene
 from xcrg.models import Direction
 
 
 @pytest.fixture(scope = "session")
-def response(config: XCRGConfig) -> Response:
+def response(config: Config) -> Response:
     return find_chemicals_affecting_gene(config, Query_Args(Direction.DECREASED, "NCBIGene:5742")) # PTGS1
 
 

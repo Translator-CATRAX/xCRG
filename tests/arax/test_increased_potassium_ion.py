@@ -14,7 +14,7 @@ TEST_NAME = "arax_test_increased_potassium_ion"
 # ARAX has a number of duplicated tests in this suite: ATP1A1, ATP1A2, ATP1A3, etc.
 # Some of these are documented in GitHub tickets: https://github.com/NCATSTranslator/Tests/issues/46
 @pytest.fixture(scope = "module")
-def response(config: xcrg.XCRGConfig) -> Response:
+def response(config: xcrg.Config) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
     args = Query_Args(Direction.INCREASED, "CHEBI:29103") # Potassium ion
     return find_genes_affected_by_chemical(config, args)

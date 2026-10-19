@@ -12,7 +12,7 @@ from xcrg.models import Direction
 TEST_NAME = "arax_test_decreased_ace"
 
 @pytest.fixture(scope = "module")
-def response(config: xcrg.XCRGConfig) -> Response:
+def response(config: xcrg.Config) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
     args = Query_Args(Direction.DECREASED, "NCBIGene:1636") # ACE
     return find_chemicals_affecting_gene(config, args)

@@ -6,12 +6,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 
-from xcrg.config import XCRGConfig
+from xcrg.config import Config
 from xcrg.dev import Query_Args, find_chemicals_affecting_gene
 from xcrg.models import Direction
 
 
-def test_opentelemetry_is_working(config: XCRGConfig):
+def test_opentelemetry_is_working(config: Config):
     exporter = InMemorySpanExporter()
 
     provider = TracerProvider()

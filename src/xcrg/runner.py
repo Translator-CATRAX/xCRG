@@ -38,7 +38,7 @@ from translator_tom import (
 )
 
 from . import Debug_Level, ngd, ranking, retriever, trapi
-from .config import XCRGConfig
+from .config import Config
 from .constants import DIRECT_QEDGE_ID, TF_QNODE_ID
 from .context import Run_Context
 from .models import (
@@ -775,7 +775,7 @@ async def run_inferred_lookup(ctx: Run_Context) -> Response:
 # TODO: Rename to "async_run_query"
 async def async_run_xcrg(
     message: Query | dict | str,
-    config: XCRGConfig,
+    config: Config,
     logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
 ) -> dict:
@@ -826,7 +826,7 @@ async def async_run_xcrg(
 # TODO: Rename to "run_query"
 def run_xcrg(
     message: Query | dict | str,
-    config: XCRGConfig,
+    config: Config,
     logger: logging.Logger | Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
 ) -> dict:

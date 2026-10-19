@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from xcrg import Debug_Level, XCRGConfig
+from xcrg import Debug_Level, Config
 
 
 # Configure optional test parameters; these currently only affect integration tests
@@ -41,7 +41,7 @@ def project_dir() -> Path:
 
 
 @pytest.fixture(scope = "session")
-def config(request, project_dir) -> XCRGConfig:
+def config(request, project_dir) -> Config:
     ngd_db_file: Path | None = None
     if file := request.config.getoption("--curie_ngd_db_file"):
         ngd_db_file = Path(file)
@@ -60,7 +60,7 @@ def config(request, project_dir) -> XCRGConfig:
     cache_dir: Path | None = None
     if use_cache: cache_dir = debug_dir / "cache"
 
-    return XCRGConfig(
+    return Config(
         retriever_url = request.config.getoption("--retriever_url"),
         ngd_db_path = ngd_db_file,
         curie_to_pmids_db_path = curie_to_pmids_db_file,

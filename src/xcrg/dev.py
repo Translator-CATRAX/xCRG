@@ -17,7 +17,7 @@ from translator_tom import (
     Response,
 )
 
-from .config import XCRGConfig
+from .config import Config
 from .models import Direction
 from .reporting import Reporter
 from .runner import run_xcrg
@@ -60,7 +60,7 @@ def make_xcrg_query(
 
 
 def find_chemicals_affecting_gene(
-    config: XCRGConfig,
+    config: Config,
     args: Query_Args,
     reporter: Reporter | None = None,
 ) -> Response:
@@ -74,7 +74,7 @@ def find_chemicals_affecting_gene(
 
 
 def find_genes_affected_by_chemical(
-    config: XCRGConfig,
+    config: Config,
     args: Query_Args,
     reporter: Reporter | None = None,
 ) -> Response:

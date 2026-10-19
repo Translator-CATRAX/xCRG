@@ -1,6 +1,6 @@
 """Reusable xCRG package."""
 
-from .config import XCRGConfig
+from .config import Config
 from .debugging import Debug_Level
 from .queries import is_valid_query
 from .reporting import (
@@ -14,6 +14,7 @@ from .reporting import (
 from .runner import async_run_xcrg, run_xcrg
 
 __all__ = [
+    "Config",
     "Debug_Level",
     "Log_Message",
     "Log_Reporter",
@@ -21,7 +22,6 @@ __all__ = [
     "Progress_Message",
     "Reporter",
     "Stub_Reporter",
-    "XCRGConfig",
     "async_run_xcrg",
     "is_valid_query",
     "run_xcrg",

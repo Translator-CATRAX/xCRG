@@ -33,7 +33,7 @@ def generate_test_files(arax_dir: Path, tests: list[dict]):
 
         s += dedent(f"""
         @pytest.fixture(scope = "module")
-        def response(config: xcrg.XCRGConfig) -> Response:
+        def response(config: xcrg.Config) -> Response:
             config = replace(config, debug_run_name = TEST_NAME)
             args = Query_Args(Direction.{test["direction"].upper()}, "{test["candidate_id"]}") # {test["candidate_name"]}
             return {test["type"]}(config, args)
@@ -101,7 +101,7 @@ def generate_one_shot_tests(arax_dir: Path, tests: list[dict]):
             fails = ", fails_on_arax = True"
 
         s += dedent(f"""
-        def test_{safe_answer_name}_{test["direction"]}_activity_or_abundance_of_{safe_candidate_name}(config: xcrg.XCRGConfig):
+        def test_{safe_answer_name}_{test["direction"]}_activity_or_abundance_of_{safe_candidate_name}(config: xcrg.Config):
             config = replace(config, debug_run_name = "arax_test_{test["direction"]}_{safe_candidate_name}")
             args = Query_Args(Direction.{test["direction"].upper()}, "{test["candidate_id"]}")  # {test["candidate_name"]}
             response = {test["type"]}(config, args)

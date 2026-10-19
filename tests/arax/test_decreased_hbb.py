@@ -12,7 +12,7 @@ from xcrg.models import Direction
 TEST_NAME = "arax_test_decreased_hbb"
 
 @pytest.fixture(scope = "module")
-def response(config: xcrg.XCRGConfig) -> Response:
+def response(config: xcrg.Config) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
     args = Query_Args(Direction.DECREASED, "NCBIGene:3043") # HBB
     return find_chemicals_affecting_gene(config, args)

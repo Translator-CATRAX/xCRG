@@ -21,8 +21,7 @@ from translator_tom import (
 )
 
 from . import trapi
-from .config import Debug_Level  # TODO
-from .config import XCRGConfig as Config
+from .config import Config, Debug_Level  # TODO
 from .constants import DEFAULT_TF_FILE, TP53_CURIE
 from .debugging import Debug_Context
 from .models import (

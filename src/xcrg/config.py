@@ -10,10 +10,9 @@ from pathlib import Path
 from .debugging import Debug_Level
 
 
-# TODO: XCRGConfig -> Config
 # TODO: validate config to guarantee correct settings
 @dataclass(frozen=True)
-class XCRGConfig:
+class Config:
     """Runtime inputs supplied by ARAX, Shepherd, or local tests."""
 
     retriever_url          : str

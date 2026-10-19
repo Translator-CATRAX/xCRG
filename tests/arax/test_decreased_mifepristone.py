@@ -12,7 +12,7 @@ from xcrg.models import Direction
 TEST_NAME = "arax_test_decreased_mifepristone"
 
 @pytest.fixture(scope = "module")
-def response(config: xcrg.XCRGConfig) -> Response:
+def response(config: xcrg.Config) -> Response:
     config = replace(config, debug_run_name = TEST_NAME)
     args = Query_Args(Direction.DECREASED, "CHEBI:50692") # Mifepristone
     return find_genes_affected_by_chemical(config, args)

@@ -24,7 +24,7 @@ from translator_tom import (
 
 from tests.utilities import make_curie_to_pmids_db
 from xcrg import ngd, queries, ranking, runner
-from xcrg.config import XCRGConfig as Config  # TODO
+from xcrg.config import Config
 from xcrg.context import Run_Context
 from xcrg.reporting import Stub_Reporter
 from xcrg.utilities import XCRG_Result, format_json_for_log

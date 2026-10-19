@@ -46,7 +46,7 @@ RETRIEVER_URLS_BY_MATURITY = {
     "production":  "https://retriever.transltr.io",
 }
 
-Query_Function = Callable[[xcrg.XCRGConfig, Query_Args, xcrg.Reporter | None], Response]
+Query_Function = Callable[[xcrg.Config, Query_Args, xcrg.Reporter | None], Response]
 
 CLEAR_LINE = "\r\x1b[2K" # Return cursor to start-of-line, and then clear the line
 
@@ -160,7 +160,7 @@ def main():
     query_fn, direction, chem_gene = parse_query(args.query)
     canonical_chem_gene_id = get_canonical_id(arax_url, chem_gene)
 
-    config = xcrg.XCRGConfig(
+    config = xcrg.Config(
         retriever_url = retriever_url
     )
     query_args = Query_Args(direction, canonical_chem_gene_id, knowledge_type)
