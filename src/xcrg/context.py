@@ -51,7 +51,7 @@ class Run_Context:
     reporter: Reporter
     """The reporter for this run"""
 
-    debug_ctx: Debug_Context | None = None
+    debug_ctx: Debug_Context | None = field(default = None)
     """The debugging context for this run"""
 
     # All fields below here are instantiated independently or in __post_init__
@@ -120,11 +120,11 @@ class Run_Context:
 
     @property
     def ngd_db_file(self) -> Path | None:
-        return path_or_none(self.config.ngd_db_path)
+        return path_or_none(self.config.curie_ngd_db_file)
 
     @property
     def curie_to_pmids_db_file(self) -> Path | None:
-        return path_or_none(self.config.curie_to_pmids_db_path)
+        return path_or_none(self.config.curie_to_pmids_db_file)
 
     @property
     def scoring_method(self) -> str:
@@ -139,7 +139,7 @@ class Run_Context:
         return self.config.max_results
 
     @property
-    def timeout(self) -> int:
+    def timeout(self) -> timedelta:
         return self.config.timeout
 
     def use_cache(self) -> bool:
@@ -201,7 +201,7 @@ class Run_Context:
         """Get transcription factors from config or bundled package resources."""
 
         def try_loading_config_tf_file() -> list[CURIE] | None:
-            if not (tf_file := path_or_none(self.config.tf_path)):
+            if not (tf_file := path_or_none(self.config.tf_file)):
                 return None
             if not tf_file.exists():
                 self.reporter.warning(f"Transcription factors file does not exist: {tf_file}")

@@ -311,7 +311,7 @@ async def _get_trapi_response_from_retriever(
 
     # TODO: We need to clarify the correct behavior for timeout
     # TODO: timeout = httpx.Timeout(ctx.timeout - ctx.elapsed_time().seconds)
-    timeout = httpx.Timeout(timeout = ctx.timeout)
+    timeout = httpx.Timeout(timeout = ctx.timeout.total_seconds())
 
     async with httpx.AsyncClient(timeout = timeout) as client:
         http_response_status_code: int

@@ -42,9 +42,9 @@ def project_dir() -> Path:
 
 @pytest.fixture(scope = "session")
 def config(request, project_dir) -> Config:
-    ngd_db_file: Path | None = None
+    curie_ngd_db_file: Path | None = None
     if file := request.config.getoption("--curie_ngd_db_file"):
-        ngd_db_file = Path(file)
+        curie_ngd_db_file = Path(file)
 
     curie_to_pmids_db_file: Path | None = None
     if file := request.config.getoption("--curie_to_pmids_db_file"):
@@ -62,8 +62,8 @@ def config(request, project_dir) -> Config:
 
     return Config(
         retriever_url = request.config.getoption("--retriever_url"),
-        ngd_db_path = ngd_db_file,
-        curie_to_pmids_db_path = curie_to_pmids_db_file,
+        curie_ngd_db_file = curie_ngd_db_file,
+        curie_to_pmids_db_file = curie_to_pmids_db_file,
         debug_dir = debug_dir,
         debug_level = debug_level,
         cache_dir = cache_dir,

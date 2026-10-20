@@ -39,8 +39,7 @@ def make_context(
         query_id = "foo",
         query = query or make_inferred_query(),
         config = config or Config(
-            retriever_url = "https://example.org/query",
-            ngd_db_path = None,
+            retriever_url = "https://example.org/query"
         ),
         reporter = Stub_Reporter()
     )
@@ -266,7 +265,7 @@ def test_load_tf_list_uses_config_file(tmp_path: Path):
             ]
         }
         """)
-    config = Config(retriever_url = "", tf_path = tf_file)
+    config = Config(retriever_url = "", tf_file = tf_file)
     ctx = make_context(query = make_inferred_query(), config = config)
     assert "FOO" in ctx.tf_list
     assert len(ctx.tf_list) == 2
@@ -472,8 +471,7 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
 def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
     config = Config(
         retriever_url="https://example.org/query",
-        ngd_db_path=None,
-        curie_to_pmids_db_path=make_curie_to_pmids_db(
+        curie_to_pmids_db_file =make_curie_to_pmids_db(
             tmp_path,
             {
                 "CHEBI:1": [1001, 1002, 1003],
@@ -800,7 +798,6 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
 def test_clean_response_limits_to_configured_top_result_count():
     config = Config(
         retriever_url="https://example.org/query",
-        ngd_db_path=None,
         max_results=2,
     )
     ctx = make_context(query = make_inferred_query(), config = config)
