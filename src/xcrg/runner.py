@@ -6,7 +6,7 @@ import asyncio
 import json
 import uuid
 from copy import deepcopy
-from typing import cast
+from typing import cast, overload
 
 from opentelemetry import trace
 from translator_tom import (
@@ -771,13 +771,43 @@ async def run_inferred_lookup(ctx: Run_Context) -> Response:
     return final_response
 
 
+@overload
+async def async_run_query(
+    query: str,
+    config: Config,
+    reporter: Reporter | None = DEFAULT_REPORTER,
+    query_id: str | None = None,
+) -> str:
+    ...
+
+
+@overload
+async def async_run_query(
+    query: dict,
+    config: Config,
+    reporter: Reporter | None = DEFAULT_REPORTER,
+    query_id: str | None = None,
+) -> dict:
+    ...
+
+
+@overload
+async def async_run_query(
+    query: Query,
+    config: Config,
+    reporter: Reporter | None = DEFAULT_REPORTER,
+    query_id: str | None = None,
+) -> Response:
+    ...
+
+
 async def async_run_query(
     query: Query | dict | str,
     config: Config,
     reporter: Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
-) -> dict:
-    """Run xCRG and return a complete TRAPI response."""
+) -> Response | dict | str:
+    """Run xCRG query asynchronously and return a complete TRAPI response."""
     with tracer.start_as_current_span("run_query") as span:
         query_id = query_id or uuid.uuid4().hex[:8]
         span.set_attribute("query_id", query_id)
@@ -807,7 +837,40 @@ async def async_run_query(
         else:
             response = await run_direct_lookup(ctx)
 
-        return response.to_dict()
+        match query:
+            case Query(): return response
+            case dict():  return response.to_dict()
+            case str():   return response.to_json(as_str = True)
+
+
+@overload
+def run_query(
+    query: str,
+    config: Config,
+    reporter: Reporter | None = DEFAULT_REPORTER,
+    query_id: str | None = None,
+) -> str:
+    ...
+
+
+@overload
+def run_query(
+    query: dict,
+    config: Config,
+    reporter: Reporter | None = DEFAULT_REPORTER,
+    query_id: str | None = None,
+) -> dict:
+    ...
+
+
+@overload
+def run_query(
+    query: Query,
+    config: Config,
+    reporter: Reporter | None = DEFAULT_REPORTER,
+    query_id: str | None = None,
+) -> Response:
+    ...
 
 
 def run_query(
@@ -815,8 +878,10 @@ def run_query(
     config: Config,
     reporter: Reporter | None = DEFAULT_REPORTER,
     query_id: str | None = None,
-) -> dict:
-    """Synchronous wrapper for callers that are not already running an event loop."""
+) -> Response | dict | str:
+    """Run xCRG query and return a complete TRAPI response."""
+    # PyCharm is confused here, but ruff + ty report correctly
+    # noinspection bad-argument-type
     return asyncio.run(
         async_run_query(
             query = query,
