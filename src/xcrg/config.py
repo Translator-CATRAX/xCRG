@@ -23,7 +23,7 @@ class Config:
 
     # TODO: Clarify; is this query timeout, per-http-request timeout, etc.?
     timeout: timedelta = field(default = timedelta(seconds = 210))
-    """Retriever HTTP timeout in seconds."""
+    """Retriever HTTP timeout."""
 
     # TODO: How is this used in TRAPI 2.0+?
     tiers: Sequence[int] = field(default_factory = lambda: [0])
@@ -32,13 +32,13 @@ class Config:
     tf_file: str | Path | None = field(default = None)
     """The Path to transcription tactor JSON file; defaults to the bundled list."""
 
-    tf_batch_size : int = field(default = 50)
+    tf_batch_size: int = field(default = 50)
     """The number of transcription factors included in each batched request to Retriever."""
 
     resource_id: str = field(default = "infores:arax")
     """Resource ID used for xCRG-created edges and attributes."""
-    
-    scoring_method: str = field(default = "xcrg-result-filtering-v2") # TODO: StrEnum?
+
+    scoring_method: str = field(default = "xcrg-result-filtering-v2")  # TODO: StrEnum?
     """Result analysis scoring method label."""
 
     max_results: int = field(default = 500)
@@ -50,10 +50,11 @@ class Config:
     biolink_version: str = field(default = "4.3.2")
     """Response Biolink version supplied by the caller."""
 
-    cache_dir: Path | None = field(default = None)
+    cache_dir: str | Path | None = field(default = None)
     """The Path to a directory where Retriever TRAPI Responses are cached."""
 
-    cache_ttl: timedelta | None  = field(default = None)
+    # TODO: Move default here from retriever.py
+    cache_ttl: timedelta | None = field(default = None)
     """The Time-To-Live (TTL) for entries in the cache."""
 
     cache_clear_on_start: bool = field(default = True)
