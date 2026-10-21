@@ -28,16 +28,15 @@ classifiers = [
 dev = [
     "opentelemetry-sdk==1.44.0",
     "optuna==5.0.0",
-    "pyright==1.1.414",
     "pytest==9.1.1",
     "pytest-xdist==3.8.0",
-    "ruff==0.16.10",
-    "ty==0.0.84"
+    "ruff==0.17.1",
+    "ty==0.0.90"
 ]
 
 [project.urls]
-Homepage = "https://github.com/Translator-CATRAX/xCRG"
-Issues = "https://github.com/Translator-CATRAX/xCRG/issues"
+homepage = "https://github.com/Translator-CATRAX/xCRG"
+issues = "https://github.com/Translator-CATRAX/xCRG/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -50,12 +49,3 @@ where = ["src"]
 # See scripts/run_tests for additional context, etc.
 pythonpath = ["src"]
 testpaths = ["tests"]
-
-[tool.ruff.lint]
-ignore = [
-    "BLE001", # blind-except
-    "E701",   # multiple-statements-on-one-line-colon
-    "I001",   # unsorted-imports
-    "RUF018", # assignment-in-assert (We do this a lot to help the type-checker)
-    "TRY002", # raise-vanilla-class
-]

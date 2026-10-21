@@ -21,5 +21,13 @@ done < <(find "$SCRIPTS_DIR" -type f)
 
 # printf "%s\n" "${PATHS[@]}"
 
-ruff check "${PATHS[@]}"
+ruff_ignores=(
+    BLE001 # blind-except
+    E701   # multiple-statements-on-one-line-colon
+    I001   # unsorted-imports
+    RUF018 # assignment-in-assert (We do this a lot to help the type-checker)
+    TRY002 # raise-vanilla-class
+)
+
+ruff check "${PATHS[@]}" --ignore "$(IFS=,; echo "${ruff_ignores[*]}")"
 ty check "${PATHS[@]}"
