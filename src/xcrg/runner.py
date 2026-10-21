@@ -808,7 +808,7 @@ async def async_run_query(
     query_id: str | None = None,
 ) -> Response | dict | str:
     """Run xCRG query asynchronously and return a complete TRAPI response."""
-    with tracer.start_as_current_span("run_query") as span:
+    with tracer.start_as_current_span("xcrg.run_query") as span:
         query_id = query_id or uuid.uuid4().hex[:8]
         span.set_attribute("query_id", query_id)
 
