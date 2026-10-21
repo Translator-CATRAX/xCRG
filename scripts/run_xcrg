@@ -28,7 +28,6 @@ from xcrg.reporting import Progress_Message
 
 
 SCRIPT_FILE = Path(sys.argv[0])
-PROJECT_DIR = SCRIPT_FILE / ".."
 
 ARAX_URLS_BY_MATURITY = {
     "development": "https://arax.ci.transltr.io",
