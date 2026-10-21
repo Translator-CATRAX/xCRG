@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "catrax-xcrg"
-version = "0.1.0"
-description = "Reusable xCRG MVP2 TRAPI response generation."
+version = "1.0.0"
+description = "Reusable xCRG TRAPI response generation."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [

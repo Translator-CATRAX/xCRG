@@ -1,4 +1,4 @@
-"""Reusable xCRG package."""
+from importlib.metadata import version
 
 from .config import Config
 from .debugging import Debug_Level
@@ -27,4 +27,4 @@ __all__ = [
     "run_query",
 ]
 
-__version__ = "0.1.0"
+__version__ = version("catrax-xcrg")

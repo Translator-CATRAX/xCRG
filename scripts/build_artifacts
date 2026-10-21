@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# Build project artifacts and optionally upload to PyPI
+
+SCRIPT_FILE="$0"
+SCRIPT_FILENAME="$(basename "$SCRIPT_FILE")"
+PROJECT_DIR="$(dirname "$SCRIPT_FILE")/.."
+ENV_FILE="$PROJECT_DIR/.env"
+
+print_usage() {
+	cat <<-EOF
+	Build project artifacts and (optionally) upload them to PyPI.
+
+	usage: $SCRIPT_FILENAME <options>
+
+	Options:
+		-e, --environment The PyPI environment to use.
+						  Choices: (test,prod); Default: test
+		-h, --help        Print this message.
+		-u, --upload      Upload the artifacts to PyPI.
+
+	Notes:
+		An API Key is necessary to upload to PyPI. These are declared
+		in a file called ".env" located in the project root directory
+		where each line is in format "KEY=VALUE".
+
+		The following keys are supported:
+			* PYPI_TEST_KEY -- The API Key for test.pypi.org
+			* PYPI__KEY     -- The API Key for pypi.org
+	EOF
+}
+
+eprintf() {
+    local message="$1" && shift
+    printf "$message" "$@" >&2
+}
+
+die() {
+	eprintf "$@" && exit 1
+}
+
+read_env_var() {
+    local file="$1" key="$2"
+
+    local line="$(grep "$key" "$file")"
+
+    local value="${line#*=}"
+    if [[ -z $value ]]; then
+        eprintf "A value does not exist in .env for key: %s\n" "$key"
+        return 1
+    fi
+
+    printf "%s\n" "$value"
+}
+
+if ! [[ -f "$ENV_FILE" ]]; then
+    die ".env file is required, but could not be found.\n"
+fi
+
+environment="test"
+upload=false
+
+while (($# > 0)); do
+    opt="$1" && shift
+    case "$opt" in
+        -h|--help)
+            print_usage
+            exit 0
+            ;;
+        -e|--environment)
+            environment="$1" && shift
+            ;;
+        -u|--upload)
+            upload=true
+            ;;
+        *)
+            die "Unknown option: %s\n" "$opt"
+            ;;
+    esac
+done
+
+case "$environment" in
+    test)
+        pypi_url="https://test.pypi.org"
+        pypi_key="$(read_env_var "$ENV_FILE" "PYPI_TEST_KEY")" || die
+        ;;
+    prod)
+        pypi_url="https://upload.pypi.org"
+        pypi_key="$(read_env_var "$ENV_FILE" "PYPI_KEY")" || die
+        ;;
+    *)
+       die "Invalid environment: %s" "$environment"
+       ;;
+esac
+
+uv_build_flags=(
+	--no-create-gitignore # We already ignore artifact directory
+	--clear               # Remove all old artifacts
+)
+uv build "${uv_build_flags[@]}" || die "The project failed to build.\n"
+
+if $upload; then
+	uv_publish_flags=(
+		--publish-url "$pypi_url/legacy/" # The trailing backslash is necessary for some reason...
+		--token "$pypi_key"
+	)
+    uv publish "${uv_publish_flags[@]}" || die "The upload to PyPI failed.\n"
+fi
+
+printf "All done.\n"
