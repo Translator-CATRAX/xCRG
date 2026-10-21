@@ -70,6 +70,7 @@ def get_curie_pmids(db_file: Path | None, reporter: Reporter, curie: CURIE | Non
     pmids = set[str]()
     try:
         row = connection.execute("SELECT pmids FROM curie_to_pmids WHERE curie = ?", (curie,)).fetchone()
+        if not row: return pmids
         data = cast(bytes, row[0])
         u32s = U32_View(data, byte_order = "little")
         for u32 in u32s:
