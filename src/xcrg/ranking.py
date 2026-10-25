@@ -5,10 +5,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import cast
 
 from translator_tom import (
     CURIE,
-    Attribute,
     Edge,
     Message,
     QNodeID,
@@ -39,8 +39,8 @@ class Result_Summary:
     curie                  : CURIE
     name                   : str
     score                  : float # The final score of the result
-    specificity            : int
-    information_content    : int
+    category_specificity   : int
+    information_content    : float
     num_direct_edges       : int
     direct_qualified_stmts : list[Qualified_Statement]
     num_xcrg_nodes         : int
@@ -156,28 +156,16 @@ def create_result_summary(
     answer_node = kgraph.nodes[answer_id]
     answer_name = answer_node.name or "" # TODO
 
-    specificity = (
+    category_specificity = (
         biolink.get_node_category_specificity(ctx, answer_node)
         if use_category_specificity
         else 0
     )
 
-    attributes: list[Attribute] = []
-    if answer_node:
-        attributes = answer_node.attributes_list
-
-    values: list[int] = [0]
-    for attribute in attributes:
-        if attribute.attribute_type_id != "biolink:information_content":
-            continue
-        raw_value = attribute.value
-        raw_values = raw_value if isinstance(raw_value, list) else [raw_value]
-        for value in raw_values:
-            try:
-                values.append(int(str(value))) # TODO
-            except (TypeError, ValueError):
-                continue
-    information_content: int = max(values)
+    information_content: float = 0
+    for attribute in answer_node.attributes_list:
+        if attribute.attribute_type_id == "biolink:information_content":
+            information_content = cast(float, attribute.value)
 
     num_direct_edges = len(result.xcrg_direct_binding_ids)
 
@@ -212,7 +200,7 @@ def create_result_summary(
         curie = answer_id,
         name = answer_name,
         score = 0,
-        specificity = specificity,
+        category_specificity = category_specificity,
         information_content = information_content,
         num_direct_edges = num_direct_edges,
         direct_qualified_stmts = direct_qualified_stmts,
@@ -395,7 +383,7 @@ class RRF_Ranker(Ranker):
 
         ranker = Custom_Ranker(scoring_params = self.scoring_params)
 
-        self.rank_summaries(summaries, ranks, lambda x: x.specificity)
+        self.rank_summaries(summaries, ranks, lambda x: x.category_specificity)
         self.rank_summaries(summaries, ranks, lambda x: x.information_content)
         self.rank_summaries(summaries, ranks, lambda x: x.num_direct_edges)
         self.rank_summaries(summaries, ranks, lambda x: x.num_xcrg_nodes)
@@ -456,7 +444,7 @@ def rank_results(ctx: Run_Context, response: Response, results: list[XCRG_Result
                 "curie": x.curie,
                 "name": x.name,
                 "score": x.score,
-                "specificity": x.specificity,
+                "category_specificity": x.category_specificity,
                 "information_content": x.information_content,
                 "num_direct_edges": x.num_direct_edges,
                 "direct_qualified_stmts": x.direct_qualified_stmts,
