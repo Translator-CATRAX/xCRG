@@ -9,6 +9,7 @@ from enum import Enum
 from translator_tom import (
     CURIE,
     Attribute,
+    Edge,
     Message,
     QNodeID,
     Response,
@@ -109,15 +110,13 @@ DEFAULT_SCORING_PARAMS = Scoring_Params(
 )
 
 
-def get_qualified_stmt(attributes: list[Attribute]) -> Qualified_Statement:
+def get_qualified_stmt(edge: Edge) -> Qualified_Statement:
     num_publications = 0
     num_studies = 0
     evidence_count = 0
-    knowledge_level: str = "not_provided"
-    agent_type: str | None = None
     confidence_score: float | None = None
 
-    for attribute in attributes:
+    for attribute in edge.attributes_list:
         match attribute.attribute_type_id:
             case "biolink:publications":
                 if publications := as_type(attribute.value, list):
@@ -129,10 +128,6 @@ def get_qualified_stmt(attributes: list[Attribute]) -> Qualified_Statement:
                         num_studies = len(obj[key].get("has_study_results") or [])
             case "biolink:evidence_count":
                 evidence_count = as_type(attribute.value, int) or 0
-            case "biolink:knowledge_level":
-                knowledge_level = as_type(attribute.value, str) or "not_provided"
-            case "biolink:agent_type":
-                agent_type = as_type(attribute.value, str)
             case "biolink:has_confidence_score":
                 confidence_score = as_type(attribute.value, float)
 
@@ -140,8 +135,8 @@ def get_qualified_stmt(attributes: list[Attribute]) -> Qualified_Statement:
         num_publications = num_publications,
         num_studies = num_studies,
         evidence_count = evidence_count,
-        knowledge_level = knowledge_level,
-        agent_type = agent_type,
+        knowledge_level = edge.knowledge_level,
+        agent_type = edge.agent_type,
         confidence_score = confidence_score
     )
 
@@ -196,14 +191,14 @@ def create_result_summary(
 
     direct_qualified_stmts = list[Qualified_Statement]()
     for edge_id in result.xcrg_direct_binding_ids:
-        attributes = kgraph.edges_dict[edge_id].attributes_list
-        statement = get_qualified_stmt(attributes)
+        edge = kgraph.edges_dict[edge_id]
+        statement = get_qualified_stmt(edge)
         direct_qualified_stmts.append(statement)
 
     xcrg_qualified_stmts = list[Qualified_Statement]()
     for edge_id in result.xcrg_support_edge_ids:
-        attributes = kgraph.edges_dict[edge_id].attributes_list
-        statement = get_qualified_stmt(attributes)
+        edge = kgraph.edges_dict[edge_id]
+        statement = get_qualified_stmt(edge)
         xcrg_qualified_stmts.append(statement)
 
     result.ngd_score = get_ngd_score(

@@ -285,8 +285,8 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
                         predicate = "biolink:affects",
                         object = "NCBIGene:1991",
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     )
                 }
             )
@@ -326,8 +326,8 @@ def test_merge_filtered_responses_keeps_rich_retriever_metadata():
                                 qualifier_value = "increased"
                             )
                         ],
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     )
                 }
             )
@@ -366,24 +366,24 @@ def test_clean_response_adds_binding_attributes_and_biolink_creation_date():
                         predicate = "biolink:affects",
                         object = "NCBIGene:1",
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                     "path0": Edge(
                         subject = "CHEBI:1",
                         predicate = "biolink:affects",
                         object = "NCBIGene:tf",
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                     "path1": Edge(
                         subject = "NCBIGene:tf",
                         predicate = "biolink:affects",
                         object = "NCBIGene:1",
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                 },
             ),
@@ -495,8 +495,8 @@ def test_clean_response_adds_ngd_publications_from_curie_to_pmids(tmp_path):
                         object = "NCBIGene:1",
                         attributes = [],
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     )
                 }
             ),
@@ -601,8 +601,8 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
                         object = "NCBIGene:tf",
                         attributes = [Attribute(attribute_type_id = "biolink:foo", value = None)],
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                     "path1": Edge(
                         subject = "NCBIGene:tf",
@@ -610,8 +610,8 @@ def test_clean_response_preserves_retriever_nodes_verbatim_and_prunes_unused():
                         object = "NCBIGene:1",
                         attributes = [Attribute(attribute_type_id = "biolink:bar", value = None)],
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     )
                 }
             ),
@@ -678,8 +678,8 @@ def test_clean_response_uses_only_pinned_query_metadata_for_missing_endpoint():
                         object = "NCBIGene:1",
                         attributes = [],
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     )
                 }
             ),
@@ -743,16 +743,16 @@ def test_clean_response_does_not_drop_retriever_node_with_empty_metadata():
                         predicate = "biolink:affects",
                         object = "NCBIGene:tf",
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                     "path1": Edge(
                         subject = "NCBIGene:tf",
                         predicate = "biolink:affects",
                         object = "NCBIGene:1",
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                 },
             ),
@@ -814,8 +814,8 @@ def test_clean_response_limits_to_configured_top_result_count():
             object = gene_id,
             attributes = [],
             sources = primary_source(),
-            knowledge_level = "not_provided",
-            agent_type = "not_provided",
+            knowledge_level = "knowledge_assertion",
+            agent_type = "manual_agent",
         )
         results.append(
             Result(
@@ -885,8 +885,8 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
                             )
                         ],
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                     "support0": Edge(
                         subject = "CHEBI:1",
@@ -894,8 +894,8 @@ def test_clean_response_copies_retriever_edge_auxiliary_graphs():
                         object = "NCBIGene:support",
                         attributes = [],
                         sources = primary_source(),
-                        knowledge_level = "not_provided",
-                        agent_type = "not_provided",
+                        knowledge_level = "knowledge_assertion",
+                        agent_type = "manual_agent",
                     ),
                 },
             ),
