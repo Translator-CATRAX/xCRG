@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
+"""Run Optuna study to optimize the scoring weights for xCRG ranker."""
+
 import json
 import math
+import multiprocessing
 import sys
+from argparse import ArgumentParser, Namespace
 from collections.abc import Callable
 from math import ceil
 from pathlib import Path
 from typing import cast
 
-from optuna import Trial, create_study
+from optuna import Study, Trial, create_study
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from translator_tom import CURIE
@@ -19,6 +23,33 @@ from xcrg.ranking import (
     Qualified_Statement, Ranker, Result_Summary,
     Scoring_Params, Custom_Ranker
 )
+
+
+SCRIPT_FILE = Path(sys.argv[0])
+PROJECT_DIR = SCRIPT_FILE.parent.parent
+OPTUNA_DIR = PROJECT_DIR / "output/optuna"
+
+
+def parse_args() -> Namespace:
+    parser = ArgumentParser(
+        prog = SCRIPT_FILE.name,
+        description = "Run Optuna study to optimize the scoring weights for xCRG ranker.",
+        usage = "%(prog)s <options>",
+    )
+
+    parser.add_argument(
+        "--n_trials",
+        help = "The number of trials to perform in the study.",
+        default = 100,
+    )
+
+    parser.add_argument(
+        "-j", "--jobs",
+        help = "The number of jobs to run in parallel; defaults to CPU count.",
+        default = multiprocessing.cpu_count(),
+    )
+
+    return parser.parse_args()
 
 
 LOG_FUNCTIONS: dict[str, Callable[[float], float]] = {
@@ -46,8 +77,8 @@ def evaluate_test_expectation(answer_id: CURIE, answer_ids: list[CURIE], expecta
         case _:                    raise ValueError(f"Invalid AnswerExpectation: {expectation}")
 
 
-def make_objective(project_dir: Path):
-    json_file = project_dir / "scripts/arax_tests.json"
+def make_objective():
+    json_file = PROJECT_DIR / "scripts/arax_tests.json"
     with open(json_file, "r") as f:
         arax_tests = json.load(f)
 
@@ -55,7 +86,7 @@ def make_objective(project_dir: Path):
     for test in arax_tests:
         test_id: str = test["id"]
         test_safe_name = test["candidate_name"].replace(" ", "_").lower() # TODO
-        test_dir = project_dir / f"output/debug/arax_test_{test['direction']}_{test_safe_name}"
+        test_dir = PROJECT_DIR / f"output/debug/arax_test_{test['direction']}_{test_safe_name}"
 
         matches = list(test_dir.glob("*.xcrg_scored_results.json"))
         json_file = matches[0]
@@ -79,7 +110,7 @@ def make_objective(project_dir: Path):
 
     def objective(trial: Trial) -> int:
         params = Scoring_Params(
-            k = trial.suggest_int("k", 0, 100),
+            k = 60, # trial.suggest_int("k", 0, 100),
             agent_type_weights = {
                 x: trial.suggest_int(f"Agent_Type.{x.value}.weight", 1, 100)
                 for x in Agent_Type
@@ -124,28 +155,40 @@ def make_objective(project_dir: Path):
     return objective
 
 
-def main():
-    script_file = Path(sys.argv[0])
-    project_dir = script_file.parent.parent # TODO: fragile
-
-    output_dir = project_dir / "output"
-    output_dir.mkdir(exist_ok = True)
-
-    study = create_study(
+def get_study(study_name: str = "xcrg_ranker") -> Study:
+    log_file = OPTUNA_DIR / f"{study_name}.log"
+    return create_study(
+        study_name = study_name,
         direction = "maximize",
-        storage = JournalStorage(JournalFileBackend(file_path = str(output_dir) + "/optuna_journal.log"))
+        storage = JournalStorage(JournalFileBackend(file_path = str(log_file))),
+        load_if_exists = True
     )
-    objective = make_objective(project_dir)
-    study.optimize(objective, n_trials = 1000, n_jobs = 4)
 
-    print(study.best_value)
-    print(study.best_params)
 
-    results_file = output_dir / "optuna_results.py"
+def run_optimizer(n_trials: int):
+    study = get_study()
+    objective = make_objective()
+    study.optimize(objective, n_trials = n_trials)
 
-    s = "Scoring_Params(\n"
-    s += f"     k = {study.best_params['k']},\n"
-    s +=  "     agent_type_weights = {\n"
+
+def main():
+    args = parse_args()
+
+    n_trials = int(args.n_trials)
+    jobs = min(int(args.jobs), multiprocessing.cpu_count())
+
+    OPTUNA_DIR.mkdir(parents = True, exist_ok = True)
+    for file in OPTUNA_DIR.glob("*.lock"): file.unlink() # Remove lock files
+    for file in OPTUNA_DIR.glob("*.log"):  file.unlink() # Remove old studies
+
+    with multiprocessing.Pool(processes = jobs) as pool:
+        pool.map(run_optimizer, (n_trials,) * jobs)
+
+    study = get_study()
+
+    s = "DEFAULT_SCORING_PARAMS = Scoring_Params(\n"
+    s += "     k = 60,\n"
+    s += "     agent_type_weights = {\n"
     for x in Agent_Type:
         value = study.best_params[f"Agent_Type.{x.value}.weight"]
         s += f"        Agent_Type.{x.name}: {value},\n"
@@ -169,6 +212,11 @@ def main():
     s += f"    ngd_score_factor = {study.best_params['ngd_score_factor']},\n"
     s += ")\n"
 
+    print(study.best_value)
+    print(study.best_params)
+    print(s)
+
+    results_file = OPTUNA_DIR / "default_scoring_params.py"
     with open(results_file, "w") as f:
         f.write(f"MOST_TESTS_PASSED = {study.best_value}\n")
         f.write(f"BEST_PARAMS = {s}")
