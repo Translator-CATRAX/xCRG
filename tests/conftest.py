@@ -15,7 +15,7 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--curie_ngd_db_file",
-        help = "The path to the NGD database file"
+        help = "The path to the Curie-NGD database file"
     )
     parser.addoption(
         "--curie_to_pmids_db_file",
@@ -29,7 +29,7 @@ def pytest_addoption(parser):
     )
     parser.addoption(
         "--use_cache",
-        help = "Use filesystem cache to improve performance.",
+        help = "Cache Retriever TRAPI Responses to improve performance.",
         action = "store_true",
         default = False
     )
@@ -50,15 +50,15 @@ def config(request, project_dir) -> Config:
     if file := request.config.getoption("--curie_to_pmids_db_file"):
         curie_to_pmids_db_file = Path(file)
 
+    output_dir = project_dir / "output"
+    output_dir.mkdir(parents = True, exist_ok = True)
+
+    debug_dir = output_dir / "debug"
     debug_level = Debug_Level(request.config.getoption("--debug_level"))
 
-    debug_dir = project_dir / "output" / "debug"
-    debug_dir.mkdir(parents = True, exist_ok = True)
-
-    use_cache = request.config.getoption("--use_cache")
-
     cache_dir: Path | None = None
-    if use_cache: cache_dir = debug_dir / "cache"
+    if request.config.getoption("--use_cache"):
+        cache_dir = output_dir / "cache"
 
     return Config(
         retriever_url = request.config.getoption("--retriever_url"),
