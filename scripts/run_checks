@@ -5,6 +5,30 @@ SCRIPT_FILE="$0"
 SCRIPTS_DIR="$(dirname "$SCRIPT_FILE")"
 PROJECT_DIR="$SCRIPTS_DIR/.."
 
+print_help_and_exit() {
+	cat <<-EOF
+	Run linter + type checks on the codebase.
+
+	usage: $SCRIPT_FILE <options>
+
+	Options:
+	    -h, --help    Print this message and exit.
+	EOF
+	exit 0
+}
+
+while (($# > 0)); do
+	opt="$1" && shift
+	case "$opt" in
+		-h|--help)
+			print_help_and_exit
+			;;
+		*)
+			printf "Unknown option: %s\n" "$opt" && exit 1
+			;;
+	esac
+done
+
 # The paths that will be passed to checkers
 declare -a PATHS
 

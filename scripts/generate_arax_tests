@@ -3,8 +3,12 @@
 import json
 import re
 import sys
+from argparse import ArgumentParser
 from pathlib import Path
 from textwrap import dedent
+
+
+SCRIPT_FILE = Path(sys.argv[0])
 
 
 def generate_test_files(arax_dir: Path, tests: list[dict]):
@@ -120,6 +124,13 @@ def generate_one_shot_tests(arax_dir: Path, tests: list[dict]):
 def main():
     script_file = Path(sys.argv[0])
     project_dir = script_file.parent.parent # TODO: fragile
+
+    parser = ArgumentParser(
+        prog = SCRIPT_FILE.name,
+        description = "Generate ARAX compliance pytest modules.",
+        usage = "%(prog)s <options>",
+    )
+    parser.parse_args()
 
     json_file = script_file.parent / "arax_tests.json"
     with open(json_file, "r") as f:

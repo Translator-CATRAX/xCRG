@@ -13,19 +13,19 @@ print_usage() {
 	usage: $SCRIPT_FILENAME <options>
 
 	Options:
-		-e, --environment The PyPI environment to use.
-						  Choices: (test,prod); Default: test
-		-h, --help        Print this message.
-		-u, --upload      Upload the artifacts to PyPI.
+	    -e, --environment The PyPI environment to use.
+	                      Choices: (test,prod); Default: test
+	    -h, --help        Print this message.
+	    -u, --upload      Upload the artifacts to PyPI.
 
 	Notes:
-		An API Key is necessary to upload to PyPI. These are declared
-		in a file called ".env" located in the project root directory
-		where each line is in format "KEY=VALUE".
+	    An API Key is necessary to upload to PyPI. These are declared
+	    in a file called ".env" located in the project root directory
+	    where each line is in format "KEY=VALUE".
 
-		The following keys are supported:
-			* PYPI_TEST_KEY -- The API Key for test.pypi.org
-			* PYPI__KEY     -- The API Key for pypi.org
+	    The following keys are supported:
+	        * PYPI_TEST_KEY    The API Key for test.pypi.org
+	        * PYPI__KEY        The API Key for pypi.org
 	EOF
 }
 

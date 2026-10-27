@@ -99,6 +99,21 @@ scripts/run_tests all
 scripts/run_checks
 ```
 
+### Scripts
+There are a number of useful scripts available in the `scripts` directory.
+
+All scripts can be invoked with `-h` or `--help` for more information.
+
+| Filename              | Description                                                        |
+|-----------------------|--------------------------------------------------------------------|
+| `build_artifacts`     | Build project artifacts and (optionally) publish to PyPI.          |
+| `compare_results`     | Print an analysis comparing result datasets from ARAX, NCATS, etc. |
+| `generate_arax_tests` | Generate ARAX compliance pytest modules.                           |
+| `run_checks`          | Run linter + type checks on the codebase.                          |
+| `run_optimizer`       | Run Optuna study to optimize the scoring weights for xCRG ranker.  |
+| `run_tests`           | Run test suites via pytest.                                        |
+| `run_xcrg`            | Run a simple xCRG query and return the TRAPI response.             |
+
 ## API
 
 ### Supported Query Shape

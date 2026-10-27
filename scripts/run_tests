@@ -1,16 +1,37 @@
 #!/usr/bin/env bash
+# Run test suites via pytest.
 
 SCRIPT_NAME="$(basename "$0")"
 
 print_help_and_exit() {
-    printf "Run xCRG tests\n\n"
-    printf "Usage: %s <cmd> [pytest args...]\n\n" "$SCRIPT_NAME"
-    printf "Commands:\n"
-    printf "  all         : run unit and integration tests\n"
-    printf "  arax        : run ARAX compliance tests (slow, requires network)\n"
-    printf "  help        : print this message\n"
-    printf "  integration : run integration tests (slow, requires network)\n"
-    printf "  unit        : run local unit tests\n"
+	cat <<-EOF
+	Run xCRG tests.
+
+	Usage: $SCRIPT_NAME <options> <suite> <pytest options>
+
+	Test suites:
+	    all         : run unit and integration tests
+	    arax        : run ARAX compliance tests (slow, requires network)
+	    integration : run integration tests (slow, requires network)
+	    unit        : run local unit tests
+
+	Options:
+	    -h, --help    Print this message and exit.
+
+	Pytest options:
+	    Any options for pytest can be passed through.
+	    These also include bespoke options that have been configured in tests/conftest.py.
+
+	    --retriever_url             The URL for the Retriever query endpoint.
+	                                Default: https://dev.retriever.biothings.io/query
+	    --curie_ngd_db_file         The path to the Curie-NGD database file.
+	    --curie_to_pmids_db_file    The path to the Curie-to-PMIDs database file.
+	    --debug_level               Choose how much debug data to save for each xCRG run.
+	                                This is set to "basic" for arax suite.
+	                                Choices: (none,basic,all)
+	    --use_cache                 Cache Retriever TRAPI Responses to improve performance.
+	                                This is enabled for arax and integration suites.
+	EOF
     exit 0
 }
 
@@ -18,17 +39,26 @@ if (($# < 1)); then
     print_help_and_exit
 fi
 
-CMD="$1" && shift
+while (($# > 0)); do
+	opt="$1" && shift
+	case "$opt" in
+		-h|--help)
+			print_help_and_exit
+			;;
+		*)
+			suite="$opt"
+			# The rest of the options will be passed to pytest
+			break
+			;;
+	esac
+done
 
-case "$CMD" in
+case "$suite" in
     arax)
         pytest -m arax -n auto --dist=loadgroup -q --tb=short --debug_level=basic --use_cache "$@"
         ;;
     all)
         pytest -m "unit or integration" --use_cache "$@"
-        ;;
-    help)
-        print_help_and_exit
         ;;
     integration)
         pytest -m integration --use_cache "$@"
@@ -37,6 +67,6 @@ case "$CMD" in
         pytest -m unit "$@"
         ;;
     *)
-        printf "Unknown command: %s\n" "$CMD"
+        printf "Unknown test suite: %s\n" "$suite"
         ;;
 esac
