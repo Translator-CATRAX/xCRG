@@ -67,6 +67,26 @@ LOG_FUNCTION_STRS: dict[str, str] = {
 }
 
 
+def get_test_dir(test: dict):
+    safe_name = test["candidate_name"].replace(" ", "_").lower() # TODO
+    return PROJECT_DIR / f"output/debug/arax_test_{test['direction']}_{safe_name}"
+
+
+def load_arax_tests() -> list[dict]:
+    json_file = PROJECT_DIR / "scripts/arax_tests.json"
+    with open(json_file, "r") as f:
+        tests = json.load(f)
+    # Validate that the test directory and scores exist for each test
+    missing_dirs = list(filter(lambda x: not x.exists(), [get_test_dir(x) for x in tests]))
+    if missing_dirs:
+        print("Some directories for ARAX compliance tests are missing.\n")
+        print("You can generate these by running \"scripts/run_tests arax\"\n")
+        print("Missing directories:")
+        print("".join([f"  * {x}\n" for x in missing_dirs]))
+        sys.exit(1)
+    return tests
+
+
 def evaluate_test_expectation(answer_id: CURIE, answer_ids: list[CURIE], expectation: str) -> bool:
     match expectation:
         case "exists":             return answer_id in answer_ids
@@ -77,20 +97,13 @@ def evaluate_test_expectation(answer_id: CURIE, answer_ids: list[CURIE], expecta
         case _:                    raise ValueError(f"Invalid AnswerExpectation: {expectation}")
 
 
-def make_objective():
-    json_file = PROJECT_DIR / "scripts/arax_tests.json"
-    with open(json_file, "r") as f:
-        arax_tests = json.load(f)
-
+def make_objective(tests: list[dict]):
     test_id_to_summaries = dict[str, list[Result_Summary]]()
-    for test in arax_tests:
-        test_id: str = test["id"]
-        test_safe_name = test["candidate_name"].replace(" ", "_").lower() # TODO
-        test_dir = PROJECT_DIR / f"output/debug/arax_test_{test['direction']}_{test_safe_name}"
+    for test in tests:
+        test_dir = get_test_dir(test)
 
         matches = list(test_dir.glob("*.xcrg_scored_results.json"))
-        json_file = matches[0]
-        with open(json_file, "r") as f:
+        with open(matches[0], "r") as f:
             xcrg_scored_results = json.load(f)
 
         for result in xcrg_scored_results:
@@ -106,7 +119,7 @@ def make_objective():
                 Qualified_Statement(**(cast(dict, cast(object, x))))
                 for x in summary.xcrg_qualified_stmts
             ]
-            test_id_to_summaries.setdefault(test_id, []).append(summary)
+            test_id_to_summaries.setdefault(test["id"], []).append(summary)
 
     def objective(trial: Trial) -> int:
         params = Scoring_Params(
@@ -140,7 +153,7 @@ def make_objective():
         # ranker: Ranker = RRF_Ranker(params)
 
         passed_tests = 0
-        for test in arax_tests:
+        for test in tests:
             summaries = { x.curie: x for x in test_id_to_summaries[test["id"]] }
             summaries = ranker.rank_results(summaries, None)
             answer_ids = [x.curie for x in summaries]
@@ -165,9 +178,9 @@ def get_study(study_name: str = "xcrg_ranker") -> Study:
     )
 
 
-def run_optimizer(n_trials: int):
+def run_optimizer(n_trials: int, tests: list[dict]):
     study = get_study()
-    objective = make_objective()
+    objective = make_objective(tests)
     study.optimize(objective, n_trials = n_trials)
 
 
@@ -181,8 +194,10 @@ def main():
     for file in OPTUNA_DIR.glob("*.lock"): file.unlink() # Remove lock files
     for file in OPTUNA_DIR.glob("*.log"):  file.unlink() # Remove old studies
 
+    tests = load_arax_tests()
+
     with multiprocessing.Pool(processes = jobs) as pool:
-        pool.map(run_optimizer, (n_trials,) * jobs)
+        pool.starmap(run_optimizer, [(n_trials, tests)] * jobs)
 
     study = get_study()
 
