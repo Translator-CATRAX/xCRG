@@ -104,6 +104,16 @@ def parse_args() -> Namespace:
     )
 
     parser.add_argument(
+        "--curie_ngd_db_file",
+        help = "The path to the Curie-NGD database file"
+    )
+
+    parser.add_argument(
+        "--curie_to_pmids_db_file",
+        help = "The path to the Curie-to-PMIDs database file"
+    )
+
+    parser.add_argument(
         "query",
         nargs = "+",
     )
@@ -160,7 +170,9 @@ def main():
     canonical_chem_gene_id = get_canonical_id(arax_url, chem_gene)
 
     config = xcrg.Config(
-        retriever_url = retriever_url
+        retriever_url = retriever_url,
+        curie_ngd_db_file = args.curie_ngd_db_file,
+        curie_to_pmids_db_file = args.curie_to_pmids_db_file
     )
     query_args = Query_Args(direction, canonical_chem_gene_id, knowledge_type)
     reporter = Run_Reporter() if args.progress else Stub_Reporter()
