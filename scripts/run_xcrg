@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Run a simple xCRG query and return the TRAPI response."""
+import io
+import logging
 import os
 import sys
 from argparse import (
@@ -17,14 +19,12 @@ import httpx
 from translator_tom import Response
 
 import xcrg
-from xcrg import Message, Stub_Reporter
 from xcrg.dev import (
     Query_Args,
     find_chemicals_affecting_gene,
     find_genes_affected_by_chemical
 )
 from xcrg.models import Direction
-from xcrg.reporting import Progress_Message
 
 
 SCRIPT_FILE = Path(sys.argv[0])
@@ -51,11 +51,17 @@ CLEAR_LINE = "\r\x1b[2K" # Return cursor to start-of-line, and then clear the li
 
 
 class Run_Reporter(xcrg.Reporter):
-    def handle_message(self, message: Message) -> None:
+    def __init__(self, log_file: io.TextIOWrapper, show_progress: bool):
+        self.log_file = log_file
+        self.show_progress = show_progress
+
+    def handle_message(self, message: xcrg.Message) -> None:
         match message:
-            case Progress_Message(pct_done):
+            case xcrg.Log_Message(level, msg, args, time):
+                self.log_file.write(f"{time.isoformat()} {logging.getLevelName(level)} {msg % args}\n")
+            case xcrg.Progress_Message(pct_done):
                 msg = f"{CLEAR_LINE}Processing xCRG query: {int(pct_done * 100)}%"
-                print(msg, file = sys.stderr, end = "")
+                if self.show_progress: print(msg, file = sys.stderr, end = "")
 
 
 def die(msg: str, *args: object, exit_code: int = 1) -> Never:
@@ -95,6 +101,13 @@ def parse_args() -> Namespace:
         help = "The maturity of environment for requests to ARAX, Retriever, etc.",
         choices = ["development", "staging", "testing", "production"],
         default = "development",
+    )
+
+    parser.add_argument(
+        "--log_file",
+        help = "Write the query logs to a file",
+        metavar = "FILE",
+        nargs = 1
     )
 
     parser.add_argument(
@@ -175,10 +188,13 @@ def main():
         curie_to_pmids_db_file = args.curie_to_pmids_db_file
     )
     query_args = Query_Args(direction, canonical_chem_gene_id, knowledge_type)
-    reporter = Run_Reporter() if args.progress else Stub_Reporter()
 
-    response = query_fn(config, query_args, reporter)
-    response_json = response.to_json(as_str = True)
+    log_file = args.log_file and args.log_file[0] or os.devnull
+    with open(log_file, "w", encoding = "utf-8") as lf:
+        reporter = Run_Reporter(lf, args.progress)
+
+        response = query_fn(config, query_args, reporter)
+        response_json = response.to_json(as_str = True)
 
     try:
         print(CLEAR_LINE, file = sys.stderr, end = "")
