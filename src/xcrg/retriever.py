@@ -369,7 +369,6 @@ async def run_sync_lookup(ctx: Run_Context, progress: Progress_Tracker, query: Q
         raise ValueError("Retriever response did not contain a TRAPI message.")
 
     counts = Message_Statistics.get_from(response)
-
     ctx.reporter.info(
         "xCRG Retriever response HTTP %s; status=%s; results=%s; nodes=%s; edges=%s; description=%s",
         http_status_code,
@@ -380,13 +379,12 @@ async def run_sync_lookup(ctx: Run_Context, progress: Progress_Tracker, query: Q
         response.description,
     )
 
-    if response and response.status != "Success":
+    if response.status != "Success":
         ctx.reporter.warning(
             "xCRG Retriever returned non-complete status %s: %s",
             response.status,
             response.description,
         )
-    if counts.result_count == 0 or response.status != "Success":
         for entry in response.logs_list[:5]:
             ctx.reporter.info("xCRG Retriever log [%s] %s", entry.level or "INFO", entry.message)
 
