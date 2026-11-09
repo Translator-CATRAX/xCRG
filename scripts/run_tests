@@ -53,18 +53,20 @@ while (($# > 0)); do
 	esac
 done
 
+pytest="uv run -m pytest"
+
 case "$suite" in
     arax)
-        pytest -m arax -n auto --dist=loadgroup -q --tb=short --debug_level=basic --use_cache "$@"
+        $pytest -m arax -n auto --dist=loadgroup -q --tb=short --debug_level=basic --use_cache "$@"
         ;;
     all)
-        pytest -m "unit or integration" --use_cache "$@"
+        $pytest -m "unit or integration" --use_cache "$@"
         ;;
     integration)
-        pytest -m integration --use_cache "$@"
+        $pytest -m integration --use_cache "$@"
         ;;
     unit)
-        pytest -m unit "$@"
+        $pytest -m unit "$@"
         ;;
     *)
         printf "Unknown test suite: %s\n" "$suite"

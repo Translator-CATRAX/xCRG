@@ -71,21 +71,16 @@ response = my_xcrg_method('{ "message": { "query_graph": ... }, ... }')
 
 ## Local development
 
-It is highly recommend to use [uv](https://docs.astral.sh/uv/) for project management.
+We use [uv](https://docs.astral.sh/uv/) for project management.
 
 ```bash
 # All examples are assumed to be ran from the project root directory
 
-# Install the xCRG package for local development
-uv venv
-source .venv/bin/activate
+# Configure the development environment with one simple command...
 uv sync
 
-# The development environment is now configured...
-
-# Try running some xCRG queries from the command-line
+# Now, try running an xCRG query
 scripts/run_xcrg -p find_chemicals decreasing ptgs1
-scripts/run_xcrg -p --maturity production find_genes_affected_by increasing aspirin
 
 # You can also run the local unit tests
 scripts/run_tests unit

@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 """Run Optuna study to optimize the scoring weights for xCRG ranker."""
-
 import json
 import math
 import multiprocessing

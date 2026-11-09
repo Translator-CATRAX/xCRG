@@ -53,5 +53,5 @@ ruff_ignores=(
     TRY002 # raise-vanilla-class
 )
 
-ruff check "${PATHS[@]}" --ignore "$(IFS=,; echo "${ruff_ignores[*]}")"
-ty check "${PATHS[@]}"
+uv run -m ruff check "${PATHS[@]}" --ignore "$(IFS=,; echo "${ruff_ignores[*]}")"
+uv run -m ty check "${PATHS[@]}"
